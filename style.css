@@ -164,23 +164,36 @@ nav {
   height: 280px;
 }
 
+.layout-left-right > .slot {
+  font-size: clamp(50px, 7vw, 100px);
+}
+
 .layout-top-bottom {
   display: grid;
-  grid-template-rows: 1fr 1fr;
+  grid-template-rows: 130px 130px;
   gap: 12px;
   height: 280px;
+}
+
+.layout-top-bottom > .slot {
+  font-size: clamp(50px, 7vw, 100px);
 }
 
 .layout-top-bottom-bottom {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  grid-template-rows: 1fr 1fr;
+  grid-template-rows: 145px 145px;
   gap: 12px;
   height: 320px;
 }
 
 .layout-top-bottom-bottom > .slot:first-child {
   grid-column: 1 / -1;
+  font-size: clamp(50px, 7vw, 90px);
+}
+
+.layout-top-bottom-bottom > .slot:not(:first-child) {
+  font-size: clamp(40px, 5vw, 70px);
 }
 
 /* ===== 包圍結構（外 + 內居中）===== */
@@ -197,6 +210,7 @@ nav {
   width: 88%;
   height: 92%;
   z-index: 1;
+  font-size: clamp(60px, 8vw, 120px);
 }
 
 .layout-surround .slot-inner {
@@ -207,6 +221,7 @@ nav {
   width: 50%;
   height: 60%;
   z-index: 2;
+  font-size: clamp(35px, 5vw, 65px);
 }
 
 /* ===== 半包圍結構（辶包左）===== */
@@ -222,6 +237,7 @@ nav {
   width: 50%;
   height: 100%;
   z-index: 1;
+  font-size: clamp(60px, 10vw, 120px);
 }
 
 .layout-half-surround-left .slot-inner {
@@ -232,13 +248,14 @@ nav {
   width: 50%;
   height: 60%;
   z-index: 2;
+  font-size: clamp(40px, 6vw, 85px);
 }
 
 /* ===== 三方結構（辶左 + 上下右）===== */
 .layout-complex-3-left {
   display: grid;
   grid-template-columns: 45% 1fr;
-  grid-template-rows: 1fr 1fr;
+  grid-template-rows: 125px 125px;
   gap: 12px;
   height: 280px;
 }
@@ -246,16 +263,14 @@ nav {
 .layout-complex-3-left .slot-outer {
   grid-column: 1;
   grid-row: 1 / 3;
+  font-size: clamp(55px, 9vw, 110px);
 }
 
-.layout-complex-3-left .slot-inner-top {
-  grid-column: 2;
-  grid-row: 1;
-}
-
+.layout-complex-3-left .slot-inner-top,
 .layout-complex-3-left .slot-inner-bottom {
   grid-column: 2;
-  grid-row: 2;
+  height: 125px;
+  font-size: clamp(40px, 6vw, 70px);
 }
 
 /* ===== 四方結構（辶左 + 自穴方右）===== */
@@ -270,30 +285,15 @@ nav {
 .layout-complex-4-left .slot-outer {
   grid-column: 1;
   grid-row: 1 / 4;
-  font-size: clamp(50px, 8vw, 100px);
-}
-
-.layout-complex-4-left .slot-inner-top {
-  grid-column: 2;
-  grid-row: 1;
-}
-
-.layout-complex-4-left .slot-inner-middle {
-  grid-column: 2;
-  grid-row: 2;
-}
-
-.layout-complex-4-left .slot-inner-bottom {
-  grid-column: 2;
-  grid-row: 3;
+  font-size: clamp(55px, 9vw, 110px);
 }
 
 .layout-complex-4-left .slot-inner-top,
 .layout-complex-4-left .slot-inner-middle,
 .layout-complex-4-left .slot-inner-bottom {
+  grid-column: 2;
   height: 95px;
-  overflow: hidden;
-  font-size: clamp(36px, 5vw, 65px);
+  font-size: clamp(35px, 4vw, 55px);
 }
 
 .slot {
@@ -303,10 +303,12 @@ nav {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 130px;
+  font-size: clamp(40px, 6vw, 90px);
   color: #2d3436;
   transition: all 0.2s;
   position: relative;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
 .slot.drag-over {
