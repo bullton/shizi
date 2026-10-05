@@ -526,6 +526,11 @@ function init() {
 
   document.getElementById('reset-btn').onclick = () => Game.render();
 
+  document.getElementById('skip-btn').onclick = () => {
+    Game.index++;
+    Game.next();
+  };
+
   document.getElementById('next-btn').onclick = () => {
     Game.index++;
     Game.next();

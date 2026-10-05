@@ -356,9 +356,15 @@ nav {
   border: 3px solid #6a5acd;
 }
 
-.btn-secondary:hover {
-  background: #6a5acd;
+.btn-skip {
+  background: #b2bec3;
   color: white;
+  border: 3px solid #636e72;
+}
+
+.btn-skip:hover {
+  background: #636e72;
+  transform: translateY(-2px);
 }
 
 .btn.small {
