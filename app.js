@@ -2,7 +2,7 @@
    識字樂 - 中文拼字遊戲
    =========================================== */
 
-const STORAGE_KEY = 'shizi_chars_v4';
+const STORAGE_KEY = 'shizi_chars_v5';
 
 // ===== 預設字庫（粵語口訣）=====
 const DEFAULT_CHARS = [
@@ -17,8 +17,8 @@ const DEFAULT_CHARS = [
   { id: 6, char: '這', components: ['辶', '言'], layout: 'half-surround-left', hint: '「辶」包住左邊，「言」在右邊，叫做「這」個' },
   { id: 7, char: '進', components: ['辶', '隹'], layout: 'half-surround-left', hint: '「辶」包左，「隹」在右，叫做「進」步' },
 
-  // 三方結構（辶左 + 上下右）
-  { id: 8, char: '邊', components: ['辶', '力', '月'], layout: 'complex-3-left', hint: '「辶」喺左，「力」喺右上，「月」喺右下，叫做「旁邊」' },
+  // 四方結構（辶左 + 自+穴+方 右）
+  { id: 8, char: '邊', components: ['辶', '自', '穴', '方'], layout: 'complex-4-left', hint: '「辶」喺左，「自」「穴」「方」喺右邊上下疊加，叫做「旁邊」' },
 
   // 品字結構
   { id: 9, char: '森', components: ['木', '木', '木'], layout: 'top-bottom-bottom', hint: '三棵樹，就係「森林」' },
@@ -158,6 +158,34 @@ const Game = {
       bottomSlot.className = 'slot slot-inner-bottom';
       bottomSlot.dataset.index = 2;
       bottomSlot.dataset.expected = this.current.components[2];
+      this._setupSlot(bottomSlot);
+      display.appendChild(bottomSlot);
+    } else if (this.current.layout === 'complex-4-left') {
+      const outerSlot = document.createElement('div');
+      outerSlot.className = 'slot slot-outer';
+      outerSlot.dataset.index = 0;
+      outerSlot.dataset.expected = this.current.components[0];
+      this._setupSlot(outerSlot);
+      display.appendChild(outerSlot);
+
+      const topSlot = document.createElement('div');
+      topSlot.className = 'slot slot-inner-top';
+      topSlot.dataset.index = 1;
+      topSlot.dataset.expected = this.current.components[1];
+      this._setupSlot(topSlot);
+      display.appendChild(topSlot);
+
+      const middleSlot = document.createElement('div');
+      middleSlot.className = 'slot slot-inner-middle';
+      middleSlot.dataset.index = 2;
+      middleSlot.dataset.expected = this.current.components[2];
+      this._setupSlot(middleSlot);
+      display.appendChild(middleSlot);
+
+      const bottomSlot = document.createElement('div');
+      bottomSlot.className = 'slot slot-inner-bottom';
+      bottomSlot.dataset.index = 3;
+      bottomSlot.dataset.expected = this.current.components[3];
       this._setupSlot(bottomSlot);
       display.appendChild(bottomSlot);
     } else {

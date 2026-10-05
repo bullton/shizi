@@ -258,6 +258,35 @@ nav {
   grid-row: 2;
 }
 
+/* ===== 四方結構（辶左 + 自穴方右）===== */
+.layout-complex-4-left {
+  display: grid;
+  grid-template-columns: 42% 1fr;
+  grid-template-rows: 1fr 1fr 1fr;
+  gap: 12px;
+  height: 320px;
+}
+
+.layout-complex-4-left .slot-outer {
+  grid-column: 1;
+  grid-row: 1 / 4;
+}
+
+.layout-complex-4-left .slot-inner-top {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.layout-complex-4-left .slot-inner-middle {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+.layout-complex-4-left .slot-inner-bottom {
+  grid-column: 2;
+  grid-row: 3;
+}
+
 .slot {
   border: 3px dashed #b2bec3;
   border-radius: 14px;
