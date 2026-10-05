@@ -2,7 +2,7 @@
    識字樂 - 中文拼字遊戲
    =========================================== */
 
-const STORAGE_KEY = 'shizi_chars_v3';
+const STORAGE_KEY = 'shizi_chars_v4';
 
 // ===== 預設字庫（粵語口訣）=====
 const DEFAULT_CHARS = [
@@ -10,7 +10,7 @@ const DEFAULT_CHARS = [
   { id: 1, char: '回', components: ['口', '口'], layout: 'surround', hint: '一個口包住另一個口，叫做「回」（回來）' },
   { id: 2, char: '困', components: ['口', '木'], layout: 'surround', hint: '口包住「木」，就係「困」喺圍欄裏面' },
   { id: 3, char: '因', components: ['囗', '大'], layout: 'surround', hint: '方框（囗）內有「大」，就係「因」' },
-  { id: 4, char: '國', components: ['囗', '玉'], layout: 'surround', hint: '方框內有「玉」（國之珍寶），就係「國家」' },
+  { id: 4, char: '國', components: ['囗', '或'], layout: 'surround', hint: '方框（囗）內有「或」，就係「國家」' },
   { id: 5, char: '固', components: ['囗', '古'], layout: 'surround', hint: '方框內有「古」，就係「固」定不變' },
 
   // 半包圍結構（辶包左）
