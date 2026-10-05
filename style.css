@@ -304,14 +304,19 @@ nav {
   background: #fff3cd;
   border-color: #ffc107;
   border-style: solid;
-  transform: scale(1.03);
 }
 
 .slot.filled {
   border-style: solid;
   border-color: #00b894;
   background: #d1f7eb;
-  animation: pop 0.3s;
+  animation: pop-subtle 0.3s;
+}
+
+@keyframes pop-subtle {
+  0% { opacity: 0.5; }
+  60% { opacity: 1; }
+  100% { opacity: 1; }
 }
 
 .slot.wrong {
