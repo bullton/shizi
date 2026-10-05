@@ -262,7 +262,7 @@ nav {
 .layout-complex-4-left {
   display: grid;
   grid-template-columns: 42% 1fr;
-  grid-template-rows: 1fr 1fr 1fr;
+  grid-template-rows: 95px 95px 95px;
   gap: 12px;
   height: 320px;
 }
@@ -285,6 +285,13 @@ nav {
 .layout-complex-4-left .slot-inner-bottom {
   grid-column: 2;
   grid-row: 3;
+}
+
+.layout-complex-4-left .slot-inner-top,
+.layout-complex-4-left .slot-inner-middle,
+.layout-complex-4-left .slot-inner-bottom {
+  height: 95px;
+  overflow: hidden;
 }
 
 .slot {
