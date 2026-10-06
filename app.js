@@ -759,7 +759,6 @@ function escapeHtml(s) {
 
 // ===== 視圖切換 =====
 function showView(name) {
-  console.log('showView called with:', name);
   document.querySelectorAll('.nav-btn').forEach(b =>
     b.classList.toggle('active', b.dataset.view === name));
   document.querySelectorAll('.view').forEach(v =>
@@ -832,9 +831,7 @@ document.getElementById('auth-submit').onclick = async () => {
     } else {
       await User.login(username, password);
       toast('登入成功！');
-      console.log('Calling showView dashboard');
       showView('dashboard');
-      console.log('showView called');
     }
     errorEl.classList.add('hidden');
     document.getElementById('auth-username').value = '';
