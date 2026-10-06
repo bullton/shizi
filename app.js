@@ -825,7 +825,7 @@ document.getElementById('auth-submit').onclick = async () => {
 
   try {
     if (isRegister) {
-      await this.request('/register', 'POST', { username, password });
+      await User.request('/register', 'POST', { username, password });
       toast('註冊成功！請登入');
       isRegister = false;
       document.getElementById('auth-title').textContent = '登入';
