@@ -156,11 +156,12 @@ async function handleAPI(req, res) {
       if (db.users.find(u => u.username === username)) {
         return jsonResponse(res, 400, { error: '用戶名已存在' });
       }
+      const isFirstUser = db.users.length === 0;
       const user = {
         id: Date.now(),
         username,
         password: hashPassword(password),
-        role: 'user',
+        role: isFirstUser ? 'admin' : 'user',
         createdAt: new Date().toISOString()
       };
       db.users.push(user);
