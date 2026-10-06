@@ -903,7 +903,7 @@ async function loadAdminPanel() {
     document.getElementById('admin-user-list').innerHTML = users.map(u => `
       <div class="user-item" data-id="${u.id}">
         <span class="user-name">${u.username} ${u.role === 'admin' ? '👑' : ''}</span>
-        <span class="user-stats">已學: ${u.chars_known} 字 | 練習: ${u.total_attempts || 0} 次</span>
+        <span class="user-stats">已學: ${u.charsKnown} 字 | 練習: ${u.totalAttempts || 0} 次</span>
         <div class="user-actions">
           <button class="btn-small btn-view" data-id="${u.id}">查看</button>
           <button class="btn-small btn-toggle-role" data-id="${u.id}" data-role="${u.role === 'admin' ? 'user' : 'admin'}">${u.role === 'admin' ? '降級' : '升級'}</button>
