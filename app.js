@@ -445,6 +445,7 @@ const Game = {
     });
 
     document.getElementById('hint-content').classList.add('hidden');
+    document.getElementById('hint-btn').classList.add('hidden');
     document.getElementById('next-btn').classList.add('hidden');
     document.getElementById('celebration').classList.add('hidden');
   },
@@ -522,6 +523,7 @@ const Game = {
     const display = document.getElementById('character-display');
     const tray = document.getElementById('pieces-tray');
     const char = this.current.char;
+    const hint = this.current.hint;
     const responseTime = Date.now() - this.startTime;
 
     // Record progress to API
@@ -539,6 +541,16 @@ const Game = {
       tray.classList.remove('fade-out');
       this._playSuccess();
       setTimeout(() => this._speak(char), 200);
+
+      // Show hint after answering
+      const hintBtn = document.getElementById('hint-btn');
+      const hintContent = document.getElementById('hint-content');
+      hintBtn.classList.remove('hidden');
+      hintBtn.textContent = '💡 粵語提示';
+      if (hint) {
+        hintContent.textContent = hint;
+        hintContent.classList.remove('hidden');
+      }
     }, 400);
 
     // Celebration popup
