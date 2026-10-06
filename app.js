@@ -2,34 +2,52 @@
    識字樂 - 中文拼字遊戲
    =========================================== */
 
-const STORAGE_KEY = 'shizi_chars_v6';
+const STORAGE_KEY = 'shizi_chars_v7';
 
-// ===== 預設字庫（粵語口訣）=====
+// ===== 查字典工具（kfcd/chaizi）=====
+function lookupChaizi(char, prefer = 'last') {
+  if (!window.ChaiziDict || !window.ChaiziDict[char]) return null;
+  const alts = window.ChaiziDict[char];
+  if (alts.length === 0) return null;
+  const idx = prefer === 'first' ? 0 : alts.length - 1;
+  return alts[idx].split(' ');
+}
+
+// ===== 自動選擇佈局（根據部件數）=====
+function autoLayout(components) {
+  const n = components.length;
+  if (n === 2) return 'top-bottom';
+  if (n === 3) return 'top-bottom-bottom';
+  if (n === 4) return 'top-bottom-bottom-bottom';
+  return 'left-right';
+}
+
+// ===== 預設字庫（部件全部取自 kfcd/chaizi 字典）=====
 const DEFAULT_CHARS = [
   // 包圍結構（外內）
-  { id: 1, char: '回', components: ['口', '口'], layout: 'surround', hint: '一個口包住另一個口，叫做「回」（回來）' },
-  { id: 2, char: '困', components: ['口', '木'], layout: 'surround', hint: '口包住「木」，就係「困」喺圍欄裏面' },
-  { id: 3, char: '因', components: ['囗', '大'], layout: 'surround', hint: '方框（囗）內有「大」，就係「因」' },
-  { id: 4, char: '國', components: ['囗', '或'], layout: 'surround', hint: '方框（囗）內有「或」，就係「國家」' },
-  { id: 5, char: '固', components: ['囗', '古'], layout: 'surround', hint: '方框內有「古」，就係「固」定不變' },
+  { id: 1, char: '回', components: lookupChaizi('回', 'first'), layout: 'surround', hint: '一個囗包住口，叫做「回」（回來）' },
+  { id: 2, char: '困', components: lookupChaizi('困', 'first'), layout: 'surround', hint: '囗包住「木」，就係「困」喺圍欄裏面' },
+  { id: 3, char: '因', components: lookupChaizi('因', 'first'), layout: 'surround', hint: '方框（囗）內有「大」，就係「因」' },
+  { id: 4, char: '國', components: lookupChaizi('國', 'first'), layout: 'surround', hint: '方框（囗）內有「或」，就係「國家」' },
+  { id: 5, char: '固', components: lookupChaizi('固', 'first'), layout: 'surround', hint: '方框內有「古」，就係「固」定不變' },
 
   // 半包圍結構（辶包左）
-  { id: 6, char: '這', components: ['辶', '言'], layout: 'half-surround-left', hint: '「辶」包住左邊，「言」在右邊，叫做「這」個' },
-  { id: 7, char: '進', components: ['辶', '隹'], layout: 'half-surround-left', hint: '「辶」包左，「隹」在右，叫做「進」步' },
+  { id: 6, char: '這', components: lookupChaizi('這', 'last'), layout: 'half-surround-left', hint: '「辶」包住左邊，「言」在右邊，叫做「這」個' },
+  { id: 7, char: '進', components: lookupChaizi('進', 'last'), layout: 'half-surround-left', hint: '「辶」包左，「隹」在右，叫做「進」步' },
 
-  // 四方結構（辶左 + 自+穴+方 右）
-  { id: 8, char: '邊', components: ['辶', '自', '穴', '方'], layout: 'complex-4-left', hint: '「辶」喺左，「自」「穴」「方」喺右邊上下疊加，叫做「旁邊」' },
+  // 邊（字典首選拆法：辵 + 自 + 穴 + 方）
+  { id: 8, char: '邊', components: lookupChaizi('邊', 'first'), layout: 'complex-4-left', hint: '「辵」喺左，「自」「穴」「方」喺右邊上下疊加，叫做「旁邊」' },
 
   // 品字結構
-  { id: 9, char: '森', components: ['木', '木', '木'], layout: 'top-bottom-bottom', hint: '三棵樹，就係「森林」' },
-  { id: 10, char: '晶', components: ['日', '日', '日'], layout: 'top-bottom-bottom', hint: '三個日頭一齊，就係「晶」亮' },
+  { id: 9, char: '森', components: lookupChaizi('森', 'first'), layout: 'top-bottom-bottom', hint: '三棵樹，就係「森林」' },
+  { id: 10, char: '晶', components: lookupChaizi('晶', 'first'), layout: 'top-bottom-bottom', hint: '三個日頭一齊，就係「晶」亮' },
 
-  // 新增複雜字
-  { id: 11, char: '靈', components: ['雨', '巫'], layout: 'top-bottom', hint: '雨下有巫師作法，就係「靈」驗' },
-  { id: 12, char: '響', components: ['音', '鄉'], layout: 'half-surround-left', hint: '「音」在盒（鄉）裏面，聲音就會「響」' },
-  { id: 13, char: '寶', components: ['冖', '玉', '缶'], layout: 'surround-3', hint: '屋頂冖包住玉和缶，就係「寶」物' },
-  { id: 14, char: '鼻', components: ['自', '畀'], layout: 'top-bottom', hint: '「自」己嘅「畀」分，就係「鼻」子' },
-  { id: 15, char: '攀', components: ['林', '手', '手'], layout: 'left-right-right', hint: '兩隻手（手手）攀住樹林，就係「攀」登' },
+  // 字典拆法
+  { id: 11, char: '靈', components: lookupChaizi('靈', 'first'), layout: 'top-bottom', hint: '「霝」上有「巫」下，就係「靈」驗' },
+  { id: 12, char: '響', components: lookupChaizi('響', 'first'), layout: 'top-bottom', hint: '「鄉」上有「音」下，就係「響」' },
+  { id: 13, char: '寶', components: lookupChaizi('寶', 'last'), layout: 'top-bottom-bottom-bottom', hint: '屋頂「宀」+「玉」+「缶」+底下「貝」，就係「寶」物' },
+  { id: 14, char: '鼻', components: lookupChaizi('鼻', 'first'), layout: 'top-bottom-bottom', hint: '「自」上有「田」中有「廾」下，就係「鼻」' },
+  { id: 15, char: '攀', components: lookupChaizi('攀', 'first'), layout: 'top-bottom-bottom', hint: '「棥」+「大」+「手」，就係「攀」登' },
 ];
 
 // ===== 數據存儲 =====
@@ -463,6 +481,24 @@ const Admin = {
     document.getElementById('save-btn').onclick = () => this.save();
     document.getElementById('cancel-btn').onclick = () => this.cancel();
     document.getElementById('reset-data-btn').onclick = () => this.resetData();
+
+    // 自動查字典
+    document.getElementById('form-char').addEventListener('input', (e) => {
+      const ch = e.target.value.trim();
+      if (ch.length === 1 && window.ChaiziDict && window.ChaiziDict[ch]) {
+        const alts = window.ChaiziDict[ch];
+        // 顯示所有拆法讓用戶選擇
+        const first = alts[0].split(' ');
+        document.getElementById('form-components').value = first.join(',');
+        // 自動建議佈局
+        const layoutSelect = document.getElementById('form-layout');
+        const n = first.length;
+        if (n === 2) layoutSelect.value = 'top-bottom';
+        else if (n === 3) layoutSelect.value = 'top-bottom-bottom';
+        else if (n === 4) layoutSelect.value = 'top-bottom-bottom-bottom';
+        toast(`字典找到 ${alts.length} 種拆法（已填首選）`);
+      }
+    });
   },
 
   render() {

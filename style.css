@@ -196,6 +196,18 @@ nav {
   font-size: clamp(40px, 5vw, 70px);
 }
 
+/* ===== 四疊結構（4 部件上下疊加）===== */
+.layout-top-bottom-bottom-bottom {
+  display: grid;
+  grid-template-rows: 75px 75px 75px 75px;
+  gap: 8px;
+  height: 320px;
+}
+
+.layout-top-bottom-bottom-bottom > .slot {
+  font-size: clamp(30px, 4vw, 50px);
+}
+
 /* ===== 包圍結構（冖包玉+缶）===== */
 .layout-surround-3 {
   position: relative;
