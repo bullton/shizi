@@ -13,13 +13,39 @@ function lookupChaizi(char, prefer = 'last') {
   return alts[idx].split(' ');
 }
 
-// ===== 自動選擇佈局（根據部件數）=====
+// ===== 智能佈局檢測（根據部件位置自動判斷）=====
 function autoLayout(components) {
-  const n = components.length;
-  if (n === 2) return 'top-bottom';
-  if (n === 3) return 'top-bottom-bottom';
-  if (n === 4) return 'top-bottom-bottom-bottom';
-  return 'left-right';
+  if (!components || components.length === 0) return 'top-bottom';
+  if (components.length === 1) return 'top-bottom';
+
+  const first = components[0];
+
+  // 包圍/半包圍結構（第一部件係外框或辶）
+  const enclosureRadicals = ['囗', '冖', '冂', '凵', '⺆'];
+  if (enclosureRadicals.includes(first)) {
+    if (components.length === 2) return 'surround';
+    return 'surround-3';
+  }
+
+  // 辵/辶（走之底，半包圍）
+  if (first === '辵' || first === '辶') {
+    if (components.length === 2) return 'half-surround-left';
+    if (components.length === 3) return 'complex-3-left';
+    if (components.length >= 4) return 'complex-4-left';
+  }
+
+  // 木字旁/提手旁等（左右結構）
+  const sideRadicals = ['木', '扌', '氵', '亻', '讠', '艹', '钅', '口'];
+  if (sideRadicals.includes(first) && components.length === 2) {
+    return 'left-right';
+  }
+
+  // 根據部件數推斷
+  if (components.length === 2) return 'top-bottom';
+  if (components.length === 3) return 'vertical-3';
+  if (components.length === 4) return 'top-2-bottom';
+
+  return 'top-bottom';
 }
 
 // ===== 預設字庫（部件全部取自 kfcd/chaizi 字典）=====
@@ -487,16 +513,14 @@ const Admin = {
       const ch = e.target.value.trim();
       if (ch.length === 1 && window.ChaiziDict && window.ChaiziDict[ch]) {
         const alts = window.ChaiziDict[ch];
-        // 顯示所有拆法讓用戶選擇
         const first = alts[0].split(' ');
         document.getElementById('form-components').value = first.join(',');
-        // 自動建議佈局
-        const layoutSelect = document.getElementById('form-layout');
-        const n = first.length;
-        if (n === 2) layoutSelect.value = 'top-bottom';
-        else if (n === 3) layoutSelect.value = 'top-bottom-bottom';
-        else if (n === 4) layoutSelect.value = 'top-bottom-bottom-bottom';
-        toast(`字典找到 ${alts.length} 種拆法（已填首選）`);
+        // 智能佈局檢測
+        const suggestedLayout = autoLayout(first);
+        document.getElementById('form-layout').value = suggestedLayout;
+        // 顯示備選拆法讓用戶選擇
+        const altOptions = alts.map((a, i) => `[${i+1}] ${a}`).join(' | ');
+        toast(`字典 ${alts.length} 種拆法（已選首選，建議 ${suggestedLayout}）\n${altOptions}`);
       }
     });
   },
