@@ -24,7 +24,8 @@ function saveData(data) {
 const db = {
   users: [],
   progress: [],
-  attempts: []
+  attempts: [],
+  chars: []
 };
 
 // Load on startup
@@ -293,6 +294,85 @@ async function handleAPI(req, res) {
       .sort((a, b) => b.charsKnown - a.charsKnown || a.avgTime - b.avgTime)
       .slice(0, 50);
     jsonResponse(res, 200, leaderboard);
+    return;
+  }
+
+  // Char routes (public read, admin write)
+  if (pathname === '/api/chars' && method === 'GET') {
+    jsonResponse(res, 200, db.chars);
+    return;
+  }
+
+  // Admin-only char routes
+  const adminUser = requireAuth(req, res);
+  if (!adminUser) return jsonResponse(res, 401, { error: '請先登入' });
+  if (adminUser.role !== 'admin') return jsonResponse(res, 403, { error: '需要管理員權限' });
+
+  if (pathname === '/api/chars' && method === 'POST') {
+    try {
+      const { char, components, layout, hint } = await parseBody(req);
+      if (!char || !components) return jsonResponse(res, 400, { error: '缺少必要欄位' });
+      if (db.chars.find(c => c.char === char)) {
+        return jsonResponse(res, 400, { error: '該字已存在' });
+      }
+      const newChar = {
+        id: Date.now(),
+        char,
+        components,
+        layout: layout || 'left-right',
+        hint: hint || '',
+        createdAt: new Date().toISOString()
+      };
+      db.chars.push(newChar);
+      saveData(db);
+      jsonResponse(res, 201, newChar);
+    } catch (e) {
+      jsonResponse(res, 400, { error: '無效的請求' });
+    }
+    return;
+  }
+
+  if (pathname === '/api/chars/import' && method === 'POST') {
+    try {
+      const { chars } = await parseBody(req);
+      if (!Array.isArray(chars)) return jsonResponse(res, 400, { error: 'chars 必須是陣列' });
+      const results = { added: 0, skipped: 0, errors: [] };
+      for (const item of chars) {
+        const { char, components, layout, hint } = item;
+        if (!char || !components) {
+          results.errors.push({ char: char || '?', error: '缺少必要欄位' });
+          results.skipped++;
+          continue;
+        }
+        if (db.chars.find(c => c.char === char)) {
+          results.skipped++;
+          continue;
+        }
+        db.chars.push({
+          id: Date.now() + Math.random(),
+          char,
+          components,
+          layout: layout || 'left-right',
+          hint: hint || '',
+          createdAt: new Date().toISOString()
+        });
+        results.added++;
+      }
+      saveData(db);
+      jsonResponse(res, 200, results);
+    } catch (e) {
+      jsonResponse(res, 400, { error: '無效的請求' });
+    }
+    return;
+  }
+
+  if (pathname.startsWith('/api/chars/') && method === 'DELETE') {
+    const charId = parseFloat(pathname.split('/').pop());
+    const idx = db.chars.findIndex(c => c.id === charId);
+    if (idx < 0) return jsonResponse(res, 404, { error: '字符不存在' });
+    db.chars.splice(idx, 1);
+    saveData(db);
+    jsonResponse(res, 200, { success: true });
     return;
   }
 

@@ -161,6 +161,19 @@ const AdminAPI = {
     return this.request('/user/' + userId, 'DELETE');
   },
 
+  async getChars() {
+    const res = await fetch('/api/chars');
+    if (!res.ok) throw new Error('獲取字符失敗');
+    return res.json();
+  },
+
+  async deleteChar(charId) {
+    const res = await fetch('/api/chars/' + charId, { method: 'DELETE' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || '刪除失敗');
+    return data;
+  },
+
   async getCharStats() {
     return this.request('/chars');
   }
@@ -248,8 +261,14 @@ const Game = {
   score: 0,
   index: 0,
 
-  start() {
-    this.chars = Data.getAll();
+  async start() {
+    try {
+      const chars = await AdminAPI.getChars();
+      this.chars = chars;
+      Data.chars = chars;
+    } catch {
+      this.chars = Data.getAll();
+    }
     if (this.chars.length === 0) {
       this._showEmpty();
       return;
@@ -760,12 +779,12 @@ function escapeHtml(s) {
 }
 
 // ===== 視圖切換 =====
-function showView(name) {
+async function showView(name) {
   document.querySelectorAll('.nav-btn').forEach(b =>
     b.classList.toggle('active', b.dataset.view === name));
   document.querySelectorAll('.view').forEach(v =>
     v.classList.toggle('active', v.id === 'view-' + name));
-  if (name === 'game') Game.start();
+  if (name === 'game') await Game.start();
   if (name === 'admin') Admin.init();
   if (name === 'dashboard') loadDashboard();
   if (name === 'admin-panel') loadAdminPanel();
@@ -1054,10 +1073,112 @@ async function loadAdminPanel() {
         <span class="char-stat-info">練習人數: ${c.usersPracticed || 0} | 總次數: ${c.totalAttempts || 0} | 平均時間: ${c.avgTime ? (c.avgTime/1000).toFixed(1) + 's' : '-'}</span>
       </div>
     `).join('') || '<p>暫無數據</p>';
+
+    // Load char lib
+    const chars = await AdminAPI.getChars();
+    document.getElementById('char-lib-count').textContent = chars.length;
+    document.getElementById('char-lib-list').innerHTML = chars.map(c => `
+      <div class="char-lib-item">
+        <span class="char-lib-char">${c.char}</span>
+        <div class="char-lib-info">
+          <div class="char-lib-components">${c.components?.join(' + ') || ''}</div>
+          <div class="char-lib-layout">${c.layout}</div>
+        </div>
+        <div class="char-lib-actions">
+          <button class="btn-small btn-danger btn-char-delete" data-id="${c.id}">刪除</button>
+        </div>
+      </div>
+    `).join('') || '<p>暫無字符</p>';
+
+    document.querySelectorAll('.btn-char-delete').forEach(btn => {
+      btn.onclick = async () => {
+        if (!confirm('確定刪除？')) return;
+        try {
+          await AdminAPI.deleteChar(btn.dataset.id);
+          loadAdminPanel();
+        } catch (e) {
+          toast('刪除失敗: ' + e.message);
+        }
+      };
+    });
   } catch (e) {
     console.warn('載入管理員數據失敗:', e);
   }
 }
+
+// ===== Char Import =====
+let importPreviewData = [];
+
+function processCharForImport(char) {
+  const decompositions = window.ChaiziDict?.[char];
+  if (!decompositions) return null;
+  const components = decompositions[0].split(' ');
+  const layout = autoLayout(components);
+  const hint = `由「${components.join('」、「')}」組成`;
+  return { char, components, layout, hint };
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('import-btn')?.addEventListener('click', () => {
+    const input = document.getElementById('import-chars').value.trim();
+    if (!input) {
+      toast('請輸入字符');
+      return;
+    }
+    const chars = [...new Set(input.split('').filter(c => c.trim() && /\S/.test(c)))];
+    importPreviewData = [];
+    for (const char of chars) {
+      const processed = processCharForImport(char);
+      if (processed) {
+        importPreviewData.push(processed);
+      }
+    }
+    if (importPreviewData.length === 0) {
+      toast('沒有找到可導入的字符（確保字符在字典中存在）');
+      return;
+    }
+    document.getElementById('import-preview-list').innerHTML = importPreviewData.map(p => `
+      <div class="import-preview-item">
+        <span class="import-preview-char">${p.char}</span>
+        <div class="import-preview-info">
+          <div class="import-preview-components">${p.components.join(' + ')}</div>
+          <div class="import-preview-layout">${p.layout}</div>
+          <div class="import-preview-hint">${p.hint}</div>
+        </div>
+      </div>
+    `).join('');
+    document.getElementById('import-preview').style.display = 'block';
+  });
+
+  document.getElementById('confirm-import-btn')?.addEventListener('click', async () => {
+    try {
+      const res = await fetch('/api/chars/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chars: importPreviewData })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || '導入失敗');
+      toast(`導入成功：新增 ${data.added} 個，跳過 ${data.skipped} 個`);
+      document.getElementById('import-preview').style.display = 'none';
+      document.getElementById('import-chars').value = '';
+      loadAdminPanel();
+      // Also update localStorage for game
+      if (data.added > 0) {
+        const newChars = await AdminAPI.getChars();
+        localStorage.setItem('shizi_chars_v9', JSON.stringify(newChars));
+        Data.chars = newChars;
+      }
+    } catch (e) {
+      toast('導入失敗: ' + e.message);
+    }
+  });
+
+  document.getElementById('cancel-import-btn')?.addEventListener('click', () => {
+    document.getElementById('import-preview').style.display = 'none';
+    importPreviewData = [];
+  });
+});
 
 async function showUserDetail(userId) {
   try {
