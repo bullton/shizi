@@ -419,19 +419,48 @@ async function handleAPI(req, res) {
         return jsonResponse(res, 400, { error: '請先配置 AI Token' });
       }
 
-      const decompsStr = decompositions.map((d, i) => `${i + 1}. ${d}`).join('\n');
+      const decompsStr = decompositions.map((d, i) => `${i + 1}. [${d.join(' ')}]`).join('\n');
+      const validLayouts = [
+        'left-right', 'top-bottom', 'top-bottom-bottom', 'vertical-3',
+        'top-bottom-bottom-bottom', 'top-2-bottom', 'surround',
+        'half-surround-left', 'complex-3-left', 'complex-4-left',
+        'surround-3', 'left-right-right'
+      ];
+      const layoutDescs = {
+        'left-right': '左右結構（左部 + 右部）',
+        'top-bottom': '上下結構（上 + 下）',
+        'top-bottom-bottom': '品字結構（頂部1個 + 底部2個並排）',
+        'vertical-3': '三疊結構（3個上下堆疊）',
+        'top-bottom-bottom-bottom': '四疊結構（4個上下堆疊）',
+        'top-2-bottom': '上中下結構（頂部1個 + 中間2個並排 + 底部1個）',
+        'surround': '包圍結構（外框包住內部）',
+        'half-surround-left': '半包圍結構（走之旁辶包左邊）',
+        'complex-3-left': '三方結構（辶左 + 上下右）',
+        'complex-4-left': '四方結構（辶左 + 自穴方右）',
+        'surround-3': '包圍結構（冖包住上下部分）',
+        'left-right-right': '左右右結構（左1 + 中右2個並排）'
+      };
+      const layoutList = validLayouts.map(l => `- ${l} = ${layoutDescs[l]}`).join('\n  ');
+
       const prompt = `你是繁體中文字形結構專家。請分析字符「${char}」的視覺結構。
 
-現有以下拆字選項：
+現有以下拆字選項（每個選項是一個部件數組）：
 ${decompsStr}
 
-請選擇視覺上最準確的拆分方式，並說明理由。
+## 必須使用的 layout 值（只選一個）：
+  ${layoutList}
 
-回复格式（只用JSON）：
+## 要求：
+1. 從拆字選項中選擇視覺上最準確的一個
+2. 如果某個選項的部件可以正確組合成該字符的視覺結構，就選它
+3. layout 值必須嚴格使用上面列表中的一個英文值
+4. 如果字符部件多於4個，優先選擇最接近視覺結構的 layout
+
+回复格式（嚴格只用JSON，無多餘文字）：
 {
-  "recommended": 選擇的序號(1/2/3...),
-  "layout": "left-right" 或 "top-bottom" 或 "surround" 或 "half-surround-left" 等,
-  "reason": "簡短解釋"
+  "recommended": 選擇的序號(整數, 從1開始),
+  "layout": "上方的layout英文值",
+  "reason": "簡短中文解釋為何選擇此拆分和結構"
 }`;
 
       const aiRes = await fetch('https://api.minimax.cn/anthropic/v1/messages', {
@@ -467,6 +496,23 @@ ${decompsStr}
         }
       } catch (e) {
         return jsonResponse(res, 500, { error: '解析 AI 回覆失敗: ' + content.substring(0, 100) });
+      }
+
+      // Validate layout
+      if (!validLayouts.includes(result.layout)) {
+        // Fallback: try to guess from decomposition
+        const chosenDecomp = decompositions[(result.recommended || 1) - 1];
+        if (chosenDecomp) {
+          result.layout = 'top-bottom'; // safe fallback
+        } else {
+          return jsonResponse(res, 500, { error: 'AI 返回了無效的 layout: ' + result.layout });
+        }
+      }
+
+      // Validate recommended index
+      const recIdx = (result.recommended || 1) - 1;
+      if (recIdx < 0 || recIdx >= decompositions.length) {
+        result.recommended = 1;
       }
 
       jsonResponse(res, 200, result);

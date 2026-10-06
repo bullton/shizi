@@ -1324,8 +1324,8 @@ document.addEventListener('DOMContentLoaded', () => {
           });
           const data = await res.json();
           if (!res.ok) throw new Error(data.error || '分析失敗');
-          // Apply result
-          const decompIdx = data.recommended - 1;
+          // Apply result with validation
+          const decompIdx = Math.max(0, Math.min((data.recommended || 1) - 1, p.decompositions.length - 1));
           p.components = p.decompositions[decompIdx];
           p.layout = data.layout;
           p.hint = `${p.components.join(' + ')}，${data.reason}`;
