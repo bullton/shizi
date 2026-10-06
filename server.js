@@ -208,7 +208,60 @@ async function handleAPI(req, res) {
   if (pathname === '/api/me' && method === 'GET') {
     const user = requireAuth(req, res);
     if (!user) return jsonResponse(res, 401, { error: '未登入' });
-    jsonResponse(res, 200, user);
+    const fullUser = db.users.find(u => u.id === user.id);
+    if (!fullUser) return jsonResponse(res, 404, { error: '用戶不存在' });
+    jsonResponse(res, 200, { id: fullUser.id, username: fullUser.username, role: fullUser.role, avatar: fullUser.avatar || null });
+    return;
+  }
+
+  if (pathname === '/api/profile' && method === 'PUT') {
+    const user = requireAuth(req, res);
+    if (!user) return jsonResponse(res, 401, { error: '未登入' });
+    try {
+      const { username, avatar } = await parseBody(req);
+      const userIdx = db.users.findIndex(u => u.id === user.id);
+      if (userIdx < 0) return jsonResponse(res, 404, { error: '用戶不存在' });
+      if (username && username.length >= 2 && username.length <= 20) {
+        if (db.users.find(u => u.username === username && u.id !== user.id)) {
+          return jsonResponse(res, 400, { error: '用戶名已存在' });
+        }
+        db.users[userIdx].username = username;
+      }
+      if (avatar !== undefined) {
+        db.users[userIdx].avatar = avatar;
+      }
+      saveData(db);
+      sessions.forEach((s, sid) => {
+        if (s.user.id === user.id) {
+          s.user.username = db.users[userIdx].username;
+        }
+      });
+      jsonResponse(res, 200, { success: true, username: db.users[userIdx].username, avatar: db.users[userIdx].avatar || null });
+    } catch (e) {
+      jsonResponse(res, 400, { error: '無效的請求' });
+    }
+    return;
+  }
+
+  if (pathname === '/api/password' && method === 'PUT') {
+    const user = requireAuth(req, res);
+    if (!user) return jsonResponse(res, 401, { error: '未登入' });
+    try {
+      const { currentPassword, newPassword } = await parseBody(req);
+      const userIdx = db.users.findIndex(u => u.id === user.id);
+      if (userIdx < 0) return jsonResponse(res, 404, { error: '用戶不存在' });
+      if (!verifyPassword(currentPassword, db.users[userIdx].password)) {
+        return jsonResponse(res, 400, { error: '當前密碼錯誤' });
+      }
+      if (!newPassword || newPassword.length < 4) {
+        return jsonResponse(res, 400, { error: '新密碼長度至少 4 字' });
+      }
+      db.users[userIdx].password = hashPassword(newPassword);
+      saveData(db);
+      jsonResponse(res, 200, { success: true });
+    } catch (e) {
+      jsonResponse(res, 400, { error: '無效的請求' });
+    }
     return;
   }
 

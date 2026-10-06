@@ -154,6 +154,7 @@
     <div class="dashboard-tabs">
       <button class="tab-btn active" data-tab="my-progress">📝 我的記錄</button>
       <button class="tab-btn" data-tab="leaderboard">🏆 排行榜</button>
+      <button class="tab-btn" data-tab="profile">👤 個人資料</button>
     </div>
     <div id="tab-my-progress" class="dashboard-tab active">
       <div class="stats-grid">
@@ -179,6 +180,38 @@
       <div class="card">
         <h3>🏆 識字量排行榜</h3>
         <div class="leaderboard-list" id="leaderboard-list"></div>
+      </div>
+    </div>
+    <div id="tab-profile" class="dashboard-tab">
+      <div class="card profile-card">
+        <h3>👤 個人資料</h3>
+        <div class="profile-avatar-section">
+          <div class="avatar-preview" id="avatar-preview">
+            <span id="avatar-initial">?</span>
+          </div>
+          <div class="avatar-url-field">
+            <label>頭像 URL</label>
+            <input type="text" id="profile-avatar" placeholder="輸入頭像圖片網址（可選）">
+            <p class="hint">可用 Gravatar 或其他圖片連結</p>
+          </div>
+        </div>
+        <div class="form-field">
+          <label>用戶名</label>
+          <input type="text" id="profile-username" maxlength="20" placeholder="用戶名">
+        </div>
+        <button class="btn btn-primary" id="save-profile-btn">保存資料</button>
+      </div>
+      <div class="card profile-card">
+        <h3>🔒 修改密碼</h3>
+        <div class="form-field">
+          <label>當前密碼</label>
+          <input type="password" id="profile-current-password" placeholder="••••">
+        </div>
+        <div class="form-field">
+          <label>新密碼</label>
+          <input type="password" id="profile-new-password" placeholder="••••（至少4字）">
+        </div>
+        <button class="btn btn-primary" id="save-password-btn">更新密碼</button>
       </div>
     </div>
   </section>

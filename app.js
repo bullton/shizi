@@ -901,6 +901,75 @@ async function loadDashboard() {
   }
 }
 
+// ===== Profile =====
+async function loadProfile() {
+  if (!User.current) return;
+  document.getElementById('profile-username').value = User.current.username || '';
+  document.getElementById('profile-avatar').value = User.current.avatar || '';
+  updateAvatarPreview();
+}
+
+function updateAvatarPreview() {
+  const avatar = document.getElementById('profile-avatar').value;
+  const preview = document.getElementById('avatar-preview');
+  const initial = document.getElementById('avatar-initial');
+  if (avatar && avatar.trim()) {
+    preview.innerHTML = `<img src="${avatar}" alt="avatar" onerror="this.parentElement.innerHTML='<span id=\\'avatar-initial\\'>${(User.current?.username || '?')[0].toUpperCase()}</span>'">`;
+  } else {
+    const name = User.current?.username || '?';
+    initial.textContent = name[0].toUpperCase();
+    preview.innerHTML = `<span id="avatar-initial">${name[0].toUpperCase()}</span>`;
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('profile-avatar')?.addEventListener('input', updateAvatarPreview);
+
+  document.getElementById('save-profile-btn')?.addEventListener('click', async () => {
+    const username = document.getElementById('profile-username').value.trim();
+    const avatar = document.getElementById('profile-avatar').value.trim();
+    try {
+      const res = await fetch('/api/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, avatar })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || '保存失敗');
+      User.current.username = data.username;
+      User.current.avatar = data.avatar;
+      User.updateUI();
+      document.getElementById('user-info').textContent = `👤 ${data.username}`;
+      toast('資料已保存');
+    } catch (e) {
+      toast('保存失敗: ' + e.message);
+    }
+  });
+
+  document.getElementById('save-password-btn')?.addEventListener('click', async () => {
+    const currentPassword = document.getElementById('profile-current-password').value;
+    const newPassword = document.getElementById('profile-new-password').value;
+    if (!currentPassword || !newPassword) {
+      toast('請填寫所有欄位');
+      return;
+    }
+    try {
+      const res = await fetch('/api/password', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentPassword, newPassword })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || '更新失敗');
+      toast('密碼已更新');
+      document.getElementById('profile-current-password').value = '';
+      document.getElementById('profile-new-password').value = '';
+    } catch (e) {
+      toast('更新失敗: ' + e.message);
+    }
+  });
+});
+
 // ===== Admin Panel =====
 async function loadAdminPanel() {
   if (!User.current || User.current.role !== 'admin') return;
@@ -1015,6 +1084,7 @@ document.addEventListener('DOMContentLoaded', () => {
       document.querySelectorAll('.dashboard-tab').forEach(t => t.classList.remove('active'));
       btn.classList.add('active');
       document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+      if (btn.dataset.tab === 'profile') loadProfile();
     };
   });
 
