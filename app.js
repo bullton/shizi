@@ -424,6 +424,21 @@ const Game = {
         this._setupSlot(slot);
         display.appendChild(slot);
       });
+    } else if (this.current.positions && Object.keys(this.current.positions).length === this.current.components.length) {
+      // Custom positions (manually arranged)
+      display.className = 'character-display layout-custom';
+      this.current.components.forEach((comp, i) => {
+        const slot = document.createElement('div');
+        slot.className = 'slot slot-custom';
+        slot.dataset.index = i;
+        slot.dataset.expected = comp;
+        if (this.current.positions[i]) {
+          slot.style.left = this.current.positions[i].x + 'px';
+          slot.style.top = this.current.positions[i].y + 'px';
+        }
+        this._setupSlot(slot);
+        display.appendChild(slot);
+      });
     } else {
       this.current.components.forEach((comp, i) => {
         const slot = document.createElement('div');
@@ -709,11 +724,13 @@ const Admin = {
         <div class="char-hint-mini">${escapeHtml(c.hint || '(無口訣)')}</div>
         <div class="char-actions">
           <button class="btn-edit" data-id="${c.id}">✏️ 編輯</button>
+          <button class="btn-position" data-id="${c.id}">📐 調整結構</button>
           <button class="btn-delete" data-id="${c.id}">🗑️ 刪除</button>
         </div>
       `;
       item.querySelector('.btn-edit').onclick = () => this.edit(c.id);
       item.querySelector('.btn-delete').onclick = () => this.deleteChar(c.id);
+      item.querySelector('.btn-position').onclick = () => this.openPositionEditor(c.id);
       container.appendChild(item);
     });
   },
@@ -768,6 +785,167 @@ const Admin = {
       this.render();
       toast('已刪除');
     }
+  },
+
+  openPositionEditor(id) {
+    const c = Data.getAll().find(x => x.id === id);
+    if (!c) return;
+    this.positionEditorChar = c;
+    const existing = c.positions || {};
+
+    // Modal overlay
+    let modal = document.getElementById('position-editor-modal');
+    if (modal) modal.remove();
+    modal = document.createElement('div');
+    modal.id = 'position-editor-modal';
+    modal.className = 'modal-overlay';
+    modal.innerHTML = `
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>📐 調整「${c.char}」嘅部件位置</h3>
+          <button class="modal-close" id="position-editor-close">✕</button>
+        </div>
+        <div class="modal-body">
+          <p style="color:#636e72;font-size:13px;margin-bottom:8px">用鼠標拖動部件到目標位置（部件數量嚴格等於分塊數量：${c.components.length}）</p>
+          <div class="position-canvas" id="position-canvas">
+            <div class="position-grid"></div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-primary" id="position-save">💾 保存位置</button>
+          <button class="btn btn-secondary" id="position-reset">🔄 重置為自動布局</button>
+          <button class="btn btn-secondary" id="position-cancel">取消</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+
+    const canvas = document.getElementById('position-canvas');
+    const components = c.components;
+
+    // Render each component as a draggable box
+    components.forEach((comp, i) => {
+      const box = document.createElement('div');
+      box.className = 'position-box';
+      box.textContent = comp;
+      box.dataset.index = i;
+      box.dataset.component = comp;
+
+      // Use existing position if available, else auto-arrange
+      let x, y;
+      if (existing[i]) {
+        x = existing[i].x;
+        y = existing[i].y;
+      } else {
+        // Auto-arrange based on layout
+        const layoutPositions = this._getDefaultPositions(c.layout, components.length);
+        x = layoutPositions[i]?.x ?? 50;
+        y = layoutPositions[i]?.y ?? 50 + i * 70;
+      }
+      box.style.left = x + 'px';
+      box.style.top = y + 'px';
+      this._setupDrag(box, canvas);
+      canvas.appendChild(box);
+    });
+
+    document.getElementById('position-editor-close').onclick = () => this.closePositionEditor();
+    document.getElementById('position-cancel').onclick = () => this.closePositionEditor();
+    document.getElementById('position-reset').onclick = () => {
+      document.querySelectorAll('.position-box').forEach((box, i) => {
+        const positions = this._getDefaultPositions(c.layout, components.length);
+        box.style.left = (positions[i]?.x ?? 50) + 'px';
+        box.style.top = (positions[i]?.y ?? 50 + i * 70) + 'px';
+      });
+    };
+    document.getElementById('position-save').onclick = () => this.savePositions(id);
+  },
+
+  _getDefaultPositions(layout, count) {
+    const positions = [];
+    const canvasW = 400, canvasH = 300;
+    if (layout === 'left-right') {
+      positions.push({ x: 50, y: 100 });
+      positions.push({ x: 220, y: 100 });
+    } else if (layout === 'top-bottom') {
+      positions.push({ x: 150, y: 30 });
+      positions.push({ x: 150, y: 180 });
+    } else if (layout === 'vertical-3') {
+      positions.push({ x: 150, y: 20 });
+      positions.push({ x: 150, y: 130 });
+      positions.push({ x: 150, y: 240 });
+    } else {
+      // Default: vertical stack
+      for (let i = 0; i < count; i++) {
+        positions.push({ x: 150, y: 20 + i * 60 });
+      }
+    }
+    return positions;
+  },
+
+  _setupDrag(box, canvas) {
+    let dragging = false;
+    let startX, startY, origX, origY;
+
+    const onMouseDown = (e) => {
+      dragging = true;
+      const evt = e.touches ? e.touches[0] : e;
+      startX = evt.clientX;
+      startY = evt.clientY;
+      origX = parseInt(box.style.left);
+      origY = parseInt(box.style.top);
+      box.style.zIndex = '1000';
+      e.preventDefault();
+    };
+
+    const onMouseMove = (e) => {
+      if (!dragging) return;
+      const evt = e.touches ? e.touches[0] : e;
+      const dx = evt.clientX - startX;
+      const dy = evt.clientY - startY;
+      let newX = origX + dx;
+      let newY = origY + dy;
+      const maxX = canvas.offsetWidth - box.offsetWidth;
+      const maxY = canvas.offsetHeight - box.offsetHeight;
+      newX = Math.max(0, Math.min(maxX, newX));
+      newY = Math.max(0, Math.min(maxY, newY));
+      box.style.left = newX + 'px';
+      box.style.top = newY + 'px';
+    };
+
+    const onMouseUp = () => {
+      dragging = false;
+      box.style.zIndex = '';
+    };
+
+    box.addEventListener('mousedown', onMouseDown);
+    box.addEventListener('touchstart', onMouseDown, { passive: false });
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('touchmove', onMouseMove, { passive: false });
+    document.addEventListener('mouseup', onMouseUp);
+    document.addEventListener('touchend', onMouseUp);
+  },
+
+  savePositions(id) {
+    const c = Data.getAll().find(x => x.id === id);
+    if (!c) return;
+    const positions = {};
+    document.querySelectorAll('.position-box').forEach(box => {
+      const idx = box.dataset.index;
+      positions[idx] = {
+        x: parseInt(box.style.left),
+        y: parseInt(box.style.top)
+      };
+    });
+    c.positions = positions;
+    Data.update(id, c);
+    toast('位置已保存');
+    this.closePositionEditor();
+    this.render();
+  },
+
+  closePositionEditor() {
+    const modal = document.getElementById('position-editor-modal');
+    if (modal) modal.remove();
   },
 
   resetData() {

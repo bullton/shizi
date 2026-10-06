@@ -240,6 +240,18 @@ nav {
   min-height: 320px;
 }
 
+/* ===== 自定義位置結構 ===== */
+.layout-custom {
+  position: relative;
+  width: 100%;
+  height: 400px;
+}
+
+.layout-custom > .slot {
+  position: absolute;
+  font-size: clamp(35px, 5vw, 60px);
+}
+
 .layout-top-bottom-bottom-bottom > .slot {
   font-size: clamp(30px, 4vw, 50px);
 }
@@ -1519,6 +1531,123 @@ nav {
   flex: 1;
   font-size: 13px;
   color: #636e72;
+}
+
+/* ===== Position Editor Modal ===== */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+}
+
+.modal-content {
+  background: white;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 600px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid #eee;
+}
+
+.modal-header h3 {
+  margin: 0;
+  color: #2d3436;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #636e72;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+}
+
+.modal-close:hover {
+  background: #f0f0f0;
+}
+
+.modal-body {
+  padding: 20px;
+  flex: 1;
+  overflow: auto;
+}
+
+.modal-footer {
+  padding: 16px 20px;
+  border-top: 1px solid #eee;
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.position-canvas {
+  position: relative;
+  width: 100%;
+  height: 400px;
+  background: #f8f9fa;
+  border: 2px dashed #dfe6e9;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.position-grid {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-image:
+    linear-gradient(rgba(200, 200, 200, 0.2) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(200, 200, 200, 0.2) 1px, transparent 1px);
+  background-size: 25px 25px;
+  pointer-events: none;
+}
+
+.position-box {
+  position: absolute;
+  width: 80px;
+  height: 60px;
+  background: linear-gradient(135deg, #74b9ff 0%, #0984e3 100%);
+  color: white;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+  font-weight: bold;
+  cursor: move;
+  user-select: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  transition: transform 0.1s;
+}
+
+.position-box:hover {
+  transform: scale(1.05);
+}
+
+.position-box:active {
+  cursor: grabbing;
 }
 
 /* ===== 響應式 ===== */
