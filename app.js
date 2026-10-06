@@ -76,6 +76,8 @@ const User = {
 
   async login(username, password) {
     this.current = await this.request('/login', 'POST', { username, password });
+    console.log('Login response:', this.current);
+    console.log('Role:', this.current.role);
     this.updateUI();
     return this.current;
   },
@@ -116,10 +118,12 @@ const User = {
     const adminBtn = document.getElementById('admin-btn');
     const userStats = document.getElementById('user-stats');
 
+    console.log('updateUI called, current:', this.current);
     if (this.current) {
       userNav.classList.remove('hidden');
       loginNav.classList.add('hidden');
       userInfo.textContent = `👤 ${this.current.username}`;
+      console.log('Setting admin btn display, role:', this.current.role);
       adminBtn.style.display = this.current.role === 'admin' ? 'inline-block' : 'none';
       userStats.classList.remove('hidden');
     } else {
