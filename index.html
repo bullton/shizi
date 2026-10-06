@@ -186,13 +186,34 @@
         <div class="stat-label">被練習字數</div>
       </div>
     </div>
-    <div class="card">
-      <h3>👥 用戶列表</h3>
-      <div class="user-list" id="admin-user-list"></div>
+
+    <div class="admin-tabs">
+      <button class="tab-btn active" data-tab="users">👥 用戶管理</button>
+      <button class="tab-btn" data-tab="chars">📊 字學習統計</button>
     </div>
-    <div class="card">
-      <h3>📊 字學習統計</h3>
-      <div class="char-stats-list" id="char-stats-list"></div>
+
+    <!-- 用戶管理 Tab -->
+    <div id="tab-users" class="admin-tab active">
+      <div class="card">
+        <h3>👥 用戶列表</h3>
+        <div class="user-list" id="admin-user-list"></div>
+      </div>
+      <div class="card" id="user-detail-panel" style="display:none">
+        <div class="user-detail-header">
+          <h3 id="user-detail-title">用戶詳情</h3>
+          <button class="btn btn-secondary" id="close-user-detail">✕ 關閉</button>
+        </div>
+        <div id="user-detail-stats"></div>
+        <div id="user-detail-records"></div>
+      </div>
+    </div>
+
+    <!-- 字統計 Tab -->
+    <div id="tab-chars" class="admin-tab">
+      <div class="card">
+        <h3>📊 字學習統計</h3>
+        <div class="char-stats-list" id="char-stats-list"></div>
+      </div>
     </div>
   </section>
 </div>

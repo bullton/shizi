@@ -134,8 +134,9 @@ const User = {
 const AdminAPI = {
   apiBase: '/api/admin',
 
-  async request(path) {
-    const options = { headers: { 'Content-Type': 'application/json' } };
+  async request(path, method = 'GET', body = null) {
+    const options = { method, headers: { 'Content-Type': 'application/json' } };
+    if (body) options.body = JSON.stringify(body);
     const res = await fetch(this.apiBase + path, options);
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || '請求失敗');
@@ -147,7 +148,15 @@ const AdminAPI = {
   },
 
   async getUserDetail(userId) {
-    return this.request('/user/?userId=' + userId);
+    return this.request('/user/' + userId);
+  },
+
+  async updateUser(userId, role) {
+    return this.request('/user/' + userId, 'PUT', { role });
+  },
+
+  async deleteUser(userId) {
+    return this.request('/user/' + userId, 'DELETE');
   },
 
   async getCharStats() {
@@ -883,21 +892,119 @@ async function loadAdminPanel() {
 
     document.getElementById('admin-user-list').innerHTML = users.map(u => `
       <div class="user-item" data-id="${u.id}">
-        <span class="user-name">${u.username} ${u.role === 'admin' ? '(Admin)' : ''}</span>
+        <span class="user-name">${u.username} ${u.role === 'admin' ? '👑' : ''}</span>
         <span class="user-stats">已學: ${u.chars_known} 字 | 練習: ${u.total_attempts || 0} 次</span>
+        <div class="user-actions">
+          <button class="btn-small btn-view" data-id="${u.id}">查看</button>
+          <button class="btn-small btn-toggle-role" data-id="${u.id}" data-role="${u.role === 'admin' ? 'user' : 'admin'}">${u.role === 'admin' ? '降級' : '升級'}</button>
+          <button class="btn-small btn-danger btn-delete" data-id="${u.id}">刪除</button>
+        </div>
       </div>
     `).join('') || '<p>暫無用戶</p>';
 
-    document.getElementById('char-stats-list').innerHTML = charStats.slice(0, 30).map(c => `
+    // Bind events
+    document.querySelectorAll('.btn-view').forEach(btn => {
+      btn.onclick = () => showUserDetail(btn.dataset.id);
+    });
+    document.querySelectorAll('.btn-toggle-role').forEach(btn => {
+      btn.onclick = () => toggleUserRole(btn.dataset.id, btn.dataset.role);
+    });
+    document.querySelectorAll('.btn-delete').forEach(btn => {
+      btn.onclick = () => deleteUser(btn.dataset.id);
+    });
+
+    document.getElementById('char-stats-list').innerHTML = charStats.slice(0, 50).map(c => `
       <div class="char-stat-item">
         <span class="char-stat-char">${c.char}</span>
-        <span class="char-stat-info">練習人數: ${c.users_practiced} | 總次數: ${c.total_attempts}</span>
+        <span class="char-stat-info">練習人數: ${c.usersPracticed || 0} | 總次數: ${c.totalAttempts || 0} | 平均時間: ${c.avgTime ? (c.avgTime/1000).toFixed(1) + 's' : '-'}</span>
       </div>
     `).join('') || '<p>暫無數據</p>';
   } catch (e) {
     console.warn('載入管理員數據失敗:', e);
   }
 }
+
+async function showUserDetail(userId) {
+  try {
+    const data = await AdminAPI.getUserDetail(userId);
+    document.getElementById('user-detail-title').textContent = `用戶：${data.user.username}`;
+    document.getElementById('user-detail-stats').innerHTML = `
+      <div class="user-detail-stats">
+        <div class="stat-mini">
+          <span class="stat-mini-val">${data.progress.length}</span>
+          <span class="stat-mini-label">已學字</span>
+        </div>
+        <div class="stat-mini">
+          <span class="stat-mini-val">${data.progress.reduce((s, p) => s + (p.attempts || 0), 0)}</span>
+          <span class="stat-mini-label">總練習</span>
+        </div>
+        <div class="stat-mini">
+          <span class="stat-mini-val">${data.user.role}</span>
+          <span class="stat-mini-label">角色</span>
+        </div>
+      </div>
+    `;
+    document.getElementById('user-detail-records').innerHTML = `
+      <h4>練習記錄（最近50條）</h4>
+      <div class="records-list">
+        ${data.progress.slice(0, 20).map(p => `
+          <div class="record-item">
+            <span class="record-char">${p.char}</span>
+            <span class="record-stats">次: ${p.attempts} | 平均: ${p.avgTime ? (p.avgTime/1000).toFixed(1) + 's' : '-'} | 最佳: ${p.bestTime ? (p.bestTime/1000).toFixed(1) + 's' : '-'}</span>
+            <span class="record-date">${p.lastPracticed ? new Date(p.lastPracticed).toLocaleDateString() : '-'}</span>
+          </div>
+        `).join('') || '<p暫無記錄</p>'}
+      </div>
+    `;
+    document.getElementById('user-detail-panel').style.display = 'block';
+    document.getElementById('user-detail-panel').scrollIntoView();
+  } catch (e) {
+    toast('載入用戶詳情失敗: ' + e.message);
+  }
+}
+
+async function toggleUserRole(userId, newRole) {
+  if (!confirm(`確定要將此用戶${newRole === 'admin' ? '升級為管理員' : '降級為普通用戶'}嗎？`)) return;
+  try {
+    await AdminAPI.updateUser(userId, newRole);
+    toast('更新成功');
+    loadAdminPanel();
+  } catch (e) {
+    toast('更新失敗: ' + e.message);
+  }
+}
+
+async function deleteUser(userId) {
+  if (!confirm('確定要刪除此用戶嗎？此操作不可撤銷！')) return;
+  try {
+    await AdminAPI.deleteUser(userId);
+    toast('刪除成功');
+    loadAdminPanel();
+  } catch (e) {
+    toast('刪除失敗: ' + e.message);
+  }
+}
+
+// Tab switching
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.onclick = () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    };
+  });
+
+  document.getElementById('close-user-detail')?.addEventListener('click', () => {
+    document.getElementById('user-detail-panel').style.display = 'none';
+  });
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+  init();
+  if (location.hash === '#admin') showView('admin');
+});
 
 document.addEventListener('DOMContentLoaded', () => {
   init();

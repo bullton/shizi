@@ -331,7 +331,40 @@ async function handleAPI(req, res) {
     if (!targetUser) return jsonResponse(res, 404, { error: '用戶不存在' });
     const progress = db.progress.filter(p => p.userId === userId);
     const attempts = db.attempts.filter(a => a.userId === userId).slice(-100);
-    jsonResponse(res, 200, { progress, attempts });
+    jsonResponse(res, 200, {
+      user: { id: targetUser.id, username: targetUser.username, role: targetUser.role, createdAt: targetUser.createdAt },
+      progress,
+      attempts
+    });
+    return;
+  }
+
+  if (pathname.startsWith('/api/admin/user/') && method === 'PUT') {
+    const userId = parseInt(pathname.split('/').pop());
+    try {
+      const { role } = await parseBody(req);
+      const userIdx = db.users.findIndex(u => u.id === userId);
+      if (userIdx < 0) return jsonResponse(res, 404, { error: '用戶不存在' });
+      if (role !== 'admin' && role !== 'user') return jsonResponse(res, 400, { error: '無效的角色' });
+      db.users[userIdx].role = role;
+      saveData(db);
+      jsonResponse(res, 200, { success: true });
+    } catch (e) {
+      jsonResponse(res, 400, { error: '請求無效' });
+    }
+    return;
+  }
+
+  if (pathname.startsWith('/api/admin/user/') && method === 'DELETE') {
+    const userId = parseInt(pathname.split('/').pop());
+    if (userId === user.id) return jsonResponse(res, 400, { error: '不能刪除自己' });
+    const userIdx = db.users.findIndex(u => u.id === userId);
+    if (userIdx < 0) return jsonResponse(res, 404, { error: '用戶不存在' });
+    db.users.splice(userIdx, 1);
+    db.progress = db.progress.filter(p => p.userId !== userId);
+    db.attempts = db.attempts.filter(a => a.userId !== userId);
+    saveData(db);
+    jsonResponse(res, 200, { success: true });
     return;
   }
 
