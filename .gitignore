@@ -20,3 +20,6 @@ shot_*.png
 # Source data files (generated from chaizi-data.js)
 chaizi-ft.txt
 chaizi.json
+
+# User data
+shizi-data.json

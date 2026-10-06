@@ -48,6 +48,113 @@ function autoLayout(components) {
   return 'top-bottom';
 }
 
+// ===== 用戶系統 =====
+const User = {
+  current: null,
+  apiBase: '/api',
+
+  async request(path, method = 'GET', body = null) {
+    const options = { method, headers: { 'Content-Type': 'application/json' } };
+    if (body) options.body = JSON.stringify(body);
+    const res = await fetch(this.apiBase + path, options);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || '請求失敗');
+    return data;
+  },
+
+  async checkSession() {
+    try {
+      this.current = await this.request('/me');
+      this.updateUI();
+      return true;
+    } catch {
+      this.current = null;
+      this.updateUI();
+      return false;
+    }
+  },
+
+  async login(username, password) {
+    this.current = await this.request('/login', 'POST', { username, password });
+    this.updateUI();
+    return this.current;
+  },
+
+  async register(username, password) {
+    this.current = await this.request('/register', 'POST', { username, password });
+    this.updateUI();
+    return this.current;
+  },
+
+  async logout() {
+    await this.request('/logout', 'POST');
+    this.current = null;
+    this.updateUI();
+  },
+
+  async recordProgress(char, charId, responseTime, correct) {
+    if (!this.current) return;
+    try {
+      await this.request('/progress', 'POST', { char, charId, responseTime, correct });
+    } catch (e) {
+      console.warn('記錄進度失敗:', e.message);
+    }
+  },
+
+  async getStats() {
+    return this.request('/stats');
+  },
+
+  async getProgress() {
+    return this.request('/progress');
+  },
+
+  updateUI() {
+    const userNav = document.getElementById('user-nav');
+    const loginNav = document.getElementById('login-nav');
+    const userInfo = document.getElementById('user-info');
+    const adminBtn = document.getElementById('admin-btn');
+    const userStats = document.getElementById('user-stats');
+
+    if (this.current) {
+      userNav.classList.remove('hidden');
+      loginNav.classList.add('hidden');
+      userInfo.textContent = `👤 ${this.current.username}`;
+      adminBtn.style.display = this.current.role === 'admin' ? 'inline-block' : 'none';
+      userStats.classList.remove('hidden');
+    } else {
+      userNav.classList.add('hidden');
+      loginNav.classList.remove('hidden');
+      userStats.classList.add('hidden');
+    }
+  }
+};
+
+// ===== 管理員 API =====
+const AdminAPI = {
+  apiBase: '/api/admin',
+
+  async request(path) {
+    const options = { headers: { 'Content-Type': 'application/json' } };
+    const res = await fetch(this.apiBase + path, options);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || '請求失敗');
+    return data;
+  },
+
+  async getUsers() {
+    return this.request('/users');
+  },
+
+  async getUserDetail(userId) {
+    return this.request('/user/?userId=' + userId);
+  },
+
+  async getCharStats() {
+    return this.request('/chars');
+  }
+};
+
 // ===== 預設字庫（部件全部取自 kfcd/chaizi 字典）=====
 const DEFAULT_CHARS = [
   // 包圍結構（外內）
@@ -149,6 +256,7 @@ const Game = {
       return;
     }
     this.current = this.chars[this.index];
+    this.startTime = Date.now();
     this._updateProgress();
     this.render();
     this._speak(this.current.char);
@@ -384,6 +492,10 @@ const Game = {
     const display = document.getElementById('character-display');
     const tray = document.getElementById('pieces-tray');
     const char = this.current.char;
+    const responseTime = Date.now() - this.startTime;
+
+    // Record progress to API
+    User.recordProgress(char, this.current.id, responseTime, true);
 
     // Fade out slots and tray
     display.querySelectorAll('.slot').forEach(s => s.classList.add('fade-out'));
@@ -644,6 +756,8 @@ function showView(name) {
     v.classList.toggle('active', v.id === 'view-' + name));
   if (name === 'game') Game.start();
   if (name === 'admin') Admin.init();
+  if (name === 'dashboard') loadDashboard();
+  if (name === 'admin-panel') loadAdminPanel();
 }
 
 // ===== 啟動 =====
@@ -683,6 +797,106 @@ function init() {
   });
 
   Game.start();
+  User.checkSession();
+}
+
+// ===== 認證表單 =====
+let isRegister = false;
+
+document.getElementById('auth-submit').onclick = async () => {
+  const username = document.getElementById('auth-username').value.trim();
+  const password = document.getElementById('auth-password').value;
+  const errorEl = document.getElementById('auth-error');
+
+  if (!username || !password) {
+    errorEl.textContent = '請填寫用戶名和密碼';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+
+  try {
+    if (isRegister) {
+      await User.register(username, password);
+      toast('註冊成功！');
+      showView('game');
+    } else {
+      await User.login(username, password);
+      toast('登入成功！');
+    }
+    errorEl.classList.add('hidden');
+    document.getElementById('auth-username').value = '';
+    document.getElementById('auth-password').value = '';
+  } catch (e) {
+    errorEl.textContent = e.message;
+    errorEl.classList.remove('hidden');
+  }
+};
+
+document.getElementById('auth-switch-link').onclick = (e) => {
+  e.preventDefault();
+  isRegister = !isRegister;
+  document.getElementById('auth-title').textContent = isRegister ? '註冊' : '登入';
+  document.getElementById('auth-submit').textContent = isRegister ? '註冊' : '登入';
+  document.getElementById('auth-error').classList.add('hidden');
+};
+
+document.getElementById('logout-btn').onclick = async () => {
+  await User.logout();
+  toast('已登出');
+  showView('game');
+};
+
+// ===== Dashboard =====
+async function loadDashboard() {
+  if (!User.current) return;
+  try {
+    const stats = await User.getStats();
+    document.getElementById('stat-chars').textContent = stats.totalChars;
+    document.getElementById('stat-attempts').textContent = stats.totalAttempts;
+    document.getElementById('stat-avg-time').textContent =
+      stats.avgTime > 0 ? (stats.avgTime / 1000).toFixed(1) + 's' : '-';
+    document.getElementById('chars-learned').textContent = stats.totalChars;
+
+    const progress = await User.getProgress();
+    const list = document.getElementById('progress-list');
+    list.innerHTML = progress.slice(0, 20).map(p => `
+      <div class="progress-item">
+        <span class="progress-char">${p.char}</span>
+        <span class="progress-stats">次數: ${p.attempts} | 平均: ${p.avg_time ? (p.avg_time/1000).toFixed(1) + 's' : '-'} | 最佳: ${p.best_time ? (p.best_time/1000).toFixed(1) + 's' : '-'}</span>
+        <span class="progress-date">${p.last_practiced ? new Date(p.last_practiced).toLocaleDateString() : '-'}</span>
+      </div>
+    `).join('') || '<p>暫無記錄</p>';
+  } catch (e) {
+    console.warn('載入進度失敗:', e);
+  }
+}
+
+// ===== Admin Panel =====
+async function loadAdminPanel() {
+  if (!User.current || User.current.role !== 'admin') return;
+  try {
+    const users = await AdminAPI.getUsers();
+    document.getElementById('admin-users').textContent = users.length;
+
+    const charStats = await AdminAPI.getCharStats();
+    document.getElementById('admin-chars').textContent = charStats.length;
+
+    document.getElementById('admin-user-list').innerHTML = users.map(u => `
+      <div class="user-item" data-id="${u.id}">
+        <span class="user-name">${u.username} ${u.role === 'admin' ? '(Admin)' : ''}</span>
+        <span class="user-stats">已學: ${u.chars_known} 字 | 練習: ${u.total_attempts || 0} 次</span>
+      </div>
+    `).join('') || '<p>暫無用戶</p>';
+
+    document.getElementById('char-stats-list').innerHTML = charStats.slice(0, 30).map(c => `
+      <div class="char-stat-item">
+        <span class="char-stat-char">${c.char}</span>
+        <span class="char-stat-info">練習人數: ${c.users_practiced} | 總次數: ${c.total_attempts}</span>
+      </div>
+    `).join('') || '<p>暫無數據</p>';
+  } catch (e) {
+    console.warn('載入管理員數據失敗:', e);
+  }
 }
 
 document.addEventListener('DOMContentLoaded', () => {

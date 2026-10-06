@@ -1,0 +1,6 @@
+{
+  "name": "shizi",
+  "version": "1.0.0",
+  "description": "識字樂 - 中文拼字遊戲",
+  "main": "server.js"
+}
