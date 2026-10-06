@@ -850,9 +850,13 @@ document.getElementById('auth-switch-link').onclick = (e) => {
 };
 
 document.getElementById('logout-btn').onclick = async () => {
-  await User.logout();
-  toast('已登出');
-  showView('game');
+  try {
+    await User.logout();
+    toast('已登出');
+    showView('game');
+  } catch (e) {
+    toast('登出失敗: ' + e.message);
+  }
 };
 
 // ===== Dashboard =====
