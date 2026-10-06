@@ -1109,12 +1109,43 @@ async function loadAdminPanel() {
 // ===== Char Import =====
 let importPreviewData = [];
 
+function generateHint(char, components, layout) {
+  const c = components;
+  const layoutDescs = {
+    'surround': () => {
+      if (c.includes('囗') && c.includes('口')) return '囗包住口，就是「回」（來回）';
+      if (c.includes('囗') && c.includes('戈')) return '囗包住戈，叫做「國」（國家）';
+      if (c.includes('冂')) return `冂包住${c.filter(x=>x!=='冂').join('、')}`;
+      if (c.includes('匚')) return `匚包住${c.filter(x=>x!=='匚').join('、')}`;
+      return `外框包住「${c.filter(x=>x!==c[0]).join('、')}」`;
+    },
+    'half-surround-left': () => {
+      const inner = c.filter(x => !['辶','辵','⺍'].includes(x));
+      return `走之旁（辶）包住「${inner.join('、')}」`;
+    },
+    'top-bottom': () => {
+      return `上是「${c[0]}」，下是「${c.slice(1).join('、')}」`;
+    },
+    'left-right': () => {
+      return `左是「${c[0]}」，右是「${c.slice(1).join('、')}」`;
+    },
+    'surround-3': () => {
+      return `冖包住上方，「${c.filter(x=>!['冖'].includes(x)).join('、')}」在下`;
+    }
+  };
+
+  if (layoutDescs[layout]) {
+    return layoutDescs[layout]();
+  }
+  return `由「${c.join('」、「')}」組成`;
+}
+
 function processCharForImport(char) {
   const decompositions = window.ChaiziDict?.[char];
   if (!decompositions) return null;
   const components = decompositions[0].split(' ');
   const layout = autoLayout(components);
-  const hint = `由「${components.join('」、「')}」組成`;
+  const hint = generateHint(char, components, layout);
   return { char, components, layout, hint };
 }
 
