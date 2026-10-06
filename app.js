@@ -119,7 +119,9 @@ const User = {
     if (this.current) {
       userNav.classList.remove('hidden');
       loginNav.classList.add('hidden');
-      userInfo.innerHTML = `<span style="font-size:18px">${this.current.avatar || (this.current.nickname || this.current.username)[0].toUpperCase()}</span> ${this.current.nickname || this.current.username}`;
+      const displayName = this.current.nickname || this.current.username;
+      const displayAvatar = this.current.avatar || displayName[0].toUpperCase();
+      userInfo.innerHTML = `<span style="font-size:20px">${displayAvatar}</span> ${displayName}`;
       adminBtn.style.display = this.current.role === 'admin' ? 'inline-block' : 'none';
       userStats.classList.remove('hidden');
     } else {
