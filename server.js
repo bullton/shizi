@@ -275,6 +275,7 @@ async function handleAPI(req, res) {
           userId: p.userId,
           username: u ? u.username : '未知',
           nickname: u ? (u.nickname || u.username) : '未知',
+          avatar: u ? (u.avatar || null) : null,
           charsKnown: 0,
           totalAttempts: 0,
           avgTime: 0
