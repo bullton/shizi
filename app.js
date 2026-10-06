@@ -2,7 +2,7 @@
    識字樂 - 中文拼字遊戲
    =========================================== */
 
-const STORAGE_KEY = 'shizi_chars_v7';
+const STORAGE_KEY = 'shizi_chars_v8';
 
 // ===== 查字典工具（kfcd/chaizi）=====
 function lookupChaizi(char, prefer = 'last') {
