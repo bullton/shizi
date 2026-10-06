@@ -261,14 +261,8 @@ const Game = {
   score: 0,
   index: 0,
 
-  async start() {
-    try {
-      const chars = await AdminAPI.getChars();
-      this.chars = chars;
-      Data.chars = chars;
-    } catch {
-      this.chars = Data.getAll();
-    }
+  start() {
+    this.chars = Data.getAll();
     if (this.chars.length === 0) {
       this._showEmpty();
       return;
@@ -791,12 +785,12 @@ function escapeHtml(s) {
 }
 
 // ===== 視圖切換 =====
-async function showView(name) {
+function showView(name) {
   document.querySelectorAll('.nav-btn').forEach(b =>
     b.classList.toggle('active', b.dataset.view === name));
   document.querySelectorAll('.view').forEach(v =>
     v.classList.toggle('active', v.id === 'view-' + name));
-  if (name === 'game') await Game.start();
+  if (name === 'game') Game.start();
   if (name === 'admin') Admin.init();
   if (name === 'dashboard') loadDashboard();
   if (name === 'admin-panel') loadAdminPanel();
@@ -1195,23 +1189,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('confirm-import-btn')?.addEventListener('click', async () => {
     try {
-      const res = await fetch('/api/chars/import', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chars: importPreviewData })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || '導入失敗');
-      toast(`導入成功：新增 ${data.added} 個，跳過 ${data.skipped} 個`);
+      const existingChars = JSON.parse(localStorage.getItem('shizi_chars_v9') || '[]');
+      let added = 0, skipped = 0;
+      for (const item of importPreviewData) {
+        if (existingChars.find(c => c.char === item.char)) {
+          skipped++;
+          continue;
+        }
+        existingChars.push({
+          id: Date.now() + Math.random(),
+          char: item.char,
+          components: item.components,
+          layout: item.layout,
+          hint: item.hint
+        });
+        added++;
+      }
+      localStorage.setItem('shizi_chars_v9', JSON.stringify(existingChars));
+      Data.chars = existingChars;
+      toast(`導入成功：新增 ${added} 個，跳過 ${skipped} 個`);
       document.getElementById('import-preview').style.display = 'none';
       document.getElementById('import-chars').value = '';
-      loadAdminPanel();
-      // Also update localStorage for game
-      if (data.added > 0) {
-        const newChars = await AdminAPI.getChars();
-        localStorage.setItem('shizi_chars_v9', JSON.stringify(newChars));
-        Data.chars = newChars;
-      }
+      Admin.init();
     } catch (e) {
       toast('導入失敗: ' + e.message);
     }
@@ -1222,53 +1221,29 @@ document.addEventListener('DOMContentLoaded', () => {
     importPreviewData = [];
   });
 
-  document.getElementById('sync-chars-btn')?.addEventListener('click', async () => {
+  document.getElementById('sync-btn')?.addEventListener('click', async () => {
     const localChars = JSON.parse(localStorage.getItem('shizi_chars_v9') || '[]');
     if (localChars.length === 0) {
       toast('本地沒有字符');
       return;
     }
-    const processed = [];
+    let updated = 0;
     for (const c of localChars) {
       if (!c.char) continue;
-      const decompositions = window.ChaiziDict?.[c.char];
-      let components = c.components;
-      let layout = c.layout;
-      let hint = c.hint;
-      if (!components && decompositions) {
-        components = decompositions[0].split(' ');
-        layout = autoLayout(components);
+      if (!c.hint) {
+        const decompositions = window.ChaiziDict?.[c.char];
+        if (decompositions) {
+          c.components = decompositions[0].split(' ');
+          c.layout = autoLayout(c.components);
+          c.hint = generateHint(c.char, c.components, c.layout);
+          updated++;
+        }
       }
-      if (!hint && components) {
-        hint = generateHint(c.char, components, layout);
-      }
-      processed.push({
-        char: c.char,
-        components: components || [c.char],
-        layout: layout || 'left-right',
-        hint: hint || ''
-      });
     }
-    if (processed.length === 0) {
-      toast('無法處理本地字符');
-      return;
-    }
-    try {
-      const res = await fetch('/api/chars/import', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chars: processed })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || '同步失敗');
-      toast(`同步成功：新增 ${data.added} 個，跳過 ${data.skipped} 個`);
-      loadAdminPanel();
-      const newChars = await AdminAPI.getChars();
-      localStorage.setItem('shizi_chars_v9', JSON.stringify(newChars));
-      Data.chars = newChars;
-    } catch (e) {
-      toast('同步失敗: ' + e.message);
-    }
+    localStorage.setItem('shizi_chars_v9', JSON.stringify(localChars));
+    Data.chars = localChars;
+    toast(`同步完成：更新了 ${updated} 個字的提示`);
+    Admin.init();
   });
 });
 
