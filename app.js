@@ -1190,6 +1190,43 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (e) {}
   })();
 
+  // Analyze single character
+  document.getElementById('analyze-single-btn')?.addEventListener('click', async () => {
+    const char = document.getElementById('form-char').value.trim();
+    if (!char) {
+      toast('請輸入字符');
+      return;
+    }
+    const decompositions = window.ChaiziDict?.[char];
+    if (!decompositions) {
+      toast('字符不在字典中');
+      return;
+    }
+    const allDecomps = decompositions.map(d => d.split(' '));
+    const btn = document.getElementById('analyze-single-btn');
+    btn.textContent = '分析中...';
+    btn.disabled = true;
+    try {
+      const res = await fetch('/api/analyze-char', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ char, decompositions: allDecomps })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || '分析失敗');
+      // Fill form
+      document.getElementById('form-components').value = data.recommended ? allDecomps[data.recommended - 1].join(',') : allDecomps[0].join(',');
+      document.getElementById('form-layout').value = data.layout;
+      document.getElementById('form-hint').value = data.reason;
+      toast(`分析完成：${data.layout}`);
+    } catch (e) {
+      toast('分析失敗: ' + e.message);
+    } finally {
+      btn.textContent = '🤖 AI 分析';
+      btn.disabled = false;
+    }
+  });
+
   document.getElementById('import-btn')?.addEventListener('click', () => {
     const input = document.getElementById('import-chars').value.trim();
     if (!input) {
