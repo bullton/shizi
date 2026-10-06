@@ -825,17 +825,22 @@ document.getElementById('auth-submit').onclick = async () => {
 
   try {
     if (isRegister) {
-      await User.register(username, password);
-      toast('註冊成功！');
-      showView('game');
+      await this.request('/register', 'POST', { username, password });
+      toast('註冊成功！請登入');
+      isRegister = false;
+      document.getElementById('auth-title').textContent = '登入';
+      document.getElementById('auth-submit').textContent = '登入';
+      document.getElementById('auth-username').value = username;
+      document.getElementById('auth-password').value = '';
+      document.getElementById('auth-error').classList.add('hidden');
     } else {
       await User.login(username, password);
       toast('登入成功！');
       showView('dashboard');
+      errorEl.classList.add('hidden');
+      document.getElementById('auth-username').value = '';
+      document.getElementById('auth-password').value = '';
     }
-    errorEl.classList.add('hidden');
-    document.getElementById('auth-username').value = '';
-    document.getElementById('auth-password').value = '';
   } catch (e) {
     errorEl.textContent = e.message;
     errorEl.classList.remove('hidden');
