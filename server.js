@@ -416,7 +416,7 @@ async function handleAPI(req, res) {
     const progress = db.progress.filter(p => p.userId === userId);
     const attempts = db.attempts.filter(a => a.userId === userId).slice(-100);
     jsonResponse(res, 200, {
-      user: { id: targetUser.id, username: targetUser.username, role: targetUser.role, createdAt: targetUser.createdAt },
+      user: { id: targetUser.id, username: targetUser.username, nickname: targetUser.nickname || targetUser.username, role: targetUser.role, createdAt: targetUser.createdAt },
       progress,
       attempts
     });

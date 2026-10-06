@@ -119,7 +119,7 @@ const User = {
     if (this.current) {
       userNav.classList.remove('hidden');
       loginNav.classList.add('hidden');
-      userInfo.textContent = `👤 ${this.current.username}`;
+      userInfo.textContent = `👤 ${this.current.nickname || this.current.username}`;
       adminBtn.style.display = this.current.role === 'admin' ? 'inline-block' : 'none';
       userStats.classList.remove('hidden');
     } else {
@@ -1018,7 +1018,7 @@ async function loadAdminPanel() {
 async function showUserDetail(userId) {
   try {
     const data = await AdminAPI.getUserDetail(userId);
-    document.getElementById('user-detail-title').textContent = `用戶：${data.user.username}`;
+    document.getElementById('user-detail-title').textContent = `用戶：${data.user.nickname || data.user.username}`;
     document.getElementById('user-detail-stats').innerHTML = `
       <div class="user-detail-stats">
         <div class="stat-mini">
