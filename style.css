@@ -196,6 +196,18 @@ nav {
   font-size: clamp(40px, 5vw, 70px);
 }
 
+/* ===== 三疊結構（3 部件上下疊加，非品字）===== */
+.layout-vertical-3 {
+  display: grid;
+  grid-template-rows: 95px 95px 95px;
+  gap: 10px;
+  height: 320px;
+}
+
+.layout-vertical-3 > .slot {
+  font-size: clamp(35px, 5vw, 60px);
+}
+
 /* ===== 四疊結構（4 部件上下疊加）===== */
 .layout-top-bottom-bottom-bottom {
   display: grid;

@@ -46,8 +46,8 @@ const DEFAULT_CHARS = [
   { id: 11, char: '靈', components: lookupChaizi('靈', 'first'), layout: 'top-bottom', hint: '「霝」上有「巫」下，就係「靈」驗' },
   { id: 12, char: '響', components: lookupChaizi('響', 'first'), layout: 'top-bottom', hint: '「鄉」上有「音」下，就係「響」' },
   { id: 13, char: '寶', components: lookupChaizi('寶', 'last'), layout: 'top-bottom-bottom-bottom', hint: '屋頂「宀」+「玉」+「缶」+底下「貝」，就係「寶」物' },
-  { id: 14, char: '鼻', components: lookupChaizi('鼻', 'first'), layout: 'top-bottom-bottom', hint: '「自」上有「田」中有「廾」下，就係「鼻」' },
-  { id: 15, char: '攀', components: lookupChaizi('攀', 'first'), layout: 'top-bottom-bottom', hint: '「棥」+「大」+「手」，就係「攀」登' },
+  { id: 14, char: '鼻', components: lookupChaizi('鼻', 'first'), layout: 'vertical-3', hint: '「自」+「田」+「廾」三件上下疊，就係「鼻」' },
+  { id: 15, char: '攀', components: lookupChaizi('攀', 'first'), layout: 'left-right-right', hint: '「棥」在左，「大」+「手」喺右上下，就係「攀」登' },
 ];
 
 // ===== 數據存儲 =====
