@@ -35,8 +35,8 @@ const DEFAULT_CHARS = [
   { id: 6, char: '這', components: lookupChaizi('這', 'last'), layout: 'half-surround-left', hint: '「辶」包住左邊，「言」在右邊，叫做「這」個' },
   { id: 7, char: '進', components: lookupChaizi('進', 'last'), layout: 'half-surround-left', hint: '「辶」包左，「隹」在右，叫做「進」步' },
 
-  // 邊（字典首選拆法：辵 + 自 + 穴 + 方）
-  { id: 8, char: '邊', components: lookupChaizi('邊', 'first'), layout: 'complex-4-left', hint: '「辵」喺左，「自」「穴」「方」喺右邊上下疊加，叫做「旁邊」' },
+  // 邊（字典末選拆法：辶 + 臱 = 2 部分）
+  { id: 8, char: '邊', components: lookupChaizi('邊', 'last'), layout: 'half-surround-left', hint: '「辶」包住左邊，「臱」在右邊，叫做「旁邊」' },
 
   // 品字結構
   { id: 9, char: '森', components: lookupChaizi('森', 'first'), layout: 'top-bottom-bottom', hint: '三棵樹，就係「森林」' },
