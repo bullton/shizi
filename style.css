@@ -196,6 +196,72 @@ nav {
   font-size: clamp(40px, 5vw, 70px);
 }
 
+/* ===== 包圍結構（冖包玉+缶）===== */
+.layout-surround-3 {
+  position: relative;
+  height: 280px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.layout-surround-3 .slot-outer {
+  position: relative;
+  width: 88%;
+  height: 92%;
+  z-index: 1;
+  font-size: clamp(60px, 8vw, 120px);
+}
+
+.layout-surround-3 .slot-inner-top {
+  position: absolute;
+  top: 8%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 50%;
+  height: 45%;
+  z-index: 2;
+}
+
+.layout-surround-3 .slot-inner-bottom {
+  position: absolute;
+  bottom: 8%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 50%;
+  height: 42%;
+  z-index: 2;
+}
+
+/* ===== 左右右結構（林左右 + 手手上下）===== */
+.layout-left-right-right {
+  display: grid;
+  grid-template-columns: 45% 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 12px;
+  height: 280px;
+}
+
+.layout-left-right-right .slot-outer {
+  grid-column: 1;
+  grid-row: 1 / 3;
+  font-size: clamp(55px, 9vw, 110px);
+}
+
+.layout-left-right-right .slot-inner-top {
+  grid-column: 2;
+  grid-row: 1;
+  height: 125px;
+  font-size: clamp(40px, 6vw, 75px);
+}
+
+.layout-left-right-right .slot-inner-bottom {
+  grid-column: 2;
+  grid-row: 2;
+  height: 125px;
+  font-size: clamp(40px, 6vw, 75px);
+}
+
 /* ===== 包圍結構（外 + 內居中）===== */
 .layout-surround {
   position: relative;

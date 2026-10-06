@@ -2,7 +2,7 @@
    識字樂 - 中文拼字遊戲
    =========================================== */
 
-const STORAGE_KEY = 'shizi_chars_v5';
+const STORAGE_KEY = 'shizi_chars_v6';
 
 // ===== 預設字庫（粵語口訣）=====
 const DEFAULT_CHARS = [
@@ -23,6 +23,13 @@ const DEFAULT_CHARS = [
   // 品字結構
   { id: 9, char: '森', components: ['木', '木', '木'], layout: 'top-bottom-bottom', hint: '三棵樹，就係「森林」' },
   { id: 10, char: '晶', components: ['日', '日', '日'], layout: 'top-bottom-bottom', hint: '三個日頭一齊，就係「晶」亮' },
+
+  // 新增複雜字
+  { id: 11, char: '靈', components: ['雨', '巫'], layout: 'top-bottom', hint: '雨下有巫師作法，就係「靈」驗' },
+  { id: 12, char: '響', components: ['音', '鄉'], layout: 'half-surround-left', hint: '「音」在盒（鄉）裏面，聲音就會「響」' },
+  { id: 13, char: '寶', components: ['冖', '玉', '缶'], layout: 'surround-3', hint: '屋頂冖包住玉和缶，就係「寶」物' },
+  { id: 14, char: '鼻', components: ['自', '畀'], layout: 'top-bottom', hint: '「自」己嘅「畀」分，就係「鼻」子' },
+  { id: 15, char: '攀', components: ['林', '手', '手'], layout: 'left-right-right', hint: '兩隻手（手手）攀住樹林，就係「攀」登' },
 ];
 
 // ===== 數據存儲 =====
@@ -186,6 +193,48 @@ const Game = {
       bottomSlot.className = 'slot slot-inner-bottom';
       bottomSlot.dataset.index = 3;
       bottomSlot.dataset.expected = this.current.components[3];
+      this._setupSlot(bottomSlot);
+      display.appendChild(bottomSlot);
+    } else if (this.current.layout === 'surround-3') {
+      const outerSlot = document.createElement('div');
+      outerSlot.className = 'slot slot-outer';
+      outerSlot.dataset.index = 0;
+      outerSlot.dataset.expected = this.current.components[0];
+      this._setupSlot(outerSlot);
+      display.appendChild(outerSlot);
+
+      const topSlot = document.createElement('div');
+      topSlot.className = 'slot slot-inner-top';
+      topSlot.dataset.index = 1;
+      topSlot.dataset.expected = this.current.components[1];
+      this._setupSlot(topSlot);
+      display.appendChild(topSlot);
+
+      const bottomSlot = document.createElement('div');
+      bottomSlot.className = 'slot slot-inner-bottom';
+      bottomSlot.dataset.index = 2;
+      bottomSlot.dataset.expected = this.current.components[2];
+      this._setupSlot(bottomSlot);
+      display.appendChild(bottomSlot);
+    } else if (this.current.layout === 'left-right-right') {
+      const leftSlot = document.createElement('div');
+      leftSlot.className = 'slot slot-outer';
+      leftSlot.dataset.index = 0;
+      leftSlot.dataset.expected = this.current.components[0];
+      this._setupSlot(leftSlot);
+      display.appendChild(leftSlot);
+
+      const topSlot = document.createElement('div');
+      topSlot.className = 'slot slot-inner-top';
+      topSlot.dataset.index = 1;
+      topSlot.dataset.expected = this.current.components[1];
+      this._setupSlot(topSlot);
+      display.appendChild(topSlot);
+
+      const bottomSlot = document.createElement('div');
+      bottomSlot.className = 'slot slot-inner-bottom';
+      bottomSlot.dataset.index = 2;
+      bottomSlot.dataset.expected = this.current.components[2];
       this._setupSlot(bottomSlot);
       display.appendChild(bottomSlot);
     } else {
