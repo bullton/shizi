@@ -902,29 +902,70 @@ async function loadDashboard() {
 }
 
 // ===== Profile =====
+const AVATARS = [
+  '🐱', '🐶', '🐰', '🦊', '🐼', '🐨',
+  '🐯', '🦁', '🐸', '🐵', '🐷', '🐻',
+  '🌸', '💐', '🌺', '🌻', '🍎', '🍓',
+  '👧', '👦', '👩', '👨', '👵', '👴',
+  '🎀', '🎈', '⭐', '🌙', '☀️', '🎨'
+];
+
+let selectedAvatar = null;
+
 async function loadProfile() {
   if (!User.current) return;
   document.getElementById('profile-username').value = User.current.username || '';
   document.getElementById('profile-nickname').value = User.current.nickname || User.current.username || '';
   document.getElementById('profile-avatar').value = User.current.avatar || '';
+  selectedAvatar = User.current.avatar || '';
   updateAvatarPreview();
+  renderAvatarGrid();
+}
+
+function renderAvatarGrid() {
+  const grid = document.getElementById('avatar-grid');
+  if (!grid) return;
+  grid.innerHTML = AVATARS.map(avatar => `
+    <div class="avatar-option ${selectedAvatar === avatar ? 'selected' : ''}" data-avatar="${avatar}">
+      ${avatar}
+    </div>
+  `).join('');
+
+  grid.querySelectorAll('.avatar-option').forEach(option => {
+    option.onclick = () => {
+      grid.querySelectorAll('.avatar-option').forEach(o => o.classList.remove('selected'));
+      option.classList.add('selected');
+      selectedAvatar = option.dataset.avatar;
+      document.getElementById('profile-avatar').value = selectedAvatar;
+      updateAvatarPreview();
+    };
+  });
 }
 
 function updateAvatarPreview() {
-  const avatar = document.getElementById('profile-avatar').value;
+  const avatar = document.getElementById('profile-avatar')?.value || selectedAvatar;
   const preview = document.getElementById('avatar-preview');
-  const initial = document.getElementById('avatar-initial');
-  if (avatar && avatar.trim()) {
-    preview.innerHTML = `<img src="${avatar}" alt="avatar" onerror="this.parentElement.innerHTML='<span id=\\'avatar-initial\\'>${(User.current?.nickname || User.current?.username || '?')[0].toUpperCase()}</span>'">`;
+  if (!preview) return;
+  if (avatar && avatar.trim() && !avatar.startsWith('http')) {
+    preview.innerHTML = `<span style="font-size:48px">${avatar}</span>`;
+  } else if (avatar && avatar.trim()) {
+    preview.innerHTML = `<img src="${avatar}" alt="avatar" style="width:100%;height:100%;object-fit:cover;border-radius:50%" onerror="this.parentElement.innerHTML='<span style=\\'font-size:48px\\'>${(User.current?.nickname || User.current?.username || '?')[0].toUpperCase()}</span>'">`;
   } else {
     const name = User.current?.nickname || User.current?.username || '?';
-    initial.textContent = name[0].toUpperCase();
-    preview.innerHTML = `<span id="avatar-initial">${name[0].toUpperCase()}</span>`;
+    preview.innerHTML = `<span style="font-size:48px">${name[0].toUpperCase()}</span>`;
   }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  document.getElementById('profile-avatar')?.addEventListener('input', updateAvatarPreview);
+  document.getElementById('profile-avatar')?.addEventListener('input', () => {
+    selectedAvatar = document.getElementById('profile-avatar').value;
+    updateAvatarPreview();
+    const grid = document.getElementById('avatar-grid');
+    grid?.querySelectorAll('.avatar-option').forEach(o => o.classList.remove('selected'));
+    if (selectedAvatar && AVATARS.includes(selectedAvatar)) {
+      grid?.querySelector(`[data-avatar="${selectedAvatar}"]`)?.classList.add('selected');
+    }
+  });
 
   document.getElementById('save-profile-btn')?.addEventListener('click', async () => {
     const nickname = document.getElementById('profile-nickname').value.trim();
