@@ -166,7 +166,7 @@ async function handleAPI(req, res) {
       };
       db.users.push(user);
       saveData(db);
-      jsonResponse(res, 201, { id: user.id, username: user.username });
+      jsonResponse(res, 201, { id: user.id, username: user.username, role: user.role });
     } catch (e) {
       jsonResponse(res, 400, { error: '無效的請求' });
     }
