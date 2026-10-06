@@ -44,6 +44,7 @@ function autoLayout(components) {
   if (components.length === 2) return 'top-bottom';
   if (components.length === 3) return 'vertical-3';
   if (components.length === 4) return 'top-2-bottom';
+  if (components.length >= 5) return 'stack';
 
   return 'top-bottom';
 }
@@ -413,6 +414,16 @@ const Game = {
       bottomSlot.dataset.expected = this.current.components[2];
       this._setupSlot(bottomSlot);
       display.appendChild(bottomSlot);
+    } else if (this.current.layout === 'stack') {
+      // Vertical stack for 5+ components
+      this.current.components.forEach((comp, i) => {
+        const slot = document.createElement('div');
+        slot.className = 'slot slot-stack';
+        slot.dataset.index = i;
+        slot.dataset.expected = comp;
+        this._setupSlot(slot);
+        display.appendChild(slot);
+      });
     } else {
       this.current.components.forEach((comp, i) => {
         const slot = document.createElement('div');
@@ -1272,6 +1283,7 @@ document.addEventListener('DOMContentLoaded', () => {
               <option value="complex-4-left" ${p.layout === 'complex-4-left' ? 'selected' : ''}>四方結構</option>
               <option value="surround-3" ${p.layout === 'surround-3' ? 'selected' : ''}>包圍-3</option>
               <option value="left-right-right" ${p.layout === 'left-right-right' ? 'selected' : ''}>左中右結構</option>
+              <option value="stack" ${p.layout === 'stack' ? 'selected' : ''}>通用堆疊（5+部件）</option>
             </select>
           </div>
           <div class="import-preview-hint">提示：${p.hint}</div>

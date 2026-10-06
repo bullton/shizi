@@ -424,7 +424,7 @@ async function handleAPI(req, res) {
         'left-right', 'top-bottom', 'top-bottom-bottom', 'vertical-3',
         'top-bottom-bottom-bottom', 'top-2-bottom', 'surround',
         'half-surround-left', 'complex-3-left', 'complex-4-left',
-        'surround-3', 'left-right-right'
+        'surround-3', 'left-right-right', 'stack'
       ];
       const layoutDescs = {
         'left-right': '左右結構（左部 + 右部）',
@@ -434,6 +434,7 @@ async function handleAPI(req, res) {
         'top-bottom-bottom-bottom': '四疊結構（4個上下堆疊）',
         'top-2-bottom': '上中下結構（頂部1個 + 中間2個並排 + 底部1個）',
         'surround': '包圍結構（外框包住內部）',
+        'stack': '通用堆疊（5+部件上下堆疊）',
         'half-surround-left': '半包圍結構（走之旁辶包左邊）',
         'complex-3-left': '三方結構（辶左 + 上下右）',
         'complex-4-left': '四方結構（辶左 + 自穴方右）',
@@ -447,14 +448,14 @@ async function handleAPI(req, res) {
 現有以下拆字選項（每個選項是一個部件數組）：
 ${decompsStr}
 
-## 必須使用的 layout 值（只選一個）：
+## 必須使用的 layout 值（只選一個，每個 layout 期望的部件數已列出）：
   ${layoutList}
 
 ## 要求：
 1. 從拆字選項中選擇視覺上最準確的一個
-2. 如果某個選項的部件可以正確組合成該字符的視覺結構，就選它
-3. layout 值必須嚴格使用上面列表中的一個英文值
-4. 如果字符部件多於4個，優先選擇最接近視覺結構的 layout
+2. **layout 的部件數必須等於所選拆字選項的部件數**
+3. 如果選項的部件數是 5+，必須使用 stack 布局
+4. 如果某個 layout 的部件數與所選拆字不符，自動改用 stack
 
 回复格式（嚴格只用JSON，無多餘文字）：
 {
@@ -500,12 +501,27 @@ ${decompsStr}
 
       // Validate layout
       if (!validLayouts.includes(result.layout)) {
-        // Fallback: try to guess from decomposition
+        // Fallback: choose based on component count
         const chosenDecomp = decompositions[(result.recommended || 1) - 1];
         if (chosenDecomp) {
-          result.layout = 'top-bottom'; // safe fallback
+          result.layout = chosenDecomp.length >= 5 ? 'stack' : 'top-bottom';
         } else {
           return jsonResponse(res, 500, { error: 'AI 返回了無效的 layout: ' + result.layout });
+        }
+      }
+
+      // Validate layout matches component count
+      const chosenDecomp2 = decompositions[(result.recommended || 1) - 1];
+      if (chosenDecomp2) {
+        const counts = {
+          'left-right': 2, 'top-bottom': 2, 'top-bottom-bottom': 3, 'vertical-3': 3,
+          'top-bottom-bottom-bottom': 4, 'top-2-bottom': 4, 'surround': 2,
+          'half-surround-left': 2, 'complex-3-left': 3, 'complex-4-left': 4,
+          'surround-3': 3, 'left-right-right': 3
+        };
+        const expected = counts[result.layout];
+        if (expected && chosenDecomp2.length !== expected) {
+          result.layout = chosenDecomp2.length >= 5 ? 'stack' : 'top-bottom';
         }
       }
 

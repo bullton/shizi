@@ -231,6 +231,15 @@ nav {
   height: 320px;
 }
 
+/* ===== 通用堆疊結構（5+ 部件）===== */
+.layout-stack {
+  display: grid;
+  grid-auto-rows: 1fr;
+  gap: 6px;
+  height: 100%;
+  min-height: 320px;
+}
+
 .layout-top-bottom-bottom-bottom > .slot {
   font-size: clamp(30px, 4vw, 50px);
 }
