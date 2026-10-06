@@ -701,6 +701,18 @@ nav {
   gap: 20px;
 }
 
+.admin-left {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.admin-right {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
 @media (max-width: 880px) {
   .admin-layout { grid-template-columns: 1fr; }
 }
