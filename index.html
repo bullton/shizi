@@ -151,23 +151,35 @@
     <div class="dashboard-header">
       <h2>📊 我的學習進度</h2>
     </div>
-    <div class="stats-grid">
-      <div class="stat-card">
-        <div class="stat-value" id="stat-chars">0</div>
-        <div class="stat-label">已學字數</div>
+    <div class="dashboard-tabs">
+      <button class="tab-btn active" data-tab="my-progress">📝 我的記錄</button>
+      <button class="tab-btn" data-tab="leaderboard">🏆 排行榜</button>
+    </div>
+    <div id="tab-my-progress" class="dashboard-tab active">
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-value" id="stat-chars">0</div>
+          <div class="stat-label">已學字數</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="stat-attempts">0</div>
+          <div class="stat-label">總練習次數</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="stat-avg-time">0s</div>
+          <div class="stat-label">平均答題時間</div>
+        </div>
       </div>
-      <div class="stat-card">
-        <div class="stat-value" id="stat-attempts">0</div>
-        <div class="stat-label">總練習次數</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-value" id="stat-avg-time">0s</div>
-        <div class="stat-label">平均答題時間</div>
+      <div class="card">
+        <h3>📝 練習記錄</h3>
+        <div class="progress-list" id="progress-list"></div>
       </div>
     </div>
-    <div class="card">
-      <h3>📝 練習記錄</h3>
-      <div class="progress-list" id="progress-list"></div>
+    <div id="tab-leaderboard" class="dashboard-tab">
+      <div class="card">
+        <h3>🏆 識字量排行榜</h3>
+        <div class="leaderboard-list" id="leaderboard-list"></div>
+      </div>
     </div>
   </section>
 

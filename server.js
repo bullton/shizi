@@ -212,6 +212,35 @@ async function handleAPI(req, res) {
     return;
   }
 
+  // Public leaderboard (no auth required)
+  if (pathname === '/api/leaderboard' && method === 'GET') {
+    const userStats = {};
+    db.progress.forEach(p => {
+      if (!userStats[p.userId]) {
+        const u = db.users.find(x => x.id === p.userId);
+        userStats[p.userId] = {
+          userId: p.userId,
+          username: u ? u.username : '未知',
+          charsKnown: 0,
+          totalAttempts: 0,
+          avgTime: 0
+        };
+      }
+      userStats[p.userId].charsKnown++;
+      userStats[p.userId].totalAttempts += p.attempts || 0;
+      userStats[p.userId].avgTime += p.avgTime || 0;
+    });
+    const leaderboard = Object.values(userStats)
+      .map(u => ({
+        ...u,
+        avgTime: u.charsKnown > 0 ? u.avgTime / u.charsKnown : 0
+      }))
+      .sort((a, b) => b.charsKnown - a.charsKnown || a.avgTime - b.avgTime)
+      .slice(0, 50);
+    jsonResponse(res, 200, leaderboard);
+    return;
+  }
+
   // Progress routes (require auth)
   const user = requireAuth(req, res);
   if (!user) return jsonResponse(res, 401, { error: '請先登入' });

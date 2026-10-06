@@ -881,10 +881,21 @@ async function loadDashboard() {
     list.innerHTML = progress.slice(0, 20).map(p => `
       <div class="progress-item">
         <span class="progress-char">${p.char}</span>
-        <span class="progress-stats">次數: ${p.attempts} | 平均: ${p.avg_time ? (p.avg_time/1000).toFixed(1) + 's' : '-'} | 最佳: ${p.best_time ? (p.best_time/1000).toFixed(1) + 's' : '-'}</span>
-        <span class="progress-date">${p.last_practiced ? new Date(p.last_practiced).toLocaleDateString() : '-'}</span>
+        <span class="progress-stats">次數: ${p.attempts} | 平均: ${p.avgTime ? (p.avgTime/1000).toFixed(1) + 's' : '-'} | 最佳: ${p.bestTime ? (p.bestTime/1000).toFixed(1) + 's' : '-'}</span>
+        <span class="progress-date">${p.lastPracticed ? new Date(p.lastPracticed).toLocaleDateString() : '-'}</span>
       </div>
     `).join('') || '<p>暫無記錄</p>';
+
+    const leaderboard = await User.request('/leaderboard');
+    const lbList = document.getElementById('leaderboard-list');
+    lbList.innerHTML = leaderboard.map((u, i) => `
+      <div class="leaderboard-item">
+        <span class="leaderboard-rank ${i === 0 ? 'top-1' : i === 1 ? 'top-2' : i === 2 ? 'top-3' : ''}">${i + 1}</span>
+        <span class="leaderboard-name">${u.username}${u.userId === User.current?.id ? ' (我)' : ''}</span>
+        <span class="leaderboard-stats">已學: ${u.charsKnown} 字 | 平均: ${u.avgTime ? (u.avgTime/1000).toFixed(1) + 's' : '-'}</span>
+        <span class="leaderboard-badge">${u.charsKnown >= 10 ? '🌟' : ''}</span>
+      </div>
+    `).join('') || '<p>暫無數據</p>';
   } catch (e) {
     console.warn('載入進度失敗:', e);
   }
@@ -997,9 +1008,20 @@ async function deleteUser(userId) {
 
 // Tab switching
 document.addEventListener('DOMContentLoaded', () => {
-  document.querySelectorAll('.tab-btn').forEach(btn => {
+  // Dashboard tabs
+  document.querySelectorAll('.dashboard-tabs .tab-btn').forEach(btn => {
     btn.onclick = () => {
-      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.dashboard-tabs .tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.dashboard-tab').forEach(t => t.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    };
+  });
+
+  // Admin tabs
+  document.querySelectorAll('.admin-tabs .tab-btn').forEach(btn => {
+    btn.onclick = () => {
+      document.querySelectorAll('.admin-tabs .tab-btn').forEach(b => b.classList.remove('active'));
       document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
       btn.classList.add('active');
       document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
