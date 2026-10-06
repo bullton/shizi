@@ -119,7 +119,7 @@ const User = {
     if (this.current) {
       userNav.classList.remove('hidden');
       loginNav.classList.add('hidden');
-      userInfo.textContent = `👤 ${this.current.nickname || this.current.username}`;
+      userInfo.innerHTML = `<span style="font-size:18px">${this.current.avatar || (this.current.nickname || this.current.username)[0].toUpperCase()}</span> ${this.current.nickname || this.current.username}`;
       adminBtn.style.display = this.current.role === 'admin' ? 'inline-block' : 'none';
       userStats.classList.remove('hidden');
     } else {
@@ -891,6 +891,7 @@ async function loadDashboard() {
     lbList.innerHTML = leaderboard.map((u, i) => `
       <div class="leaderboard-item">
         <span class="leaderboard-rank ${i === 0 ? 'top-1' : i === 1 ? 'top-2' : i === 2 ? 'top-3' : ''}">${i + 1}</span>
+        <span class="leaderboard-avatar">${u.avatar || u.nickname?.[0]?.toUpperCase() || '?'}</span>
         <span class="leaderboard-name">${u.nickname || u.username}${u.userId === User.current?.id ? ' (我)' : ''}</span>
         <span class="leaderboard-stats">已學: ${u.charsKnown} 字 | 平均: ${u.avgTime ? (u.avgTime/1000).toFixed(1) + 's' : '-'}</span>
         <span class="leaderboard-badge">${u.charsKnown >= 10 ? '🌟' : ''}</span>
