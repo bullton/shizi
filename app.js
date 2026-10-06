@@ -891,7 +891,7 @@ async function loadDashboard() {
     lbList.innerHTML = leaderboard.map((u, i) => `
       <div class="leaderboard-item">
         <span class="leaderboard-rank ${i === 0 ? 'top-1' : i === 1 ? 'top-2' : i === 2 ? 'top-3' : ''}">${i + 1}</span>
-        <span class="leaderboard-name">${u.username}${u.userId === User.current?.id ? ' (我)' : ''}</span>
+        <span class="leaderboard-name">${u.nickname || u.username}${u.userId === User.current?.id ? ' (我)' : ''}</span>
         <span class="leaderboard-stats">已學: ${u.charsKnown} 字 | 平均: ${u.avgTime ? (u.avgTime/1000).toFixed(1) + 's' : '-'}</span>
         <span class="leaderboard-badge">${u.charsKnown >= 10 ? '🌟' : ''}</span>
       </div>
@@ -905,6 +905,7 @@ async function loadDashboard() {
 async function loadProfile() {
   if (!User.current) return;
   document.getElementById('profile-username').value = User.current.username || '';
+  document.getElementById('profile-nickname').value = User.current.nickname || User.current.username || '';
   document.getElementById('profile-avatar').value = User.current.avatar || '';
   updateAvatarPreview();
 }
@@ -914,9 +915,9 @@ function updateAvatarPreview() {
   const preview = document.getElementById('avatar-preview');
   const initial = document.getElementById('avatar-initial');
   if (avatar && avatar.trim()) {
-    preview.innerHTML = `<img src="${avatar}" alt="avatar" onerror="this.parentElement.innerHTML='<span id=\\'avatar-initial\\'>${(User.current?.username || '?')[0].toUpperCase()}</span>'">`;
+    preview.innerHTML = `<img src="${avatar}" alt="avatar" onerror="this.parentElement.innerHTML='<span id=\\'avatar-initial\\'>${(User.current?.nickname || User.current?.username || '?')[0].toUpperCase()}</span>'">`;
   } else {
-    const name = User.current?.username || '?';
+    const name = User.current?.nickname || User.current?.username || '?';
     initial.textContent = name[0].toUpperCase();
     preview.innerHTML = `<span id="avatar-initial">${name[0].toUpperCase()}</span>`;
   }
@@ -926,20 +927,20 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('profile-avatar')?.addEventListener('input', updateAvatarPreview);
 
   document.getElementById('save-profile-btn')?.addEventListener('click', async () => {
-    const username = document.getElementById('profile-username').value.trim();
+    const nickname = document.getElementById('profile-nickname').value.trim();
     const avatar = document.getElementById('profile-avatar').value.trim();
     try {
       const res = await fetch('/api/profile', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, avatar })
+        body: JSON.stringify({ nickname, avatar })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || '保存失敗');
-      User.current.username = data.username;
+      User.current.nickname = data.nickname;
       User.current.avatar = data.avatar;
       User.updateUI();
-      document.getElementById('user-info').textContent = `👤 ${data.username}`;
+      document.getElementById('user-info').textContent = `👤 ${data.nickname}`;
       toast('資料已保存');
     } catch (e) {
       toast('保存失敗: ' + e.message);
@@ -982,7 +983,7 @@ async function loadAdminPanel() {
 
     document.getElementById('admin-user-list').innerHTML = users.map(u => `
       <div class="user-item" data-id="${u.id}">
-        <span class="user-name">${u.username} ${u.role === 'admin' ? '👑' : ''}</span>
+        <span class="user-name">${u.nickname || u.username} ${u.role === 'admin' ? '👑' : ''}</span>
         <span class="user-stats">已學: ${u.charsKnown} 字 | 練習: ${u.totalAttempts || 0} 次</span>
         <div class="user-actions">
           <button class="btn-small btn-view" data-id="${u.id}">查看</button>

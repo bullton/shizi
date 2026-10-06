@@ -210,7 +210,7 @@ async function handleAPI(req, res) {
     if (!user) return jsonResponse(res, 401, { error: '未登入' });
     const fullUser = db.users.find(u => u.id === user.id);
     if (!fullUser) return jsonResponse(res, 404, { error: '用戶不存在' });
-    jsonResponse(res, 200, { id: fullUser.id, username: fullUser.username, role: fullUser.role, avatar: fullUser.avatar || null });
+    jsonResponse(res, 200, { id: fullUser.id, username: fullUser.username, nickname: fullUser.nickname || fullUser.username, role: fullUser.role, avatar: fullUser.avatar || null });
     return;
   }
 
@@ -218,14 +218,14 @@ async function handleAPI(req, res) {
     const user = requireAuth(req, res);
     if (!user) return jsonResponse(res, 401, { error: '未登入' });
     try {
-      const { username, avatar } = await parseBody(req);
+      const { nickname, avatar } = await parseBody(req);
       const userIdx = db.users.findIndex(u => u.id === user.id);
       if (userIdx < 0) return jsonResponse(res, 404, { error: '用戶不存在' });
-      if (username && username.length >= 2 && username.length <= 20) {
-        if (db.users.find(u => u.username === username && u.id !== user.id)) {
-          return jsonResponse(res, 400, { error: '用戶名已存在' });
+      if (nickname && nickname.length >= 1 && nickname.length <= 20) {
+        if (db.users.find(u => u.nickname === nickname && u.id !== user.id)) {
+          return jsonResponse(res, 400, { error: '昵稱已被使用' });
         }
-        db.users[userIdx].username = username;
+        db.users[userIdx].nickname = nickname;
       }
       if (avatar !== undefined) {
         db.users[userIdx].avatar = avatar;
@@ -233,10 +233,10 @@ async function handleAPI(req, res) {
       saveData(db);
       sessions.forEach((s, sid) => {
         if (s.user.id === user.id) {
-          s.user.username = db.users[userIdx].username;
+          s.user.nickname = db.users[userIdx].nickname;
         }
       });
-      jsonResponse(res, 200, { success: true, username: db.users[userIdx].username, avatar: db.users[userIdx].avatar || null });
+      jsonResponse(res, 200, { success: true, nickname: db.users[userIdx].nickname, avatar: db.users[userIdx].avatar || null });
     } catch (e) {
       jsonResponse(res, 400, { error: '無效的請求' });
     }
@@ -274,6 +274,7 @@ async function handleAPI(req, res) {
         userStats[p.userId] = {
           userId: p.userId,
           username: u ? u.username : '未知',
+          nickname: u ? (u.nickname || u.username) : '未知',
           charsKnown: 0,
           totalAttempts: 0,
           avgTime: 0
@@ -394,6 +395,7 @@ async function handleAPI(req, res) {
       return {
         id: u.id,
         username: u.username,
+        nickname: u.nickname || u.username,
         role: u.role,
         createdAt: u.createdAt,
         charsKnown: userProgress.length,
