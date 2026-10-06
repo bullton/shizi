@@ -220,6 +220,39 @@ nav {
   font-size: clamp(30px, 4vw, 50px);
 }
 
+/* ===== 上中下結構（上1全寬 + 中2左右 + 下1全寬）===== */
+.layout-top-2-bottom {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr 1fr;
+  gap: 10px;
+  height: 320px;
+}
+
+.layout-top-2-bottom > .slot:nth-child(1) {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  font-size: clamp(45px, 6vw, 75px);
+}
+
+.layout-top-2-bottom > .slot:nth-child(2) {
+  grid-column: 1;
+  grid-row: 2;
+  font-size: clamp(40px, 5vw, 65px);
+}
+
+.layout-top-2-bottom > .slot:nth-child(3) {
+  grid-column: 2;
+  grid-row: 2;
+  font-size: clamp(40px, 5vw, 65px);
+}
+
+.layout-top-2-bottom > .slot:nth-child(4) {
+  grid-column: 1 / -1;
+  grid-row: 3;
+  font-size: clamp(45px, 6vw, 75px);
+}
+
 /* ===== 包圍結構（冖包玉+缶）===== */
 .layout-surround-3 {
   position: relative;
