@@ -25,7 +25,10 @@ const db = {
   users: [],
   progress: [],
   attempts: [],
-  chars: []
+  chars: [],
+  config: {
+    aiToken: ''
+  }
 };
 
 // Load on startup
@@ -33,6 +36,8 @@ const savedData = loadData();
 db.users = savedData.users || [];
 db.progress = savedData.progress || [];
 db.attempts = savedData.attempts || [];
+db.chars = savedData.chars || [];
+db.config = savedData.config || { aiToken: '' };
 
 // ===== Password hashing =====
 const crypto = require('crypto');
@@ -373,6 +378,101 @@ async function handleAPI(req, res) {
     db.chars.splice(idx, 1);
     saveData(db);
     jsonResponse(res, 200, { success: true });
+    return;
+  }
+
+  // Config routes (admin only)
+  if (pathname === '/api/config' && method === 'GET') {
+    const adminUser = requireAuth(req, res);
+    if (!adminUser) return jsonResponse(res, 401, { error: '請先登入' });
+    if (adminUser.role !== 'admin') return jsonResponse(res, 403, { error: '需要管理員權限' });
+    jsonResponse(res, 200, { aiToken: db.config.aiToken || '' });
+    return;
+  }
+
+  if (pathname === '/api/config' && method === 'PUT') {
+    const adminUser = requireAuth(req, res);
+    if (!adminUser) return jsonResponse(res, 401, { error: '請先登入' });
+    if (adminUser.role !== 'admin') return jsonResponse(res, 403, { error: '需要管理員權限' });
+    try {
+      const { aiToken } = await parseBody(req);
+      db.config.aiToken = aiToken || '';
+      saveData(db);
+      jsonResponse(res, 200, { success: true });
+    } catch (e) {
+      jsonResponse(res, 400, { error: '無效的請求' });
+    }
+    return;
+  }
+
+  // AI analyze char (admin only)
+  if (pathname === '/api/analyze-char' && method === 'POST') {
+    const adminUser = requireAuth(req, res);
+    if (!adminUser) return jsonResponse(res, 401, { error: '請先登入' });
+    if (adminUser.role !== 'admin') return jsonResponse(res, 403, { error: '需要管理員權限' });
+    try {
+      const { char, decompositions } = await parseBody(req);
+      if (!char) return jsonResponse(res, 400, { error: '缺少字符' });
+
+      // If no AI token, return error
+      if (!db.config.aiToken) {
+        return jsonResponse(res, 400, { error: '請先配置 AI Token' });
+      }
+
+      const decompsStr = decompositions.map((d, i) => `${i + 1}. ${d}`).join('\n');
+      const prompt = `你是繁體中文字形結構專家。請分析字符「${char}」的視覺結構。
+
+現有以下拆字選項：
+${decompsStr}
+
+請選擇視覺上最準確的拆分方式，並說明理由。
+
+回复格式（只用JSON）：
+{
+  "recommended": 選擇的序號(1/2/3...),
+  "layout": "left-right" 或 "top-bottom" 或 "surround" 或 "half-surround-left" 等,
+  "reason": "簡短解釋"
+}`;
+
+      const aiRes = await fetch('https://api.minimax.cn/anthropic/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${db.config.aiToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: 'MiniMax-M3',
+          output_config: { effort: 'max' },
+          max_tokens: 1024,
+          messages: [{ role: 'user', content: prompt }]
+        })
+      });
+
+      if (!aiRes.ok) {
+        const err = await aiRes.text();
+        return jsonResponse(res, 502, { error: 'AI API 錯誤: ' + err });
+      }
+
+      const aiData = await aiRes.json();
+      const content = aiData.content?.[0]?.text || '';
+
+      // Parse JSON from response
+      let result;
+      try {
+        const jsonMatch = content.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          result = JSON.parse(jsonMatch[0]);
+        } else {
+          return jsonResponse(res, 500, { error: '無法解析 AI 回覆' });
+        }
+      } catch (e) {
+        return jsonResponse(res, 500, { error: '解析 AI 回覆失敗: ' + content.substring(0, 100) });
+      }
+
+      jsonResponse(res, 200, result);
+    } catch (e) {
+      jsonResponse(res, 500, { error: '分析失敗: ' + e.message });
+    }
     return;
   }
 

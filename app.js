@@ -204,7 +204,7 @@ const DEFAULT_CHARS = [
   { id: 12, char: '響', components: lookupChaizi('響', 'first'), layout: 'top-bottom', hint: '「鄉」上有「音」下，就係「響」' },
   { id: 13, char: '寶', components: lookupChaizi('寶', 'last'), layout: 'top-2-bottom', hint: '屋頂「宀」+中間「玉」左「缶」右+底下「貝」，就係「寶」物' },
   { id: 14, char: '鼻', components: lookupChaizi('鼻', 'first'), layout: 'vertical-3', hint: '「自」+「田」+「廾」三件上下疊，就係「鼻」' },
-  { id: 15, char: '攀', components: lookupChaizi('攀', 'first'), layout: 'left-right-right', hint: '「棥」在左，「大」+「手」喺右上下，就係「攀」登' },
+  { id: 15, char: '攀', components: ['林', '爻', '大', '手'], layout: 'vertical-3', hint: '「林」「爻」「大」「手」上下疊，就係「攀」' },
 ];
 
 // ===== 數據存儲 =====
@@ -1149,13 +1149,47 @@ function generateHint(char, components, layout) {
 function processCharForImport(char) {
   const decompositions = window.ChaiziDict?.[char];
   if (!decompositions) return null;
-  const components = decompositions[0].split(' ');
-  const layout = autoLayout(components);
-  const hint = generateHint(char, components, layout);
-  return { char, components, layout, hint };
+  const allDecomps = decompositions.map(d => d.split(' '));
+  const defaultComponents = allDecomps[0];
+  const defaultLayout = autoLayout(defaultComponents);
+  const defaultHint = generateHint(char, defaultComponents, defaultLayout);
+  return {
+    char,
+    decompositions: allDecomps,
+    components: defaultComponents,
+    layout: defaultLayout,
+    hint: defaultHint
+  };
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  // Save AI token
+  document.getElementById('save-ai-token-btn')?.addEventListener('click', async () => {
+    const token = document.getElementById('ai-token').value.trim();
+    try {
+      const res = await fetch('/api/config', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ aiToken: token })
+      });
+      if (!res.ok) throw new Error('保存失敗');
+      toast('AI 配置已保存');
+    } catch (e) {
+      toast('保存失敗: ' + e.message);
+    }
+  });
+
+  // Load AI token
+  (async () => {
+    try {
+      const res = await fetch('/api/config');
+      if (res.ok) {
+        const data = await res.json();
+        document.getElementById('ai-token').value = data.aiToken || '';
+      }
+    } catch (e) {}
+  })();
+
   document.getElementById('import-btn')?.addEventListener('click', () => {
     const input = document.getElementById('import-chars').value.trim();
     if (!input) {
@@ -1174,16 +1208,102 @@ document.addEventListener('DOMContentLoaded', () => {
       toast('沒有找到可導入的字符（確保字符在字典中存在）');
       return;
     }
-    document.getElementById('import-preview-list').innerHTML = importPreviewData.map(p => `
-      <div class="import-preview-item">
+    document.getElementById('import-preview-list').innerHTML = importPreviewData.map((p, idx) => `
+      <div class="import-preview-item" data-idx="${idx}">
         <span class="import-preview-char">${p.char}</span>
         <div class="import-preview-info">
-          <div class="import-preview-components">${p.components.join(' + ')}</div>
-          <div class="import-preview-layout">${p.layout}</div>
-          <div class="import-preview-hint">${p.hint}</div>
+          <div class="decomp-options">
+            ${p.decompositions.map((d, i) => `
+              <label class="decomp-option ${i === 0 ? 'selected' : ''}">
+                <input type="radio" name="decomp-${idx}" value="${i}" ${i === 0 ? 'checked' : ''}>
+                ${d.join(' + ')}
+              </label>
+            `).join('')}
+          </div>
+          <div class="layout-select">
+            <label>結構：</label>
+            <select class="layout-selector" data-idx="${idx}">
+              <option value="left-right" ${p.layout === 'left-right' ? 'selected' : ''}>左右結構</option>
+              <option value="top-bottom" ${p.layout === 'top-bottom' ? 'selected' : ''}>上下結構</option>
+              <option value="top-bottom-bottom" ${p.layout === 'top-bottom-bottom' ? 'selected' : ''}>品字結構</option>
+              <option value="vertical-3" ${p.layout === 'vertical-3' ? 'selected' : ''}>三疊結構</option>
+              <option value="top-bottom-bottom-bottom" ${p.layout === 'top-bottom-bottom-bottom' ? 'selected' : ''}>四疊結構</option>
+              <option value="top-2-bottom" ${p.layout === 'top-2-bottom' ? 'selected' : ''}>上中下結構</option>
+              <option value="surround" ${p.layout === 'surround' ? 'selected' : ''}>包圍結構</option>
+              <option value="half-surround-left" ${p.layout === 'half-surround-left' ? 'selected' : ''}>半包圍（左）</option>
+              <option value="complex-3-left" ${p.layout === 'complex-3-left' ? 'selected' : ''}>三方結構</option>
+              <option value="complex-4-left" ${p.layout === 'complex-4-left' ? 'selected' : ''}>四方結構</option>
+              <option value="surround-3" ${p.layout === 'surround-3' ? 'selected' : ''}>包圍-3</option>
+              <option value="left-right-right" ${p.layout === 'left-right-right' ? 'selected' : ''}>左中右結構</option>
+            </select>
+          </div>
+          <div class="import-preview-hint">提示：${p.hint}</div>
+          <button class="btn btn-secondary btn-sm ai-analyze-btn" data-idx="${idx}">🤖 AI 分析</button>
         </div>
       </div>
     `).join('');
+
+    // Bind events for decomp selection
+    document.querySelectorAll('.decomp-option input').forEach(input => {
+      input.addEventListener('change', (e) => {
+        const item = e.target.closest('.import-preview-item');
+        const idx = parseInt(item.dataset.idx);
+        const decompIdx = parseInt(e.target.value);
+        const p = importPreviewData[idx];
+        p.components = p.decompositions[decompIdx];
+        p.layout = autoLayout(p.components);
+        p.hint = generateHint(p.char, p.components, p.layout);
+        // Re-render just this item
+        item.querySelector('.import-preview-components')?.remove();
+        item.querySelector('.decomp-options')?.remove();
+        item.querySelector('.layout-select')?.remove();
+        item.querySelector('.import-preview-hint')?.remove();
+        const info = item.querySelector('.import-preview-info');
+        info.insertAdjacentHTML('afterbegin', `<div class="import-preview-components">${p.components.join(' + ')}</div>`);
+        info.insertAdjacentHTML('afterbegin', `<div class="decomp-options">${p.decompositions.map((d, i) => `<label class="decomp-option ${i === decompIdx ? 'selected' : ''}"><input type="radio" name="decomp-${idx}" value="${i}" ${i === decompIdx ? 'checked' : ''}>${d.join(' + ')}</label>`).join('')}</div>`);
+      });
+    });
+
+    // Bind layout selector
+    document.querySelectorAll('.layout-selector').forEach(sel => {
+      sel.addEventListener('change', (e) => {
+        const idx = parseInt(e.target.dataset.idx);
+        importPreviewData[idx].layout = e.target.value;
+      });
+    });
+
+    // Bind AI analyze
+    document.querySelectorAll('.ai-analyze-btn').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        const idx = parseInt(e.target.dataset.idx);
+        const p = importPreviewData[idx];
+        e.target.textContent = '分析中...';
+        e.target.disabled = true;
+        try {
+          const res = await fetch('/api/analyze-char', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ char: p.char, decompositions: p.decompositions })
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || '分析失敗');
+          // Apply result
+          const decompIdx = data.recommended - 1;
+          p.components = p.decompositions[decompIdx];
+          p.layout = data.layout;
+          p.hint = `${p.components.join(' + ')}，${data.reason}`;
+          // Re-render
+          toast(`分析完成：${data.layout} - ${data.reason}`);
+          document.getElementById('import-btn').click(); // Re-render preview
+        } catch (err) {
+          toast(err.message);
+        } finally {
+          e.target.textContent = '🤖 AI 分析';
+          e.target.disabled = false;
+        }
+      });
+    });
+
     document.getElementById('import-preview').style.display = 'block';
   });
 

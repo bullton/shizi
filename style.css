@@ -1409,6 +1409,57 @@ nav {
   margin-top: 4px;
 }
 
+.decomp-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.decomp-option {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: #f0f0f0;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.decomp-option.selected {
+  background: #e8e6ff;
+  border: 1px solid #6c5ce7;
+}
+
+.decomp-option input {
+  display: none;
+}
+
+.layout-select {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.layout-select label {
+  font-size: 13px;
+  color: #636e72;
+}
+
+.layout-select select {
+  padding: 4px 8px;
+  border: 1px solid #dfe6e9;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.btn-sm {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
 .char-lib-list {
   max-height: 400px;
   overflow-y: auto;

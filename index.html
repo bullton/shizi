@@ -101,21 +101,31 @@
       <div class="admin-left">
         <div class="card">
           <h3>📥 批量導入</h3>
-          <p style="color:#636e72;font-size:14px;margin-bottom:12px">粘貼漢字自動拆字生成（系統根據拆字字典分析）</p>
+          <p style="color:#636e72;font-size:14px;margin-bottom:12px">粘貼漢字，系統自動分析結構</p>
           <textarea id="import-chars" rows="3" placeholder="粘貼要導入的漢字，例如：回天地日月山水火木金"></textarea>
           <div style="margin-top:12px;display:flex;gap:8px">
-            <button class="btn btn-primary" id="import-btn">🔍 預覽導入</button>
+            <button class="btn btn-primary" id="import-btn">🔍 預覽</button>
             <button class="btn btn-secondary" id="sync-btn">🔄 從本地同步</button>
           </div>
         </div>
 
         <div class="card" id="import-preview" style="display:none">
-          <h3>📋 導入預覽</h3>
+          <h3>📋 導入預覽（可手動選擇結構）</h3>
           <div id="import-preview-list"></div>
           <div style="margin-top:16px;display:flex;gap:12px">
             <button class="btn btn-primary" id="confirm-import-btn">✅ 確認導入</button>
             <button class="btn btn-secondary" id="cancel-import-btn">✕ 取消</button>
           </div>
+        </div>
+
+        <div class="card">
+          <h3>⚙️ AI 設置</h3>
+          <div class="form-field">
+            <label>MiniMax API Token</label>
+            <input type="password" id="ai-token" placeholder="輸入 API Token">
+            <small style="color:#636e72">用於 AI 自動分析字形結構</small>
+          </div>
+          <button class="btn btn-primary" id="save-ai-token-btn">保存</button>
         </div>
 
         <div class="card">
