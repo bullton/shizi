@@ -1221,6 +1221,55 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('import-preview').style.display = 'none';
     importPreviewData = [];
   });
+
+  document.getElementById('sync-chars-btn')?.addEventListener('click', async () => {
+    const localChars = JSON.parse(localStorage.getItem('shizi_chars_v9') || '[]');
+    if (localChars.length === 0) {
+      toast('本地沒有字符');
+      return;
+    }
+    const processed = [];
+    for (const c of localChars) {
+      if (!c.char) continue;
+      const decompositions = window.ChaiziDict?.[c.char];
+      let components = c.components;
+      let layout = c.layout;
+      let hint = c.hint;
+      if (!components && decompositions) {
+        components = decompositions[0].split(' ');
+        layout = autoLayout(components);
+      }
+      if (!hint && components) {
+        hint = generateHint(c.char, components, layout);
+      }
+      processed.push({
+        char: c.char,
+        components: components || [c.char],
+        layout: layout || 'left-right',
+        hint: hint || ''
+      });
+    }
+    if (processed.length === 0) {
+      toast('無法處理本地字符');
+      return;
+    }
+    try {
+      const res = await fetch('/api/chars/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chars: processed })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || '同步失敗');
+      toast(`同步成功：新增 ${data.added} 個，跳過 ${data.skipped} 個`);
+      loadAdminPanel();
+      const newChars = await AdminAPI.getChars();
+      localStorage.setItem('shizi_chars_v9', JSON.stringify(newChars));
+      Data.chars = newChars;
+    } catch (e) {
+      toast('同步失敗: ' + e.message);
+    }
+  });
 });
 
 async function showUserDetail(userId) {
