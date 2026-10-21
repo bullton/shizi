@@ -4,13 +4,16 @@
 
 const STORAGE_KEY = 'shizi_chars_v9';
 
-// ===== 查字典工具（kfcd/chaizi）=====
-function lookupChaizi(char, prefer = 'last') {
-  if (!window.ChaiziDict || !window.ChaiziDict[char]) return null;
-  const alts = window.ChaiziDict[char];
-  if (alts.length === 0) return null;
-  const idx = prefer === 'first' ? 0 : alts.length - 1;
-  return alts[idx].split(' ');
+// 查字典工具：每字只有唯一拆法（從 chaizi-unique.js 載入）
+function lookupChaizi(char, prefer = 'longest') {
+  const dict = window.ChaiziDictUnique || window.ChaiziDict;
+  if (!dict || !dict[char]) return null;
+  const entry = dict[char];
+  // 兼容兩種格式：字串（原始）或陣列（新字典）
+  if (Array.isArray(entry)) {
+    return entry;
+  }
+  return entry.split(' ');
 }
 
 // ===== 智能佈局檢測（根據部件位置自動判斷）=====
@@ -55,7 +58,7 @@ const User = {
   apiBase: '/api',
 
   async request(path, method = 'GET', body = null) {
-    const options = { method, headers: { 'Content-Type': 'application/json' } };
+    const options = { method, headers: { 'Content-Type': 'application/json' }, credentials: 'include' };
     if (body) options.body = JSON.stringify(body);
     const res = await fetch(this.apiBase + path, options);
     const data = await res.json();
@@ -138,7 +141,7 @@ const AdminAPI = {
   apiBase: '/api/admin',
 
   async request(path, method = 'GET', body = null) {
-    const options = { method, headers: { 'Content-Type': 'application/json' } };
+    const options = { method, headers: { 'Content-Type': 'application/json' }, credentials: 'include' };
     if (body) options.body = JSON.stringify(body);
     const res = await fetch(this.apiBase + path, options);
     const data = await res.json();
@@ -183,87 +186,194 @@ const AdminAPI = {
 // ===== 預設字庫（部件全部取自 kfcd/chaizi 字典）=====
 const DEFAULT_CHARS = [
   // 包圍結構（外內）
-  { id: 1, char: '回', components: lookupChaizi('回', 'first'), layout: 'surround', hint: '一個囗包住口，叫做「回」（回來）' },
-  { id: 2, char: '困', components: lookupChaizi('困', 'first'), layout: 'surround', hint: '囗包住「木」，就係「困」喺圍欄裏面' },
-  { id: 3, char: '因', components: lookupChaizi('因', 'first'), layout: 'surround', hint: '方框（囗）內有「大」，就係「因」' },
-  { id: 4, char: '國', components: lookupChaizi('國', 'first'), layout: 'surround', hint: '方框（囗）內有「或」，就係「國家」' },
-  { id: 5, char: '固', components: lookupChaizi('固', 'first'), layout: 'surround', hint: '方框內有「古」，就係「固」定不變' },
+  { id: 1, char: '回', components: lookupChaizi('回', 'longest'), layout: 'surround', hint: '一個囗包住口，叫做「回」（回來）' },
+  { id: 2, char: '困', components: lookupChaizi('困', 'longest'), layout: 'surround', hint: '囗包住「木」，就係「困」喺圍欄裏面' },
+  { id: 3, char: '因', components: lookupChaizi('因', 'longest'), layout: 'surround', hint: '方框（囗）內有「大」，就係「因」' },
+  { id: 4, char: '國', components: lookupChaizi('國', 'longest'), layout: 'surround', hint: '方框（囗）內有「或」，就係「國家」' },
+  { id: 5, char: '固', components: lookupChaizi('固', 'longest'), layout: 'surround', hint: '方框內有「古」，就係「固」定不變' },
 
   // 半包圍結構（辶包左）
-  { id: 6, char: '這', components: lookupChaizi('這', 'last'), layout: 'half-surround-left', hint: '「辶」包住左邊，「言」在右邊，叫做「這」個' },
-  { id: 7, char: '進', components: lookupChaizi('進', 'last'), layout: 'half-surround-left', hint: '「辶」包左，「隹」在右，叫做「進」步' },
+  { id: 6, char: '這', components: lookupChaizi('這', 'longest'), layout: 'half-surround-left', hint: '「辶」包住左邊，「言」在右邊，叫做「這」個' },
+  { id: 7, char: '進', components: lookupChaizi('進', 'longest'), layout: 'half-surround-left', hint: '「辶」包左，「隹」在右，叫做「進」步' },
 
   // 邊（字典末選拆法：辶 + 臱 = 2 部分）
-  { id: 8, char: '邊', components: lookupChaizi('邊', 'last'), layout: 'half-surround-left', hint: '「辶」包住左邊，「臱」在右邊，叫做「旁邊」' },
+  { id: 8, char: '邊', components: lookupChaizi('邊', 'longest'), layout: 'half-surround-left', hint: '「辶」包住左邊，「臱」在右邊，叫做「旁邊」' },
 
   // 品字結構
-  { id: 9, char: '森', components: lookupChaizi('森', 'first'), layout: 'top-bottom-bottom', hint: '三棵樹，就係「森林」' },
-  { id: 10, char: '晶', components: lookupChaizi('晶', 'first'), layout: 'top-bottom-bottom', hint: '三個日頭一齊，就係「晶」亮' },
+  { id: 9, char: '森', components: lookupChaizi('森', 'longest'), layout: 'top-bottom-bottom', hint: '三棵樹，就係「森林」' },
+  { id: 10, char: '晶', components: lookupChaizi('晶', 'longest'), layout: 'top-bottom-bottom', hint: '三個日頭一齊，就係「晶」亮' },
 
   // 字典拆法
-  { id: 11, char: '靈', components: lookupChaizi('靈', 'first'), layout: 'top-bottom', hint: '「霝」上有「巫」下，就係「靈」驗' },
-  { id: 12, char: '響', components: lookupChaizi('響', 'first'), layout: 'top-bottom', hint: '「鄉」上有「音」下，就係「響」' },
-  { id: 13, char: '寶', components: lookupChaizi('寶', 'last'), layout: 'top-2-bottom', hint: '屋頂「宀」+中間「玉」左「缶」右+底下「貝」，就係「寶」物' },
-  { id: 14, char: '鼻', components: lookupChaizi('鼻', 'first'), layout: 'vertical-3', hint: '「自」+「田」+「廾」三件上下疊，就係「鼻」' },
-  { id: 15, char: '攀', components: ['林', '爻', '大', '手'], layout: 'vertical-3', hint: '「林」「爻」「大」「手」上下疊，就係「攀」' },
+  { id: 11, char: '靈', components: lookupChaizi('靈', 'longest'), layout: 'top-bottom', hint: '「霝」上有「巫」下，就係「靈」驗' },
+  { id: 12, char: '響', components: lookupChaizi('響', 'longest'), layout: 'top-bottom', hint: '「鄉」上有「音」下，就係「響」' },
+  { id: 13, char: '寶', components: lookupChaizi('寶', 'longest'), layout: 'top-2-bottom', hint: '屋頂「宀」+中間「玉」左「缶」右+底下「貝」，就係「寶」物' },
+  { id: 14, char: '鼻', components: lookupChaizi('鼻', 'longest'), layout: 'vertical-3', hint: '「自」+「田」+「廾」三件上下疊，就係「鼻」' },
+  { id: 15, char: '攀', components: lookupChaizi('攀', 'longest'), layout: 'stack', hint: '「林」「爻」「大」「手」上下疊，就係「攀」' },
 ];
 
-// ===== 數據存儲 =====
+// ===== 數據存儲（服務器為主，localStorage 為緩存）=====
 const Data = {
-  init() {
-    if (!localStorage.getItem(STORAGE_KEY)) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_CHARS));
-    }
+  _cache: null,
+  _loading: null,
+  _isAdmin: false,
+
+  async _fetch() {
+    if (this._cache) return this._cache;
+    if (this._loading) return this._loading;
+    this._loading = (async () => {
+      try {
+        const res = await fetch('/api/chars', { credentials: 'include' });
+        if (res.ok) {
+          const data = await res.json();
+          this._cache = Array.isArray(data) ? data : [];
+        } else {
+          this._cache = this._loadLocal();
+        }
+      } catch {
+        this._cache = this._loadLocal();
+      }
+      // merge with DEFAULT_CHARS to ensure built-ins are always available
+      const ids = new Set(this._cache.map(c => c.id));
+      for (const dc of DEFAULT_CHARS) {
+        if (!ids.has(dc.id)) this._cache.push({ ...dc });
+      }
+      this._loading = null;
+      return this._cache;
+    })();
+    return this._loading;
   },
 
-  getAll() {
+  _loadLocal() {
     try {
-      return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+      const local = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+      return Array.isArray(local) ? local : [];
     } catch {
       return [];
     }
   },
 
-  save(chars) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(chars));
-  },
-
-  add(data) {
-    const chars = this.getAll();
-    const newChar = { id: Date.now(), ...data };
-    chars.push(newChar);
-    this.save(chars);
-    return newChar;
-  },
-
-  update(id, data) {
-    const chars = this.getAll();
-    const i = chars.findIndex(c => c.id === id);
-    if (i >= 0) {
-      chars[i] = { ...chars[i], ...data, id };
-      this.save(chars);
+  _saveLocal() {
+    if (this._cache) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(this._cache));
     }
   },
 
-  remove(id) {
-    const chars = this.getAll().filter(c => c.id !== id);
-    this.save(chars);
+  async init() {
+    await this._fetch();
+    this._saveLocal();
   },
 
-  reset() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_CHARS));
+  async getAll() {
+    return await this._fetch();
+  },
+
+  async add(data) {
+    try {
+      const res = await fetch('/api/chars', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(data)
+      });
+      if (res.ok) {
+        const newChar = await res.json();
+        this._cache = await this._fetch();
+        this._saveLocal();
+        return newChar;
+      }
+    } catch {}
+    // fallback: local
+    const newChar = { id: Date.now(), ...data };
+    this._cache = await this._fetch();
+    this._cache.push(newChar);
+    this._saveLocal();
+    return newChar;
+  },
+
+  async update(id, data) {
+    try {
+      const res = await fetch('/api/chars/' + id, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(data)
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        this._cache = await this._fetch();
+        this._saveLocal();
+        return updated;
+      }
+    } catch {}
+    // fallback: local
+    this._cache = await this._fetch();
+    const i = this._cache.findIndex(c => c.id === id);
+    if (i >= 0) {
+      this._cache[i] = { ...this._cache[i], ...data, id };
+      this._saveLocal();
+    }
+  },
+
+  async remove(id) {
+    try {
+      const res = await fetch('/api/chars/' + id, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+      if (res.ok) {
+        this._cache = (this._cache || []).filter(c => c.id !== id);
+        this._saveLocal();
+        return;
+      }
+    } catch {}
+    // fallback: local
+    this._cache = await this._fetch();
+    this._cache = this._cache.filter(c => c.id !== id);
+    this._saveLocal();
+  },
+
+  async reset() {
+    // 重置為默認字庫（保留 DEFAULT_CHARS 內容）
+    this._cache = DEFAULT_CHARS.map(c => ({ ...c }));
+    this._saveLocal();
   }
 };
 
 // ===== 遊戲邏輯 =====
+function isPositionsNormalized(positions) {
+  let maxVal = 0;
+  for (const k in positions) {
+    const p = positions[k];
+    if (!p) continue;
+    maxVal = Math.max(maxVal, p.x || 0, p.y || 0, (p.w || 0) + (p.x || 0), (p.h || 0) + (p.y || 0));
+    if (maxVal > 1.5) return false;
+  }
+  return maxVal > 0;
+}
+
 const Game = {
   chars: [],
   current: null,
   score: 0,
   index: 0,
+  _pendingTimers: [],
 
-  start() {
-    this.chars = Data.getAll();
+  _clearTimers() {
+    this._pendingTimers.forEach(id => clearTimeout(id));
+    this._pendingTimers = [];
+  },
+
+  _setTimer(fn, delay) {
+    const id = setTimeout(() => {
+      this._pendingTimers = this._pendingTimers.filter(t => t !== id);
+      fn();
+    }, delay);
+    this._pendingTimers.push(id);
+    return id;
+  },
+
+  async start() {
+    this.chars = await Data.getAll();
     if (this.chars.length === 0) {
       this._showEmpty();
       return;
@@ -280,6 +390,10 @@ const Game = {
       this._gameOver();
       return;
     }
+    this._clearTimers();
+    const display = document.getElementById('character-display');
+    display.classList.remove('complete-mode');
+    document.getElementById('celebration').classList.add('hidden');
     this.current = this.chars[this.index];
     this.startTime = Date.now();
     this._updateProgress();
@@ -289,168 +403,100 @@ const Game = {
 
   render() {
     const display = document.getElementById('character-display');
-    display.className = 'character-display layout-' + this.current.layout;
     display.innerHTML = '';
+    display.classList.remove('complete-mode');
 
-    if (this.current.layout === 'surround') {
-      // Outer (slot 0) and inner (slot 1) - inner on top, centered
-      const outerSlot = document.createElement('div');
-      outerSlot.className = 'slot slot-outer';
-      outerSlot.dataset.index = 0;
-      outerSlot.dataset.expected = this.current.components[0];
-      this._setupSlot(outerSlot);
-      display.appendChild(outerSlot);
+    const hasCustomPositions = this.current.positions &&
+      Object.keys(this.current.positions).length === this.current.components.length;
 
-      const innerSlot = document.createElement('div');
-      innerSlot.className = 'slot slot-inner';
-      innerSlot.dataset.index = 1;
-      innerSlot.dataset.expected = this.current.components[1];
-      this._setupSlot(innerSlot);
-      display.appendChild(innerSlot);
-    } else if (this.current.layout === 'half-surround-left') {
-      // 辶 on left, inner on right
-      const outerSlot = document.createElement('div');
-      outerSlot.className = 'slot slot-outer';
-      outerSlot.dataset.index = 0;
-      outerSlot.dataset.expected = this.current.components[0];
-      this._setupSlot(outerSlot);
-      display.appendChild(outerSlot);
-
-      const innerSlot = document.createElement('div');
-      innerSlot.className = 'slot slot-inner';
-      innerSlot.dataset.index = 1;
-      innerSlot.dataset.expected = this.current.components[1];
-      this._setupSlot(innerSlot);
-      display.appendChild(innerSlot);
-    } else if (this.current.layout === 'complex-3-left') {
-      // 辶 on left (full height), 2 stacked on right
-      const outerSlot = document.createElement('div');
-      outerSlot.className = 'slot slot-outer';
-      outerSlot.dataset.index = 0;
-      outerSlot.dataset.expected = this.current.components[0];
-      this._setupSlot(outerSlot);
-      display.appendChild(outerSlot);
-
-      const topSlot = document.createElement('div');
-      topSlot.className = 'slot slot-inner-top';
-      topSlot.dataset.index = 1;
-      topSlot.dataset.expected = this.current.components[1];
-      this._setupSlot(topSlot);
-      display.appendChild(topSlot);
-
-      const bottomSlot = document.createElement('div');
-      bottomSlot.className = 'slot slot-inner-bottom';
-      bottomSlot.dataset.index = 2;
-      bottomSlot.dataset.expected = this.current.components[2];
-      this._setupSlot(bottomSlot);
-      display.appendChild(bottomSlot);
-    } else if (this.current.layout === 'complex-4-left') {
-      const outerSlot = document.createElement('div');
-      outerSlot.className = 'slot slot-outer';
-      outerSlot.dataset.index = 0;
-      outerSlot.dataset.expected = this.current.components[0];
-      this._setupSlot(outerSlot);
-      display.appendChild(outerSlot);
-
-      const topSlot = document.createElement('div');
-      topSlot.className = 'slot slot-inner-top';
-      topSlot.dataset.index = 1;
-      topSlot.dataset.expected = this.current.components[1];
-      this._setupSlot(topSlot);
-      display.appendChild(topSlot);
-
-      const middleSlot = document.createElement('div');
-      middleSlot.className = 'slot slot-inner-middle';
-      middleSlot.dataset.index = 2;
-      middleSlot.dataset.expected = this.current.components[2];
-      this._setupSlot(middleSlot);
-      display.appendChild(middleSlot);
-
-      const bottomSlot = document.createElement('div');
-      bottomSlot.className = 'slot slot-inner-bottom';
-      bottomSlot.dataset.index = 3;
-      bottomSlot.dataset.expected = this.current.components[3];
-      this._setupSlot(bottomSlot);
-      display.appendChild(bottomSlot);
-    } else if (this.current.layout === 'surround-3') {
-      const outerSlot = document.createElement('div');
-      outerSlot.className = 'slot slot-outer';
-      outerSlot.dataset.index = 0;
-      outerSlot.dataset.expected = this.current.components[0];
-      this._setupSlot(outerSlot);
-      display.appendChild(outerSlot);
-
-      const topSlot = document.createElement('div');
-      topSlot.className = 'slot slot-inner-top';
-      topSlot.dataset.index = 1;
-      topSlot.dataset.expected = this.current.components[1];
-      this._setupSlot(topSlot);
-      display.appendChild(topSlot);
-
-      const bottomSlot = document.createElement('div');
-      bottomSlot.className = 'slot slot-inner-bottom';
-      bottomSlot.dataset.index = 2;
-      bottomSlot.dataset.expected = this.current.components[2];
-      this._setupSlot(bottomSlot);
-      display.appendChild(bottomSlot);
-    } else if (this.current.layout === 'left-right-right') {
-      const leftSlot = document.createElement('div');
-      leftSlot.className = 'slot slot-outer';
-      leftSlot.dataset.index = 0;
-      leftSlot.dataset.expected = this.current.components[0];
-      this._setupSlot(leftSlot);
-      display.appendChild(leftSlot);
-
-      const topSlot = document.createElement('div');
-      topSlot.className = 'slot slot-inner-top';
-      topSlot.dataset.index = 1;
-      topSlot.dataset.expected = this.current.components[1];
-      this._setupSlot(topSlot);
-      display.appendChild(topSlot);
-
-      const bottomSlot = document.createElement('div');
-      bottomSlot.className = 'slot slot-inner-bottom';
-      bottomSlot.dataset.index = 2;
-      bottomSlot.dataset.expected = this.current.components[2];
-      this._setupSlot(bottomSlot);
-      display.appendChild(bottomSlot);
-    } else if (this.current.layout === 'stack') {
-      // Vertical stack for 5+ components
-      this.current.components.forEach((comp, i) => {
-        const slot = document.createElement('div');
-        slot.className = 'slot slot-stack';
-        slot.dataset.index = i;
-        slot.dataset.expected = comp;
-        this._setupSlot(slot);
-        display.appendChild(slot);
-      });
-    } else if (this.current.positions && Object.keys(this.current.positions).length === this.current.components.length) {
-      // Custom positions (manually arranged)
+    if (hasCustomPositions) {
       display.className = 'character-display layout-custom';
+      const containerW = display.clientWidth || 400;
+      const containerH = display.clientHeight || 400;
+      const normalized = isPositionsNormalized(this.current.positions);
       this.current.components.forEach((comp, i) => {
         const slot = document.createElement('div');
         slot.className = 'slot slot-custom';
         slot.dataset.index = i;
         slot.dataset.expected = comp;
-        if (this.current.positions[i]) {
-          slot.style.left = this.current.positions[i].x + 'px';
-          slot.style.top = this.current.positions[i].y + 'px';
+        const p = this.current.positions[i] || {};
+        if (normalized) {
+          slot.style.left = ((p.x || 0) * containerW) + 'px';
+          slot.style.top = ((p.y || 0) * containerH) + 'px';
+          slot.style.width = ((p.w || 0.3) * containerW) + 'px';
+          slot.style.height = ((p.h || 0.3) * containerH) + 'px';
+        } else {
+          slot.style.left = (p.x ?? 0) + 'px';
+          slot.style.top = (p.y ?? 0) + 'px';
+          slot.style.width = (p.w || 120) + 'px';
+          slot.style.height = (p.h || 120) + 'px';
         }
         this._setupSlot(slot);
         display.appendChild(slot);
       });
     } else {
-      this.current.components.forEach((comp, i) => {
-        const slot = document.createElement('div');
-        slot.className = 'slot';
-        slot.dataset.index = i;
-        slot.dataset.expected = comp;
-        this._setupSlot(slot);
-        display.appendChild(slot);
-      });
+      display.className = 'character-display layout-' + this.current.layout;
+      this._renderLayoutSlots(display);
     }
 
+    this._renderPieceTray();
+
+    document.getElementById('hint-content').classList.add('hidden');
+    document.getElementById('hint-btn').classList.add('hidden');
+    document.getElementById('next-btn').classList.add('hidden');
+    document.getElementById('celebration').classList.add('hidden');
+  },
+
+  _renderLayoutSlots(display) {
+    const layout = this.current.layout;
+    const comps = this.current.components;
+    const setup = (slot, i) => {
+      slot.dataset.index = i;
+      slot.dataset.expected = comps[i];
+      this._setupSlot(slot);
+      display.appendChild(slot);
+    };
+    if (layout === 'surround') {
+      const a = document.createElement('div'); a.className = 'slot slot-outer'; setup(a, 0);
+      const b = document.createElement('div'); b.className = 'slot slot-inner'; setup(b, 1);
+    } else if (layout === 'half-surround-left') {
+      const a = document.createElement('div'); a.className = 'slot slot-outer'; setup(a, 0);
+      const b = document.createElement('div'); b.className = 'slot slot-inner'; setup(b, 1);
+    } else if (layout === 'complex-3-left') {
+      const a = document.createElement('div'); a.className = 'slot slot-outer'; setup(a, 0);
+      const b = document.createElement('div'); b.className = 'slot slot-inner-top'; setup(b, 1);
+      const c = document.createElement('div'); c.className = 'slot slot-inner-bottom'; setup(c, 2);
+    } else if (layout === 'complex-4-left') {
+      const a = document.createElement('div'); a.className = 'slot slot-outer'; setup(a, 0);
+      const b = document.createElement('div'); b.className = 'slot slot-inner-top'; setup(b, 1);
+      const c = document.createElement('div'); c.className = 'slot slot-inner-middle'; setup(c, 2);
+      const d = document.createElement('div'); d.className = 'slot slot-inner-bottom'; setup(d, 3);
+    } else if (layout === 'surround-3') {
+      const a = document.createElement('div'); a.className = 'slot slot-outer'; setup(a, 0);
+      const b = document.createElement('div'); b.className = 'slot slot-inner-top'; setup(b, 1);
+      const c = document.createElement('div'); c.className = 'slot slot-inner-bottom'; setup(c, 2);
+    } else if (layout === 'left-right-right') {
+      const a = document.createElement('div'); a.className = 'slot slot-outer'; setup(a, 0);
+      const b = document.createElement('div'); b.className = 'slot slot-inner-top'; setup(b, 1);
+      const c = document.createElement('div'); c.className = 'slot slot-inner-bottom'; setup(c, 2);
+    } else if (layout === 'stack') {
+      comps.forEach((comp, i) => {
+        const s = document.createElement('div');
+        s.className = 'slot slot-stack';
+        setup(s, i);
+      });
+    } else {
+      comps.forEach((comp, i) => {
+        const s = document.createElement('div');
+        s.className = 'slot';
+        setup(s, i);
+      });
+    }
+  },
+
+  _renderPieceTray() {
     const tray = document.getElementById('pieces-tray');
+    if (!tray) return;
     tray.innerHTML = '';
     const shuffled = this._shuffle([...this.current.components]);
     shuffled.forEach((comp, i) => {
@@ -463,125 +509,8 @@ const Game = {
       this._setupPiece(piece);
       tray.appendChild(piece);
     });
-
-    document.getElementById('hint-content').classList.add('hidden');
-    document.getElementById('hint-btn').classList.add('hidden');
-    document.getElementById('next-btn').classList.add('hidden');
-    document.getElementById('celebration').classList.add('hidden');
   },
 
-  _setupSlot(slot) {
-    slot.addEventListener('dragover', e => {
-      e.preventDefault();
-      slot.classList.add('drag-over');
-    });
-    slot.addEventListener('dragleave', () => slot.classList.remove('drag-over'));
-    slot.addEventListener('drop', e => {
-      e.preventDefault();
-      slot.classList.remove('drag-over');
-      const id = e.dataTransfer.getData('text/plain');
-      const piece = document.querySelector(`.piece[data-id="${id}"]`);
-      if (piece) this._tryPlace(piece, slot);
-    });
-
-    // Touch / click support: if a piece is selected, place on tap
-    slot.addEventListener('click', () => {
-      const selected = document.querySelector('.piece.selected');
-      if (selected) this._tryPlace(selected, slot);
-    });
-  },
-
-  _setupPiece(piece) {
-    piece.addEventListener('dragstart', e => {
-      e.dataTransfer.setData('text/plain', piece.dataset.id);
-      e.dataTransfer.effectAllowed = 'move';
-      piece.classList.add('dragging');
-    });
-    piece.addEventListener('dragend', () => piece.classList.remove('dragging'));
-
-    // Touch / click: tap to select
-    piece.addEventListener('click', () => {
-      document.querySelectorAll('.piece.selected').forEach(p => p.classList.remove('selected'));
-      piece.classList.add('selected');
-    });
-  },
-
-  _tryPlace(piece, slot) {
-    if (slot.classList.contains('filled')) return;
-
-    const expected = slot.dataset.expected;
-    const actual = piece.dataset.component;
-
-    if (expected === actual) {
-      slot.textContent = actual;
-      slot.classList.add('filled');
-      slot.dataset.locked = 'true';
-      piece.classList.remove('selected');
-      piece.remove();
-      this._speak(actual);
-      this._playSuccess();
-      this._checkComplete();
-    } else {
-      slot.classList.add('wrong');
-      this._playError();
-      setTimeout(() => slot.classList.remove('wrong'), 400);
-    }
-  },
-
-  _checkComplete() {
-    const slots = document.querySelectorAll('.slot');
-    const allFilled = Array.from(slots).every(s => s.dataset.locked === 'true');
-    if (allFilled) {
-      this._celebrate();
-    }
-  },
-
-  _celebrate() {
-    this.score += 10;
-    this._updateScore();
-
-    const display = document.getElementById('character-display');
-    const tray = document.getElementById('pieces-tray');
-    const char = this.current.char;
-    const hint = this.current.hint;
-    const responseTime = Date.now() - this.startTime;
-
-    // Record progress to API
-    User.recordProgress(char, this.current.id, responseTime, true);
-
-    // Fade out slots and tray
-    display.querySelectorAll('.slot').forEach(s => s.classList.add('fade-out'));
-    tray.classList.add('fade-out');
-
-    // After fade, show complete character with pop-in
-    setTimeout(() => {
-      display.innerHTML = `<div class="complete-character">${char}</div>`;
-      display.classList.add('complete-mode');
-      tray.innerHTML = '';
-      tray.classList.remove('fade-out');
-      this._playSuccess();
-      setTimeout(() => this._speak(char), 200);
-
-      // Show hint after answering
-      const hintBtn = document.getElementById('hint-btn');
-      const hintContent = document.getElementById('hint-content');
-      hintBtn.classList.remove('hidden');
-      hintBtn.textContent = '💡 粵語提示';
-      if (hint) {
-        hintContent.textContent = hint;
-        hintContent.classList.remove('hidden');
-      }
-    }, 400);
-
-    // Celebration popup
-    const cel = document.getElementById('celebration');
-    setTimeout(() => {
-      cel.classList.remove('hidden');
-      setTimeout(() => cel.classList.add('hidden'), 2200);
-    }, 700);
-
-    document.getElementById('next-btn').classList.remove('hidden');
-  },
 
   _updateScore() {
     document.getElementById('score').textContent = this.score;
@@ -617,16 +546,146 @@ const Game = {
     document.getElementById('pieces-tray').innerHTML = '';
   },
 
-  restart() {
-    this.start();
+  async savePositions(id) {
+    const chars = await Data.getAll();
+    const c = chars.find(x => x.id === id);
+    if (!c) return;
+    const canvas = document.getElementById('position-canvas');
+    const canvasW = canvas.clientWidth || 400;
+    const canvasH = canvas.clientHeight || 400;
+    const positions = {};
+    document.querySelectorAll('.position-box').forEach(box => {
+      const idx = box.dataset.index;
+      const px = parseFloat(box.style.left) || 0;
+      const py = parseFloat(box.style.top) || 0;
+      const pw = parseFloat(box.style.width) || 120;
+      const ph = parseFloat(box.style.height) || 120;
+      positions[idx] = {
+        x: px / canvasW,
+        y: py / canvasH,
+        w: pw / canvasW,
+        h: ph / canvasH
+      };
+    });
+    await Data.update(id, { positions });
+    toast('位置已保存');
+    this.closePositionEditor();
+    await this.render();
+  },
+
+  closePositionEditor() {
+    const modal = document.getElementById('position-editor-modal');
+    if (modal) modal.remove();
+  },
+
+  async resetData() {
+    if (confirm('確定要重置為預設字庫？你之前加嘅全部都會刪除。')) {
+      await Data.reset();
+      await this.render();
+      toast('已重置預設字庫');
+    }
   },
 
   _shuffle(arr) {
-    for (let i = arr.length - 1; i > 0; i--) {
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
-      [arr[i], arr[j]] = [arr[j], arr[i]];
+      [a[i], a[j]] = [a[j], a[i]];
     }
-    return arr;
+    return a;
+  },
+
+  _setupSlot(slot) {
+    slot.addEventListener('dragover', e => {
+      e.preventDefault();
+      slot.classList.add('drag-over');
+    });
+    slot.addEventListener('dragleave', () => slot.classList.remove('drag-over'));
+    slot.addEventListener('drop', e => {
+      e.preventDefault();
+      slot.classList.remove('drag-over');
+      const id = e.dataTransfer.getData('text/plain');
+      const piece = document.querySelector(`.piece[data-id="${id}"]`);
+      if (piece) this._tryPlace(piece, slot);
+    });
+    slot.addEventListener('click', () => {
+      const selected = document.querySelector('.piece.selected');
+      if (selected) this._tryPlace(selected, slot);
+    });
+  },
+
+  _setupPiece(piece) {
+    piece.addEventListener('dragstart', e => {
+      e.dataTransfer.setData('text/plain', piece.dataset.id);
+      e.dataTransfer.effectAllowed = 'move';
+      piece.classList.add('dragging');
+    });
+    piece.addEventListener('dragend', () => piece.classList.remove('dragging'));
+    piece.addEventListener('click', () => {
+      document.querySelectorAll('.piece.selected').forEach(p => p.classList.remove('selected'));
+      piece.classList.add('selected');
+    });
+  },
+
+  _tryPlace(piece, slot) {
+    if (slot.classList.contains('filled')) return;
+    const expected = slot.dataset.expected;
+    const actual = piece.dataset.component;
+    if (expected === actual) {
+      slot.textContent = actual;
+      slot.classList.add('filled');
+      slot.dataset.locked = 'true';
+      piece.classList.remove('selected');
+      piece.remove();
+      this._speak(actual);
+      this._playSuccess();
+      this._checkComplete();
+    } else {
+      slot.classList.add('wrong');
+      this._playError();
+      setTimeout(() => slot.classList.remove('wrong'), 400);
+    }
+  },
+
+  _checkComplete() {
+    const slots = document.querySelectorAll('.slot');
+    const allFilled = Array.from(slots).every(s => s.dataset.locked === 'true');
+    if (allFilled) this._celebrate();
+  },
+
+  _celebrate() {
+    this.score += 10;
+    this._updateScore();
+    const display = document.getElementById('character-display');
+    const tray = document.getElementById('pieces-tray');
+    const char = this.current.char;
+    const hint = this.current.hint;
+    const responseTime = Date.now() - this.startTime;
+    User.recordProgress(char, this.current.id, responseTime, true);
+    display.querySelectorAll('.slot').forEach(s => s.classList.add('fade-out'));
+    tray.classList.add('fade-out');
+    this._setTimer(() => {
+      display.innerHTML = `<div class="complete-character">${char}</div>`;
+      display.classList.add('complete-mode');
+      tray.innerHTML = '';
+      tray.classList.remove('fade-out');
+      this._playSuccess();
+      this._setTimer(() => this._speak(char), 200);
+      const hintBtn = document.getElementById('hint-btn');
+      const hintContent = document.getElementById('hint-content');
+      hintBtn.classList.remove('hidden');
+      hintBtn.textContent = '💡 粵語提示';
+      if (hint) {
+        hintContent.textContent = hint;
+        hintContent.classList.remove('hidden');
+      }
+    }, 400);
+    const cel = document.getElementById('celebration');
+    this._setTimer(() => {
+      cel.classList.remove('hidden');
+      this._setTimer(() => cel.classList.add('hidden'), 2200);
+    }, 700);
+    document.getElementById('next-btn').classList.remove('hidden');
   },
 
   _speak(text) {
@@ -644,63 +703,73 @@ const Game = {
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
-      osc.frequency.value = freq;
-      osc.type = 'sine';
       osc.connect(gain);
       gain.connect(ctx.destination);
+      osc.frequency.value = freq;
+      osc.type = 'sine';
       const t = ctx.currentTime + delay;
-      gain.gain.setValueAtTime(0.3, t);
+      gain.gain.setValueAtTime(0, t);
+      gain.gain.linearRampToValueAtTime(0.2, t + 0.02);
       gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
       osc.start(t);
       osc.stop(t + dur);
-    } catch (e) { /* ignore */ }
+    } catch (e) {}
   },
 
   _playSuccess() {
-    this._playTone(523.25, 0.12);
-    this._playTone(659.25, 0.12, 0.1);
-    this._playTone(783.99, 0.18, 0.2);
+    this._playTone(880, 0.1, 0);
+    this._playTone(1320, 0.15, 0.08);
   },
 
   _playError() {
-    this._playTone(220, 0.2);
+    this._playTone(200, 0.2, 0);
   },
 
   _playWin() {
-    [523.25, 659.25, 783.99, 1046.5].forEach((f, i) =>
-      this._playTone(f, 0.18, i * 0.15));
+    this._playTone(660, 0.1, 0);
+    this._playTone(880, 0.1, 0.1);
+    this._playTone(1100, 0.1, 0.2);
+    this._playTone(1320, 0.3, 0.3);
+  },
+
+  restart() {
+    this.index = 0;
+    this.score = 0;
+    this._clearTimers();
+    this._updateScore();
+    this._updateProgress();
+    this.next();
   }
 };
 
-// ===== 管理介面 =====
+// ===== 管理後台 =====
 const Admin = {
   editingId: null,
+  positionEditorChar: null,
 
   init() {
     this.render();
     document.getElementById('save-btn').onclick = () => this.save();
     document.getElementById('cancel-btn').onclick = () => this.cancel();
     document.getElementById('reset-data-btn').onclick = () => this.resetData();
+    document.getElementById('clear-positions-btn')?.addEventListener('click', () => this.clearAllPositions());
 
-    // 自動查字典
     document.getElementById('form-char').addEventListener('input', (e) => {
       const ch = e.target.value.trim();
       if (ch.length === 1 && window.ChaiziDict && window.ChaiziDict[ch]) {
         const alts = window.ChaiziDict[ch];
         const first = alts[0].split(' ');
         document.getElementById('form-components').value = first.join(',');
-        // 智能佈局檢測
         const suggestedLayout = autoLayout(first);
         document.getElementById('form-layout').value = suggestedLayout;
-        // 顯示備選拆法讓用戶選擇
         const altOptions = alts.map((a, i) => `[${i+1}] ${a}`).join(' | ');
         toast(`字典 ${alts.length} 種拆法（已選首選，建議 ${suggestedLayout}）\n${altOptions}`);
       }
     });
   },
 
-  render() {
-    const chars = Data.getAll();
+  async render() {
+    const chars = await Data.getAll();
     document.getElementById('char-count').textContent = chars.length;
     const container = document.getElementById('char-list');
     container.innerHTML = '';
@@ -720,7 +789,7 @@ const Admin = {
           <span class="arrow">=</span>
           <span class="components">${c.components.join(' + ')}</span>
         </div>
-        <div class="char-meta">${layoutLabel}結構 · ${c.components.length}部件</div>
+        <div class="char-meta">${layoutLabel}結構 · ${c.components.length}部件${c.positions ? ' · ✏️ 自定義' : ''}</div>
         <div class="char-hint-mini">${escapeHtml(c.hint || '(無口訣)')}</div>
         <div class="char-actions">
           <button class="btn-edit" data-id="${c.id}">✏️ 編輯</button>
@@ -735,8 +804,9 @@ const Admin = {
     });
   },
 
-  edit(id) {
-    const c = Data.getAll().find(x => x.id === id);
+  async edit(id) {
+    const chars = await Data.getAll();
+    const c = chars.find(x => x.id === id);
     if (!c) return;
     this.editingId = id;
     document.getElementById('form-title').textContent = '編輯字';
@@ -745,28 +815,6 @@ const Admin = {
     document.getElementById('form-layout').value = c.layout;
     document.getElementById('form-hint').value = c.hint || '';
     document.getElementById('save-btn').textContent = '💾 更新';
-  },
-
-  save() {
-    const char = document.getElementById('form-char').value.trim();
-    const componentsRaw = document.getElementById('form-components').value;
-    const components = componentsRaw.split(',').map(s => s.trim()).filter(Boolean);
-    const layout = document.getElementById('form-layout').value;
-    const hint = document.getElementById('form-hint').value.trim();
-
-    if (!char) return toast('請填寫字');
-    if (components.length < 1) return toast('請填寫部件');
-    if (!hint) return toast('請填寫口訣');
-
-    if (this.editingId) {
-      Data.update(this.editingId, { char, components, layout, hint });
-      toast('已更新');
-    } else {
-      Data.add({ char, components, layout, hint });
-      toast('已新增');
-    }
-    this.cancel();
-    this.render();
   },
 
   cancel() {
@@ -779,21 +827,54 @@ const Admin = {
     document.getElementById('save-btn').textContent = '💾 保存';
   },
 
-  deleteChar(id) {
-    if (confirm('確定要刪除呢個字？')) {
-      Data.remove(id);
-      this.render();
-      toast('已刪除');
-    }
+  save() {
+    return this._save();
   },
 
-  openPositionEditor(id) {
-    const c = Data.getAll().find(x => x.id === id);
+  async _save() {
+    const char = document.getElementById('form-char').value.trim();
+    const componentsRaw = document.getElementById('form-components').value;
+    const components = componentsRaw.split(',').map(s => s.trim()).filter(Boolean);
+    const layout = document.getElementById('form-layout').value;
+    const hint = document.getElementById('form-hint').value.trim();
+
+    if (!char) return toast('請填寫字');
+    if (components.length < 1) return toast('請填寫部件');
+    if (!hint) return toast('請填寫口訣');
+
+    if (this.editingId) {
+      const chars = await Data.getAll();
+      const old = chars.find(x => x.id === this.editingId);
+      const updates = { char, components, layout, hint };
+      if (old && old.layout !== layout) {
+        updates.positions = null;
+      } else if (old && old.positions) {
+        updates.positions = old.positions;
+      }
+      await Data.update(this.editingId, updates);
+      toast('已更新');
+    } else {
+      await Data.add({ char, components, layout, hint });
+      toast('已新增');
+    }
+    this.cancel();
+    await this.render();
+  },
+
+  async deleteChar(id) {
+    if (!confirm('確定要刪除呢個字？')) return;
+    await Data.deleteChar(id);
+    toast('已刪除');
+    await this.render();
+  },
+
+  async openPositionEditor(id) {
+    const chars = await Data.getAll();
+    const c = chars.find(x => x.id === id);
     if (!c) return;
     this.positionEditorChar = c;
     const existing = c.positions || {};
 
-    // Modal overlay
     let modal = document.getElementById('position-editor-modal');
     if (modal) modal.remove();
     modal = document.createElement('div');
@@ -822,8 +903,10 @@ const Admin = {
 
     const canvas = document.getElementById('position-canvas');
     const components = c.components;
+    const canvasW = canvas.clientWidth || 400;
+    const canvasH = canvas.clientHeight || 400;
+    const normalized = isPositionsNormalized(existing);
 
-    // Render each component as a draggable box
     components.forEach((comp, i) => {
       const box = document.createElement('div');
       box.className = 'position-box';
@@ -831,116 +914,234 @@ const Admin = {
       box.dataset.index = i;
       box.dataset.component = comp;
 
-      // Use existing position if available, else auto-arrange
-      let x, y;
+      const layoutPositions = this._getDefaultPositions(c.layout, components.length);
+      const defaultPos = layoutPositions[i] || { x: 0.1, y: 0.1, w: 0.3, h: 0.3 };
+      let nx, ny, nw, nh;
       if (existing[i]) {
-        x = existing[i].x;
-        y = existing[i].y;
+        if (normalized) {
+          nx = existing[i].x ?? defaultPos.x;
+          ny = existing[i].y ?? defaultPos.y;
+          nw = existing[i].w ?? defaultPos.w;
+          nh = existing[i].h ?? defaultPos.h;
+        } else {
+          nx = (existing[i].x || 0) / canvasW;
+          ny = (existing[i].y || 0) / canvasH;
+          nw = (existing[i].w || 120) / canvasW;
+          nh = (existing[i].h || 120) / canvasH;
+        }
       } else {
-        // Auto-arrange based on layout
-        const layoutPositions = this._getDefaultPositions(c.layout, components.length);
-        x = layoutPositions[i]?.x ?? 50;
-        y = layoutPositions[i]?.y ?? 50 + i * 70;
+        nx = defaultPos.x;
+        ny = defaultPos.y;
+        nw = defaultPos.w;
+        nh = defaultPos.h;
       }
-      box.style.left = x + 'px';
-      box.style.top = y + 'px';
+      box.style.left = (nx * canvasW) + 'px';
+      box.style.top = (ny * canvasH) + 'px';
+      box.style.width = (nw * canvasW) + 'px';
+      box.style.height = (nh * canvasH) + 'px';
       this._setupDrag(box, canvas);
       canvas.appendChild(box);
     });
 
-    document.getElementById('position-editor-close').onclick = () => this.closePositionEditor();
-    document.getElementById('position-cancel').onclick = () => this.closePositionEditor();
+    document.getElementById('position-editor-close').onclick = () => Admin.closePositionEditor();
+    document.getElementById('position-cancel').onclick = () => Admin.closePositionEditor();
     document.getElementById('position-reset').onclick = () => {
+      const positions = Admin._getDefaultPositions(c.layout, components.length);
       document.querySelectorAll('.position-box').forEach((box, i) => {
-        const positions = this._getDefaultPositions(c.layout, components.length);
-        box.style.left = (positions[i]?.x ?? 50) + 'px';
-        box.style.top = (positions[i]?.y ?? 50 + i * 70) + 'px';
+        const p = positions[i] || { x: 0.1, y: 0.1, w: 0.3, h: 0.3 };
+        box.style.left = (p.x * canvasW) + 'px';
+        box.style.top = (p.y * canvasH) + 'px';
+        box.style.width = (p.w * canvasW) + 'px';
+        box.style.height = (p.h * canvasH) + 'px';
       });
     };
-    document.getElementById('position-save').onclick = () => this.savePositions(id);
+    document.getElementById('position-save').onclick = () => Admin.savePositions(id);
   },
 
   _getDefaultPositions(layout, count) {
     const positions = [];
-    const canvasW = 400, canvasH = 300;
-    if (layout === 'left-right') {
-      positions.push({ x: 50, y: 100 });
-      positions.push({ x: 220, y: 100 });
-    } else if (layout === 'top-bottom') {
-      positions.push({ x: 150, y: 30 });
-      positions.push({ x: 150, y: 180 });
-    } else if (layout === 'vertical-3') {
-      positions.push({ x: 150, y: 20 });
-      positions.push({ x: 150, y: 130 });
-      positions.push({ x: 150, y: 240 });
-    } else {
-      // Default: vertical stack
-      for (let i = 0; i < count; i++) {
-        positions.push({ x: 150, y: 20 + i * 60 });
+    const padding = 0.05;
+    const gap = 0.03;
+    let cols = 1, rows = 1;
+    if (layout === 'left-right') { cols = count; rows = 1; }
+    else if (layout === 'top-bottom') { cols = 1; rows = count; }
+    else if (layout === 'vertical-3' || layout === 'top-bottom-bottom') { cols = 1; rows = count; }
+    else if (layout === 'bottom-top-top') { cols = 2; rows = 2; }
+    else { cols = Math.ceil(Math.sqrt(count)); rows = Math.ceil(count / cols); }
+    const boxW = (1 - padding * 2 - gap * (cols - 1)) / cols;
+    const boxH = (1 - padding * 2 - gap * (rows - 1)) / rows;
+    const totalW = cols * boxW + (cols - 1) * gap;
+    const totalH = rows * boxH + (rows - 1) * gap;
+    const startX = (1 - totalW) / 2;
+    const startY = (1 - totalH) / 2;
+    for (let i = 0; i < count; i++) {
+      let c, r;
+      if (layout === 'bottom-top-top') {
+        if (i < count - 1) { c = i; r = 0; }
+        else {
+          positions.push({ x: startX, y: startY + (boxH + gap), w: totalW, h: boxH });
+          continue;
+        }
+      } else {
+        c = i % cols;
+        r = Math.floor(i / cols);
       }
+      positions.push({ x: startX + c * (boxW + gap), y: startY + r * (boxH + gap), w: boxW, h: boxH });
     }
     return positions;
   },
 
   _setupDrag(box, canvas) {
-    let dragging = false;
-    let startX, startY, origX, origY;
+    const handleBR = document.createElement('div');
+    handleBR.className = 'resize-handle br';
+    box.appendChild(handleBR);
 
-    const onMouseDown = (e) => {
-      dragging = true;
-      const evt = e.touches ? e.touches[0] : e;
-      startX = evt.clientX;
-      startY = evt.clientY;
-      origX = parseInt(box.style.left);
-      origY = parseInt(box.style.top);
-      box.style.zIndex = '1000';
+    let dragging = false, resizing = false;
+    let startX, startY, origX, origY, origW, origH;
+    const SNAP_THRESHOLD = 8;
+    const allBoxes = () => Array.from(canvas.querySelectorAll('.position-box')).filter(b => b !== box);
+
+    const getOrCreateGuides = () => {
+      let guides = canvas.querySelector('.align-guides');
+      if (!guides) {
+        guides = document.createElement('div');
+        guides.className = 'align-guides';
+        canvas.appendChild(guides);
+      }
+      return guides;
+    };
+    const clearGuides = () => {
+      const guides = canvas.querySelector('.align-guides');
+      if (guides) guides.innerHTML = '';
+    };
+
+    const showAlignGuides = (bx, by, bw, bh) => {
+      const guides = getOrCreateGuides();
+      guides.innerHTML = '';
+      const others = allBoxes();
+      const threshold = SNAP_THRESHOLD;
+      for (const other of others) {
+        const ox = parseFloat(other.style.left) || 0;
+        const ow = parseFloat(other.style.width) || 0;
+        const oy = parseFloat(other.style.top) || 0;
+        const oh = parseFloat(other.style.height) || 0;
+        const oRight = ox + ow, oCenter = ox + ow / 2;
+        const oBottom = oy + oh, oMidY = oy + oh / 2;
+        const bRight = bx + bw, bCenter = bx + bw / 2;
+        const bBottom = by + bh, bMidY = by + bh / 2;
+        for (const [myVal, otherVal] of [[bx, ox], [bCenter, oCenter], [bRight, oRight]]) {
+          if (Math.abs(myVal - otherVal) < threshold) {
+            const guide = document.createElement('div');
+            guide.className = 'align-guide vertical';
+            guide.style.left = otherVal + 'px';
+            guides.appendChild(guide);
+          }
+        }
+        for (const [myVal, otherVal] of [[by, oy], [bMidY, oMidY], [bBottom, oBottom]]) {
+          if (Math.abs(myVal - otherVal) < threshold) {
+            const guide = document.createElement('div');
+            guide.className = 'align-guide horizontal';
+            guide.style.top = otherVal + 'px';
+            guides.appendChild(guide);
+          }
+        }
+      }
+    };
+
+    const startDrag = (e) => {
       e.preventDefault();
+      const point = e.touches ? e.touches[0] : e;
+      startX = point.clientX;
+      startY = point.clientY;
+      origX = parseFloat(box.style.left) || 0;
+      origY = parseFloat(box.style.top) || 0;
+      origW = parseFloat(box.style.width) || 120;
+      origH = parseFloat(box.style.height) || 120;
+      dragging = true;
     };
-
-    const onMouseMove = (e) => {
-      if (!dragging) return;
-      const evt = e.touches ? e.touches[0] : e;
-      const dx = evt.clientX - startX;
-      const dy = evt.clientY - startY;
-      let newX = origX + dx;
-      let newY = origY + dy;
-      const maxX = canvas.offsetWidth - box.offsetWidth;
-      const maxY = canvas.offsetHeight - box.offsetHeight;
-      newX = Math.max(0, Math.min(maxX, newX));
-      newY = Math.max(0, Math.min(maxY, newY));
-      box.style.left = newX + 'px';
-      box.style.top = newY + 'px';
+    const startResize = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const point = e.touches ? e.touches[0] : e;
+      startX = point.clientX;
+      startY = point.clientY;
+      origW = parseFloat(box.style.width) || 120;
+      origH = parseFloat(box.style.height) || 120;
+      resizing = true;
     };
-
-    const onMouseUp = () => {
+    const onMove = (e) => {
+      if (!dragging && !resizing) return;
+      e.preventDefault();
+      const point = e.touches ? e.touches[0] : e;
+      const dx = point.clientX - startX;
+      const dy = point.clientY - startY;
+      if (dragging) {
+        let nx = origX + dx;
+        let ny = origY + dy;
+        const others = allBoxes();
+        const threshold = SNAP_THRESHOLD;
+        for (const other of others) {
+          const ox = parseFloat(other.style.left) || 0;
+          const ow = parseFloat(other.style.width) || 0;
+          const oRight = ox + ow, oCenter = ox + ow / 2;
+          const bRight = nx + origW, bCenter = nx + origW / 2;
+          for (const [myVal, otherVal, prop] of [[nx, ox, 'nx'], [bCenter, oCenter, 'nx'], [bRight, oRight, 'nx']]) {
+            if (Math.abs(myVal - otherVal) < threshold) {
+              if (prop === 'nx') nx = otherVal + (myVal === bCenter ? -origW/2 : (myVal === bRight ? -origW : 0));
+            }
+          }
+        }
+        nx = Math.max(0, Math.min(canvas.clientWidth - origW, nx));
+        ny = Math.max(0, Math.min(canvas.clientHeight - origH, ny));
+        box.style.left = nx + 'px';
+        box.style.top = ny + 'px';
+        showAlignGuides(nx, ny, origW, origH);
+      } else if (resizing) {
+        const nw = Math.max(30, origW + dx);
+        const nh = Math.max(30, origH + dy);
+        box.style.width = nw + 'px';
+        box.style.height = nh + 'px';
+        const bx = parseFloat(box.style.left) || 0;
+        const by = parseFloat(box.style.top) || 0;
+        showAlignGuides(bx, by, nw, nh);
+      }
+    };
+    const onUp = () => {
       dragging = false;
-      box.style.zIndex = '';
+      resizing = false;
+      clearGuides();
     };
 
-    box.addEventListener('mousedown', onMouseDown);
-    box.addEventListener('touchstart', onMouseDown, { passive: false });
-    document.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('touchmove', onMouseMove, { passive: false });
-    document.addEventListener('mouseup', onMouseUp);
-    document.addEventListener('touchend', onMouseUp);
+    box.addEventListener('mousedown', startDrag);
+    box.addEventListener('touchstart', startDrag, { passive: false });
+    handleBR.addEventListener('mousedown', startResize);
+    handleBR.addEventListener('touchstart', startResize, { passive: false });
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('touchmove', onMove, { passive: false });
+    document.addEventListener('mouseup', onUp);
+    document.addEventListener('touchend', onUp);
   },
 
-  savePositions(id) {
-    const c = Data.getAll().find(x => x.id === id);
+  async savePositions(id) {
+    const chars = await Data.getAll();
+    const c = chars.find(x => x.id === id);
     if (!c) return;
+    const canvas = document.getElementById('position-canvas');
+    const canvasW = canvas.clientWidth || 400;
+    const canvasH = canvas.clientHeight || 400;
     const positions = {};
     document.querySelectorAll('.position-box').forEach(box => {
       const idx = box.dataset.index;
-      positions[idx] = {
-        x: parseInt(box.style.left),
-        y: parseInt(box.style.top)
-      };
+      const px = parseFloat(box.style.left) || 0;
+      const py = parseFloat(box.style.top) || 0;
+      const pw = parseFloat(box.style.width) || 120;
+      const ph = parseFloat(box.style.height) || 120;
+      positions[idx] = { x: px / canvasW, y: py / canvasH, w: pw / canvasW, h: ph / canvasH };
     });
-    c.positions = positions;
-    Data.update(id, c);
+    await Data.update(id, { positions });
     toast('位置已保存');
     this.closePositionEditor();
-    this.render();
+    await this.render();
   },
 
   closePositionEditor() {
@@ -948,12 +1149,24 @@ const Admin = {
     if (modal) modal.remove();
   },
 
-  resetData() {
+  async resetData() {
     if (confirm('確定要重置為預設字庫？你之前加嘅全部都會刪除。')) {
-      Data.reset();
-      this.render();
+      await Data.reset();
+      await this.render();
       toast('已重置預設字庫');
     }
+  },
+
+  async clearAllPositions() {
+    if (!confirm('確定要清除所有自定義位置？所有字會恢復為默認布局。')) return;
+    const chars = await Data.getAll();
+    for (const c of chars) {
+      if (c.positions) {
+        await Data.update(c.id, { positions: null });
+      }
+    }
+    toast('已清除所有自定義位置');
+    await this.render();
   }
 };
 
@@ -986,8 +1199,8 @@ function showView(name) {
 }
 
 // ===== 啟動 =====
-function init() {
-  Data.init();
+async function init() {
+  await Data.init();
 
   document.querySelectorAll('.nav-btn').forEach(btn => {
     btn.onclick = () => showView(btn.dataset.view);
@@ -1021,7 +1234,7 @@ function init() {
     }
   });
 
-  Game.start();
+  await Game.start();
   User.checkSession();
 }
 
@@ -1029,6 +1242,7 @@ function init() {
 let isRegister = false;
 
 document.getElementById('auth-submit').onclick = async () => {
+  console.log('[shizi] auth-submit clicked, isRegister=', isRegister);
   const username = document.getElementById('auth-username').value.trim();
   const password = document.getElementById('auth-password').value;
   const errorEl = document.getElementById('auth-error');
@@ -1042,13 +1256,13 @@ document.getElementById('auth-submit').onclick = async () => {
   try {
     if (isRegister) {
       await User.request('/register', 'POST', { username, password });
-      toast('註冊成功！請登入');
+      toast('註冊成功！已自動登入');
       isRegister = false;
       document.getElementById('auth-title').textContent = '登入';
       document.getElementById('auth-submit').textContent = '登入';
-      document.getElementById('auth-username').value = username;
       document.getElementById('auth-password').value = '';
       document.getElementById('auth-error').classList.add('hidden');
+      showView('dashboard');
     } else {
       await User.login(username, password);
       toast('登入成功！');
@@ -1058,6 +1272,7 @@ document.getElementById('auth-submit').onclick = async () => {
       document.getElementById('auth-password').value = '';
     }
   } catch (e) {
+    console.error('[shizi] login error:', e);
     errorEl.textContent = e.message;
     errorEl.classList.remove('hidden');
   }
@@ -1518,9 +1733,11 @@ document.addEventListener('DOMContentLoaded', () => {
           const decompIdx = Math.max(0, Math.min((data.recommended || 1) - 1, p.decompositions.length - 1));
           p.components = p.decompositions[decompIdx];
           p.layout = data.layout;
+          p.positions = data.positions || null;
           p.hint = `${p.components.join(' + ')}，${data.reason}`;
           // Re-render
-          toast(`分析完成：${data.layout} - ${data.reason}`);
+          const posInfo = p.positions ? ` (含 ${p.positions.length} 個部件位置)` : '';
+          toast(`分析完成：${data.layout} - ${data.reason}${posInfo}`);
           document.getElementById('import-btn').click(); // Re-render preview
         } catch (err) {
           toast(err.message);
@@ -1536,28 +1753,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('confirm-import-btn')?.addEventListener('click', async () => {
     try {
-      const existingChars = JSON.parse(localStorage.getItem('shizi_chars_v9') || '[]');
-      let added = 0, skipped = 0;
+      let added = 0, skipped = 0, failed = 0;
       for (const item of importPreviewData) {
-        if (existingChars.find(c => c.char === item.char)) {
-          skipped++;
-          continue;
-        }
-        existingChars.push({
-          id: Date.now() + Math.random(),
+        const exists = (await Data.getAll()).find(c => c.char === item.char);
+        if (exists) { skipped++; continue; }
+        const result = await Data.add({
           char: item.char,
           components: item.components,
           layout: item.layout,
-          hint: item.hint
+          hint: item.hint,
+          positions: item.positions || null
         });
-        added++;
+        if (result) added++;
+        else failed++;
       }
-      localStorage.setItem('shizi_chars_v9', JSON.stringify(existingChars));
-      Data.chars = existingChars;
-      toast(`導入成功：新增 ${added} 個，跳過 ${skipped} 個`);
+      toast(`導入完成：新增 ${added} 個，跳過 ${skipped} 個${failed ? '，失敗 ' + failed : ''}`);
       document.getElementById('import-preview').style.display = 'none';
       document.getElementById('import-chars').value = '';
-      Admin.init();
+      await Admin.init();
     } catch (e) {
       toast('導入失敗: ' + e.message);
     }
@@ -1569,7 +1782,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   document.getElementById('sync-btn')?.addEventListener('click', async () => {
-    const localChars = JSON.parse(localStorage.getItem('shizi_chars_v9') || '[]');
+    const localChars = await Data.getAll();
     if (localChars.length === 0) {
       toast('本地沒有字符');
       return;
@@ -1583,14 +1796,13 @@ document.addEventListener('DOMContentLoaded', () => {
           c.components = decompositions[0].split(' ');
           c.layout = autoLayout(c.components);
           c.hint = generateHint(c.char, c.components, c.layout);
+          await Data.update(c.id, c);
           updated++;
         }
       }
     }
-    localStorage.setItem('shizi_chars_v9', JSON.stringify(localChars));
-    Data.chars = localChars;
     toast(`同步完成：更新了 ${updated} 個字的提示`);
-    Admin.init();
+    await Admin.init();
   });
 });
 
@@ -1688,11 +1900,6 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('close-user-detail')?.addEventListener('click', () => {
     document.getElementById('user-detail-panel').style.display = 'none';
   });
-});
-
-document.addEventListener('DOMContentLoaded', () => {
-  init();
-  if (location.hash === '#admin') showView('admin');
 });
 
 document.addEventListener('DOMContentLoaded', () => {

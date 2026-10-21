@@ -3,9 +3,49 @@ const fs = require('fs');
 const path = require('path');
 const url = require('url');
 
-const PORT = 3000;
+const PORT = process.env.PORT || process.argv[2] || 3000;
 const BASE_DIR = __dirname;
 const DATA_FILE = path.join(BASE_DIR, 'shizi-data.json');
+
+// Load ChaiziDictUnique (new dict: each char has exactly 1 decomp)
+globalThis.window = globalThis;
+require(path.join(BASE_DIR, 'chaizi-data.js'));
+require(path.join(BASE_DIR, 'chaizi-unique.js'));
+const ChaiziDict = globalThis.ChaiziDict;          // 原始字典（保留）
+const ChaiziDictUnique = globalThis.ChaiziDictUnique;  // 每字唯一拆法
+
+// 查字典（使用新字典：每字唯一）
+function longestDecomp(char) {
+  if (ChaiziDictUnique && ChaiziDictUnique[char]) {
+    const entry = ChaiziDictUnique[char];
+    return Array.isArray(entry) ? entry : entry.split(' ');
+  }
+  // fallback: 從原字典取最長
+  if (!ChaiziDict || !ChaiziDict[char]) return [];
+  const alts = ChaiziDict[char];
+  if (alts.length === 0) return [];
+  let best = alts[0];
+  for (const a of alts) if (a.split(' ').length > best.split(' ').length) best = a;
+  return best.split(' ');
+}
+
+const DEFAULT_CHARS = [
+  { id: 1,  char: '回', layout: 'surround',          hint: '一個囗包住口，叫做「回」（回來）' },
+  { id: 2,  char: '困', layout: 'surround',          hint: '囗包住「木」，就係「困」喺圍欄裏面' },
+  { id: 3,  char: '因', layout: 'surround',          hint: '方框（囗）內有「大」，就係「因」' },
+  { id: 4,  char: '國', layout: 'surround',          hint: '方框（囗）內有「或」，就係「國家」' },
+  { id: 5,  char: '固', layout: 'surround',          hint: '方框內有「古」，就係「固」定不變' },
+  { id: 6,  char: '這', layout: 'half-surround-left', hint: '「辶」包住左邊，「言」在右邊，叫做「這」個' },
+  { id: 7,  char: '進', layout: 'half-surround-left', hint: '「辶」包左，「隹」在右，叫做「進」步' },
+  { id: 8,  char: '邊', layout: 'half-surround-left', hint: '「辶」包住左邊，「臱」在右邊，叫做「旁邊」' },
+  { id: 9,  char: '森', layout: 'top-bottom-bottom', hint: '三棵樹，就係「森林」' },
+  { id: 10, char: '晶', layout: 'top-bottom-bottom', hint: '三個日頭一齊，就係「晶」亮' },
+  { id: 11, char: '靈', layout: 'top-bottom',         hint: '「霝」上有「巫」下，就係「靈」驗' },
+  { id: 12, char: '響', layout: 'top-bottom',         hint: '「鄉」上有「音」下，就係「響」' },
+  { id: 13, char: '寶', layout: 'top-2-bottom',       hint: '屋頂「宀」+中間「玉」左「缶」右+底下「貝」，就係「寶」物' },
+  { id: 14, char: '鼻', layout: 'vertical-3',         hint: '「自」+「田」+「廾」三件上下疊，就係「鼻」' },
+  { id: 15, char: '攀', layout: 'stack',              hint: '「林」「爻」「大」「手」上下疊，就係「攀」' },
+].map(c => ({ ...c, components: longestDecomp(c.char) })).filter(c => c.components.length > 0);
 
 // ===== 數據存儲 =====
 function loadData() {
@@ -17,8 +57,21 @@ function loadData() {
   return { users: [], progress: [], attempts: [] };
 }
 
+// 簡單異步互斥鎖：避免並發寫丟失
+let writeLock = Promise.resolve();
+function withWriteLock(fn) {
+  const next = writeLock.then(fn, fn);
+  writeLock = next.catch(() => {}); // 即使失敗也釋放鎖
+  return next;
+}
+
+// 原子寫：先寫臨時文件再重命名，避免寫到一半損壞
 function saveData(data) {
-  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
+  return withWriteLock(async () => {
+    const tmp = DATA_FILE + '.tmp.' + process.pid;
+    await fs.promises.writeFile(tmp, JSON.stringify(data, null, 2));
+    await fs.promises.rename(tmp, DATA_FILE);
+  });
 }
 
 const db = {
@@ -38,6 +91,16 @@ db.progress = savedData.progress || [];
 db.attempts = savedData.attempts || [];
 db.chars = savedData.chars || [];
 db.config = savedData.config || { aiToken: '' };
+
+// 首次啟動自動 seed DEFAULT_CHARS（如果 chars 為空）
+(async () => {
+  if (db.chars.length === 0 && DEFAULT_CHARS.length > 0) {
+    const now = new Date().toISOString();
+    db.chars = DEFAULT_CHARS.map(c => ({ ...c, createdAt: now }));
+    await saveData(db);
+    console.log(`[shizi] 已自動 seed ${db.chars.length} 個預設字到 server`);
+  }
+})();
 
 // ===== Password hashing =====
 const crypto = require('crypto');
@@ -171,7 +234,14 @@ async function handleAPI(req, res) {
         createdAt: new Date().toISOString()
       };
       db.users.push(user);
-      saveData(db);
+      await saveData(db);
+      // 註冊後自動登入
+      const sessionId = generateSessionId();
+      sessions.set(sessionId, {
+        user: { id: user.id, username: user.username, role: user.role },
+        expires: Date.now() + 30 * 24 * 60 * 60 * 1000
+      });
+      setSessionCookie(res, sessionId, Date.now() + 30 * 24 * 60 * 60 * 1000);
       jsonResponse(res, 201, { id: user.id, username: user.username, role: user.role });
     } catch (e) {
       jsonResponse(res, 400, { error: '無效的請求' });
@@ -315,7 +385,7 @@ async function handleAPI(req, res) {
 
   if (pathname === '/api/chars' && method === 'POST') {
     try {
-      const { char, components, layout, hint } = await parseBody(req);
+      const { char, components, layout, hint, positions } = await parseBody(req);
       if (!char || !components) return jsonResponse(res, 400, { error: '缺少必要欄位' });
       if (db.chars.find(c => c.char === char)) {
         return jsonResponse(res, 400, { error: '該字已存在' });
@@ -326,10 +396,11 @@ async function handleAPI(req, res) {
         components,
         layout: layout || 'left-right',
         hint: hint || '',
+        positions: positions || null,
         createdAt: new Date().toISOString()
       };
       db.chars.push(newChar);
-      saveData(db);
+      await saveData(db);
       jsonResponse(res, 201, newChar);
     } catch (e) {
       jsonResponse(res, 400, { error: '無效的請求' });
@@ -343,7 +414,7 @@ async function handleAPI(req, res) {
       if (!Array.isArray(chars)) return jsonResponse(res, 400, { error: 'chars 必須是陣列' });
       const results = { added: 0, skipped: 0, errors: [] };
       for (const item of chars) {
-        const { char, components, layout, hint } = item;
+        const { char, components, layout, hint, positions } = item;
         if (!char || !components) {
           results.errors.push({ char: char || '?', error: '缺少必要欄位' });
           results.skipped++;
@@ -359,12 +430,33 @@ async function handleAPI(req, res) {
           components,
           layout: layout || 'left-right',
           hint: hint || '',
+          positions: positions || null,
           createdAt: new Date().toISOString()
         });
         results.added++;
       }
-      saveData(db);
+      await saveData(db);
       jsonResponse(res, 200, results);
+    } catch (e) {
+      jsonResponse(res, 400, { error: '無效的請求' });
+    }
+    return;
+  }
+
+  if (pathname.startsWith('/api/chars/') && method === 'PUT') {
+    const charId = parseFloat(pathname.split('/').pop());
+    const idx = db.chars.findIndex(c => c.id === charId);
+    if (idx < 0) return jsonResponse(res, 404, { error: '字符不存在' });
+    try {
+      const updates = await parseBody(req);
+      // 只允許更新特定字段，避免 id/createdAt 被改
+      const allowed = ['char', 'components', 'layout', 'hint', 'positions'];
+      for (const k of allowed) {
+        if (k in updates) db.chars[idx][k] = updates[k];
+      }
+      db.chars[idx].updatedAt = new Date().toISOString();
+      await saveData(db);
+      jsonResponse(res, 200, db.chars[idx]);
     } catch (e) {
       jsonResponse(res, 400, { error: '無效的請求' });
     }
@@ -376,7 +468,7 @@ async function handleAPI(req, res) {
     const idx = db.chars.findIndex(c => c.id === charId);
     if (idx < 0) return jsonResponse(res, 404, { error: '字符不存在' });
     db.chars.splice(idx, 1);
-    saveData(db);
+    await saveData(db);
     jsonResponse(res, 200, { success: true });
     return;
   }
@@ -456,12 +548,28 @@ ${decompsStr}
 2. **layout 的部件數必須等於所選拆字選項的部件數**
 3. 如果選項的部件數是 5+，必須使用 stack 布局
 4. 如果某個 layout 的部件數與所選拆字不符，自動改用 stack
+5. **給出每個部件在目標字中的視覺位置**（用 0-1 歸一化坐標系，x/y/w/h 都在 0-1 之間，部件頂部接近 0、底部接近 1，左側接近 0、右側接近 1）
 
 回复格式（嚴格只用JSON，無多餘文字）：
 {
   "recommended": 選擇的序號(整數, 從1開始),
   "layout": "上方的layout英文值",
+  "positions": [
+    { "x": 部件1左邊緣(0-1), "y": 部件1頂部(0-1), "w": 部件1寬度(0-1), "h": 部件1高度(0-1) },
+    { "x": ..., "y": ..., "w": ..., "h": ... }
+  ],
   "reason": "簡短中文解釋為何選擇此拆分和結構"
+}
+
+## 位置示例（繁字: 糹+毎+攵）：
+{
+  "recommended": 1,
+  "layout": "bottom-top-top",
+  "positions": [
+    { "x": 0.1, "y": 0.05, "w": 0.4, "h": 0.45 },
+    { "x": 0.5, "y": 0.05, "w": 0.4, "h": 0.45 },
+    { "x": 0.0, "y": 0.55, "w": 1.0, "h": 0.4 }
+  ]
 }`;
 
       const aiRes = await fetch('https://api.minimax.cn/anthropic/v1/messages', {
@@ -473,7 +581,7 @@ ${decompsStr}
         body: JSON.stringify({
           model: 'MiniMax-M3',
           output_config: { effort: 'max' },
-          max_tokens: 1024,
+          max_tokens: 2048,
           messages: [{ role: 'user', content: prompt }]
         })
       });
@@ -529,6 +637,20 @@ ${decompsStr}
       const recIdx = (result.recommended || 1) - 1;
       if (recIdx < 0 || recIdx >= decompositions.length) {
         result.recommended = 1;
+      }
+
+      // Validate positions: must be array with correct length, each item has x/y/w/h
+      const chosenDecomp3 = decompositions[(result.recommended || 1) - 1] || [];
+      if (Array.isArray(result.positions) && result.positions.length === chosenDecomp3.length) {
+        const cleaned = result.positions.map(p => ({
+          x: Math.max(0, Math.min(1, parseFloat(p.x) || 0)),
+          y: Math.max(0, Math.min(1, parseFloat(p.y) || 0)),
+          w: Math.max(0.05, Math.min(1, parseFloat(p.w) || 0.3)),
+          h: Math.max(0.05, Math.min(1, parseFloat(p.h) || 0.3))
+        }));
+        result.positions = cleaned;
+      } else {
+        result.positions = null;
       }
 
       jsonResponse(res, 200, result);

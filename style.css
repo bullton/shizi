@@ -1643,11 +1643,76 @@ nav {
 }
 
 .position-box:hover {
-  transform: scale(1.05);
+  transform: scale(1.02);
 }
 
 .position-box:active {
   cursor: grabbing;
+}
+
+.position-box.selected {
+  outline: 3px solid #fdcb6e;
+  outline-offset: 2px;
+  z-index: 100;
+}
+
+/* 调整大小手柄 */
+.position-box .resize-handle {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  background: #fff;
+  border: 2px solid #0984e3;
+  border-radius: 50%;
+  z-index: 10;
+}
+
+.position-box .resize-handle.br {
+  right: -7px;
+  bottom: -7px;
+  cursor: nwse-resize;
+}
+
+.position-box .resize-handle.tl {
+  left: -7px;
+  top: -7px;
+  cursor: nwse-resize;
+}
+
+/* 对齐辅助线 */
+.align-guides {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 50;
+}
+
+.align-guide {
+  position: absolute;
+  background: #ff6b6b;
+  pointer-events: none;
+}
+
+.align-guide.vertical {
+  width: 1px;
+  height: 100%;
+  top: 0;
+}
+
+.align-guide.horizontal {
+  height: 1px;
+  width: 100%;
+  left: 0;
+}
+
+.snap-indicator {
+  position: absolute;
+  background: rgba(255, 107, 107, 0.15);
+  pointer-events: none;
+  z-index: 5;
 }
 
 /* ===== 響應式 ===== */
