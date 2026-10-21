@@ -48,13 +48,15 @@ const DEFAULT_CHARS = [
 ].map(c => ({ ...c, components: longestDecomp(c.char) })).filter(c => c.components.length > 0);
 
 // ===== 數據存儲 =====
+const DATA_FILE_EXISTS = fs.existsSync(DATA_FILE);
+
 function loadData() {
   try {
-    if (fs.existsSync(DATA_FILE)) {
+    if (DATA_FILE_EXISTS) {
       return JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
     }
   } catch (e) {}
-  return { users: [], progress: [], attempts: [] };
+  return { users: [], progress: [], attempts: [], chars: [] };
 }
 
 // 簡單異步互斥鎖：避免並發寫丟失
@@ -92,9 +94,10 @@ db.attempts = savedData.attempts || [];
 db.chars = savedData.chars || [];
 db.config = savedData.config || { aiToken: '' };
 
-// 首次啟動自動 seed DEFAULT_CHARS（如果 chars 為空）
+// 首次運行自動 seed DEFAULT_CHARS（僅當數據文件不存在時）
+// 如果數據文件存在但 chars 為空，說明是被手動清空，不自動補充（避免誤刪自定義數據）
 (async () => {
-  if (db.chars.length === 0 && DEFAULT_CHARS.length > 0) {
+  if (!DATA_FILE_EXISTS && DEFAULT_CHARS.length > 0) {
     const now = new Date().toISOString();
     db.chars = DEFAULT_CHARS.map(c => ({ ...c, createdAt: now }));
     await saveData(db);
