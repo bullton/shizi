@@ -1760,3 +1760,121 @@ nav {
   .celebration-emoji { font-size: 120px; }
   .celebration-text { font-size: 32px; }
 }
+/* ===== 任務系統 ===== */
+.task-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: linear-gradient(135deg, #f39c12, #e67e22);
+  color: #fff;
+  padding: 10px 16px;
+  border-radius: 12px;
+  margin-bottom: 14px;
+  font-size: 15px;
+  font-weight: 600;
+  box-shadow: 0 3px 10px rgba(243, 156, 18, 0.3);
+}
+.task-banner-label { font-size: 14px; opacity: 0.9; }
+#task-banner-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.btn-tiny {
+  background: rgba(255,255,255,0.25);
+  color: #fff;
+  border: none;
+  padding: 5px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  cursor: pointer;
+  font-weight: 600;
+}
+.btn-tiny:hover { background: rgba(255,255,255,0.4); }
+
+.task-list { display: flex; flex-direction: column; gap: 14px; }
+.task-section-title {
+  color: #636e72;
+  font-size: 14px;
+  margin: 6px 0 0;
+  font-weight: 600;
+}
+.task-card {
+  background: #fff;
+  border-radius: 16px;
+  padding: 18px;
+  box-shadow: 0 3px 14px rgba(0,0,0,0.07);
+  border-left: 5px solid #f39c12;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.task-card.done { border-left-color: #2ecc71; opacity: 0.9; }
+.task-card-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.task-card-title { font-size: 19px; font-weight: 700; color: #2d3436; }
+.task-card-status { font-size: 13px; color: #636e72; white-space: nowrap; }
+.task-card-note { font-size: 14px; color: #636e72; }
+.task-card-progress { display: flex; align-items: center; gap: 10px; font-size: 14px; color: #636e72; }
+.task-card-progress .progress-bar { flex: 1; }
+.task-card .btn { align-self: stretch; }
+.task-empty { text-align: center; padding: 48px 20px; color: #636e72; font-size: 17px; }
+
+/* ===== 布置任務 ===== */
+.char-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 10px;
+  background: #f8f9fa;
+  border-radius: 12px;
+  margin-top: 8px;
+}
+.char-chip {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  border: 2px solid #dfe6e9;
+  background: #fff;
+  font-size: 24px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  color: #2d3436;
+}
+.char-chip:hover { border-color: #f39c12; }
+.char-chip.selected {
+  background: #f39c12;
+  border-color: #f39c12;
+  color: #fff;
+  transform: scale(1.06);
+}
+.assign-summary {
+  margin-top: 10px;
+  font-size: 14px;
+  color: #636e72;
+  padding: 8px 12px;
+  background: #fff8e1;
+  border-radius: 8px;
+}
+.assignment-list { display: flex; flex-direction: column; gap: 12px; }
+.assignment-item {
+  border: 1px solid #e4e6e7;
+  border-radius: 12px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.assignment-item.done { background: #f0fff4; border-color: #2ecc71; }
+.assignment-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.assignment-name { font-weight: 700; font-size: 16px; color: #2d3436; }
+.assignment-user { font-size: 13px; color: #636e72; margin-left: 8px; }
+.assignment-badge { font-size: 12px; color: #2ecc71; margin-left: 6px; }
+.assignment-date { font-size: 12px; color: #b2bec3; white-space: nowrap; }
+.assignment-note { font-size: 14px; color: #636e72; }
+.assignment-chars { font-size: 22px; letter-spacing: 4px; color: #2d3436; line-height: 1.5; }
+.assignment-progress { display: flex; align-items: center; gap: 10px; font-size: 13px; color: #636e72; }
+.assignment-progress .progress-bar { flex: 1; }
+.assignment-actions { display: flex; gap: 8px; }
+.btn-reset { background: #74b9ff; color: #fff; }
+.btn-reset:hover { background: #5aa8f0; }

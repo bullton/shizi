@@ -119,10 +119,12 @@ const User = {
     const userInfo = document.getElementById('user-info');
     const adminBtn = document.getElementById('admin-btn');
     const userStats = document.getElementById('user-stats');
+    const tasksNav = document.getElementById('tasks-nav');
 
     if (this.current) {
       userNav.classList.remove('hidden');
       loginNav.classList.add('hidden');
+      tasksNav?.classList.remove('hidden');
       const displayName = this.current.nickname || this.current.username;
       const displayAvatar = this.current.avatar || displayName[0].toUpperCase();
       userInfo.innerHTML = `<span style="font-size:20px">${displayAvatar}</span> ${displayName}`;
@@ -131,8 +133,69 @@ const User = {
     } else {
       userNav.classList.add('hidden');
       loginNav.classList.remove('hidden');
+      tasksNav?.classList.add('hidden');
       userStats.classList.add('hidden');
     }
+  }
+};
+
+// ===== 我的任務 =====
+const Tasks = {
+  list: [],
+
+  async refresh() {
+    const el = document.getElementById('tasks-list');
+    if (!el) return;
+    if (!User.current) {
+      el.innerHTML = `<div class="task-empty"><p>請先登入睇你嘅任務</p></div>`;
+      return;
+    }
+    try {
+      this.list = await User.request('/assignments');
+    } catch {
+      this.list = [];
+    }
+    if (this.list.length === 0) {
+      el.innerHTML = `<div class="task-empty"><p>暫時冇任務 🎈</p><p style="color:#636e72;font-size:14px;margin-top:8px">可以先玩遊戲，或等老師布置</p></div>`;
+      return;
+    }
+    const undone = this.list.filter(t => !t.allDone);
+    const done = this.list.filter(t => t.allDone);
+    let html = '';
+    if (undone.length) {
+      html += `<h3 class="task-section-title">進行中 (${undone.length})</h3>`;
+      html += undone.map(t => this._card(t)).join('');
+    }
+    if (done.length) {
+      html += `<h3 class="task-section-title">已完成 (${done.length})</h3>`;
+      html += done.map(t => this._card(t)).join('');
+    }
+    el.innerHTML = html;
+    el.querySelectorAll('[data-start-task]').forEach(btn => {
+      btn.onclick = async () => {
+        const t = this.list.find(x => x.id == btn.dataset.startTask);
+        if (!t) return;
+        Game._pendingTask = t;
+        showView('game');
+      };
+    });
+  },
+
+  _card(t) {
+    const pct = t.total ? Math.round((t.completedCount / t.total) * 100) : 0;
+    const resume = t.completedCount > 0 && !t.allDone;
+    return `<div class="task-card ${t.allDone ? 'done' : ''}">
+      <div class="task-card-head">
+        <div class="task-card-title">${escapeHtml(t.name)}</div>
+        <div class="task-card-status">${t.allDone ? '✅ 完成' : (t.completedCount > 0 ? '📖 進行中' : '🆕 未開始')}</div>
+      </div>
+      ${t.note ? `<div class="task-card-note">${escapeHtml(t.note)}</div>` : ''}
+      <div class="task-card-progress">
+        <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+        <span>${t.completedCount} / ${t.total}</span>
+      </div>
+      <button class="btn btn-primary" data-start-task="${t.id}">${t.allDone ? '🔁 再做一次' : (resume ? '▶️ 繼續做' : '▶️ 開始做')}</button>
+    </div>`;
   }
 };
 
@@ -180,6 +243,22 @@ const AdminAPI = {
 
   async getCharStats() {
     return this.request('/chars');
+  },
+
+  getAssignments() {
+    return this.request('/assignments');
+  },
+
+  createAssignment(data) {
+    return this.request('/assignments', 'POST', data);
+  },
+
+  updateAssignment(id, data) {
+    return this.request('/assignments/' + id, 'PUT', data);
+  },
+
+  deleteAssignment(id) {
+    return this.request('/assignments/' + id, 'DELETE');
   }
 };
 
@@ -356,6 +435,10 @@ const Game = {
   current: null,
   score: 0,
   index: 0,
+  taskId: null,
+  taskName: null,
+  taskDone: new Set(),
+  _pendingTask: null,
   _pendingTimers: [],
 
   _clearTimers() {
@@ -372,7 +455,22 @@ const Game = {
     return id;
   },
 
+  _setTaskBanner(name) {
+    const banner = document.getElementById('task-banner');
+    if (name) {
+      banner.classList.remove('hidden');
+      document.getElementById('task-banner-name').textContent = name;
+    } else {
+      banner.classList.add('hidden');
+    }
+  },
+
+  // 從頭開始（無任務模式：所有字）
   async start() {
+    this.taskId = null;
+    this.taskName = null;
+    this.taskDone = new Set();
+    this._setTaskBanner(null);
     this.chars = await Data.getAll();
     if (this.chars.length === 0) {
       this._showEmpty();
@@ -383,6 +481,47 @@ const Game = {
     this._updateScore();
     this._updateProgress();
     this.next();
+  },
+
+  // 開始任務：只做指定的字，已完成的字排後面（斷點續做）
+  async startTask(task) {
+    const all = await Data.getAll();
+    const byId = new Map(all.map(c => [c.id, c]));
+    let ids = task.charIds.filter(id => byId.has(id));
+
+    // 斷點續做：未完成的排前面
+    ids.sort((a, b) => (task.completedCharIds.includes(byId.get(a).char) ? 1 : 0)
+                      - (task.completedCharIds.includes(byId.get(b).char) ? 1 : 0));
+
+    this.chars = ids.map(id => byId.get(id));
+    this.taskId = task.id;
+    this.taskName = task.name;
+    this.taskDone = new Set();
+    this._setTaskBanner(task.name);
+
+    if (this.chars.length === 0) {
+      this._showEmpty();
+      return;
+    }
+    this.score = 0;
+    this.index = 0;
+    this._updateScore();
+    this._updateProgress();
+    this.next();
+  },
+
+  async _markTaskDone() {
+    if (!this.taskId || !this.current) return;
+    try {
+      await User.request('/assignments/' + this.taskId + '/complete', 'POST', {
+        charId: this.current.id,
+        correct: true
+      });
+      this.taskDone.add(this.current.char);
+      this._updateProgress();
+    } catch (e) {
+      console.warn('任務進度記錄失敗:', e.message);
+    }
   },
 
   next() {
@@ -524,16 +663,30 @@ const Game = {
   },
 
   _gameOver() {
-    document.getElementById('character-display').innerHTML = `
+    const display = document.getElementById('character-display');
+    const isTask = !!this.taskId;
+    const allDone = isTask && this.taskDone.size >= this.chars.length;
+    const title = allDone ? '🏆 任務完成！' : (isTask ? '🎉 做完晒！' : '🎉 完成晒！');
+    const body = allDone
+      ? `<p>你做完咗「${escapeHtml(this.taskName)}」全部 ${this.chars.length} 個字，真棒！</p>`
+      : `<p>你一共拎到 <strong>${this.score}</strong> 分！</p>`;
+
+    const btns = isTask
+      ? `<button class="btn btn-primary" onclick="Game.restart()">🔁 再做多次</button>
+         <button class="btn btn-secondary" onclick="Tasks.refresh(); showView('tasks')">📋 返回任務</button>`
+      : `<button class="btn btn-primary" onclick="Game.restart()">🔄 再玩一次</button>`;
+
+    display.innerHTML = `
       <div class="game-over">
-        <h2>🎉 完成晒！</h2>
-        <p>你一共拎到 <strong>${this.score}</strong> 分！</p>
-        <button class="btn btn-primary" onclick="Game.restart()">🔄 再玩一次</button>
+        <h2>${title}</h2>
+        ${body}
+        ${btns}
       </div>
     `;
     document.getElementById('pieces-tray').innerHTML = '';
     document.getElementById('next-btn').classList.add('hidden');
     this._playWin();
+    if (isTask) Tasks.refresh();
   },
 
   _showEmpty() {
@@ -662,6 +815,7 @@ const Game = {
     const hint = this.current.hint;
     const responseTime = Date.now() - this.startTime;
     User.recordProgress(char, this.current.id, responseTime, true);
+    this._markTaskDone();
     display.querySelectorAll('.slot').forEach(s => s.classList.add('fade-out'));
     tray.classList.add('fade-out');
     this._setTimer(() => {
@@ -1192,10 +1346,19 @@ function showView(name) {
     b.classList.toggle('active', b.dataset.view === name));
   document.querySelectorAll('.view').forEach(v =>
     v.classList.toggle('active', v.id === 'view-' + name));
-  if (name === 'game') Game.start();
+  if (name === 'game') {
+    if (Game._pendingTask) {
+      const t = Game._pendingTask;
+      Game._pendingTask = null;
+      Game.startTask(t);
+    } else {
+      Game.start();
+    }
+  }
   if (name === 'admin') Admin.init();
   if (name === 'dashboard') loadDashboard();
   if (name === 'admin-panel') loadAdminPanel();
+  if (name === 'tasks') Tasks.refresh();
 }
 
 // ===== 啟動 =====
@@ -1223,6 +1386,11 @@ async function init() {
   document.getElementById('next-btn').onclick = () => {
     Game.index++;
     Game.next();
+  };
+
+  document.getElementById('task-back-btn').onclick = () => {
+    Game._clearTimers();
+    showView('tasks');
   };
 
   // Click outside to deselect piece
@@ -1448,6 +1616,11 @@ document.addEventListener('DOMContentLoaded', () => {
 async function loadAdminPanel() {
   if (!User.current || User.current.role !== 'admin') return;
   try {
+    AdminAssignments.load();
+  } catch (e) {
+    console.warn('載入任務數據失敗:', e);
+  }
+  try {
     const users = await AdminAPI.getUsers();
     document.getElementById('admin-users').textContent = users.length;
 
@@ -1515,6 +1688,201 @@ async function loadAdminPanel() {
     console.warn('載入管理員數據失敗:', e);
   }
 }
+
+// ===== 布置任務（管理員）=====
+const AdminAssignments = {
+  selected: new Set(),
+  chars: [],
+  users: [],
+
+  async load() {
+    await Promise.all([this._loadUsers(), this._loadChars()]);
+    this.renderCharPicker();
+    await this.renderList();
+    this._bindOnce();
+  },
+
+  async _loadUsers() {
+    try {
+      const users = await AdminAPI.getUsers();
+      this.users = users.filter(u => u.role !== 'admin');
+      const sel = document.getElementById('assign-user');
+      sel.innerHTML = this.users.map(u =>
+        `<option value="${u.id}">${escapeHtml(u.nickname || u.username)}</option>`
+      ).join('') || '<option value="">（冇小孩帳號）</option>';
+    } catch (e) {
+      console.warn('載入用戶失敗:', e.message);
+    }
+  },
+
+  async _loadChars() {
+    try {
+      this.chars = await AdminAPI.getChars();
+    } catch {
+      this.chars = [];
+    }
+  },
+
+  renderCharPicker() {
+    const el = document.getElementById('assign-chars-picker');
+    if (!el) return;
+    if (this.chars.length === 0) {
+      el.innerHTML = '<p style="color:#636e72">字庫係空嘅</p>';
+      return;
+    }
+    el.innerHTML = this.chars.map(c => `
+      <button class="char-chip ${this.selected.has(c.id) ? 'selected' : ''}" data-char-id="${c.id}">${c.char}</button>
+    `).join('');
+    el.querySelectorAll('.char-chip').forEach(btn => {
+      btn.onclick = () => {
+        const id = parseInt(btn.dataset.charId);
+        if (this.selected.has(id)) {
+          this.selected.delete(id);
+        } else {
+          this.selected.add(id);
+        }
+        btn.classList.toggle('selected');
+        this._updateSummary();
+      };
+    });
+    this._updateSummary();
+  },
+
+  _updateSummary() {
+    const s = document.getElementById('assign-summary');
+    if (!s) return;
+    const chars = this.chars.filter(c => this.selected.has(c.id)).map(c => c.char);
+    s.innerHTML = chars.length
+      ? `已選 ${chars.length} 個字：${chars.join(' ')}`
+      : '未揀任何字';
+  },
+
+  _bindOnce() {
+    if (this._bound) return;
+    this._bound = true;
+
+    document.getElementById('assign-add-btn').onclick = async () => {
+      const input = document.getElementById('assign-search');
+      const text = input.value.trim();
+      if (!text) return;
+      if (this.chars.length === 0) await this._loadChars();
+      const wanted = [...new Set(text.split(/[\s,，、]+/).filter(Boolean))];
+      let added = 0, missing = [];
+      wanted.forEach(ch => {
+        const found = this.chars.find(c => c.char === ch);
+        if (found) {
+          this.selected.add(found.id);
+          added++;
+        } else {
+          missing.push(ch);
+        }
+      });
+      input.value = '';
+      this.renderCharPicker();
+      toast(missing.length
+        ? `已加入 ${added} 個字${missing.length ? `，字庫冇：${missing.join('')}` : ''}`
+        : `已加入 ${added} 個字`);
+    };
+
+    document.getElementById('assign-clear-btn').onclick = () => {
+      this.selected.clear();
+      this.renderCharPicker();
+    };
+
+    document.getElementById('assign-save-btn').onclick = () => this.create();
+  },
+
+  async create() {
+    const userId = document.getElementById('assign-user').value;
+    const name = document.getElementById('assign-name').value.trim();
+    const note = document.getElementById('assign-note').value.trim();
+    if (!userId) return toast('請先選擇小孩');
+    if (this.selected.size === 0) return toast('請至少揀一個字');
+
+    try {
+      await AdminAPI.createAssignment({
+        userId: parseInt(userId),
+        name,
+        note,
+        charIds: [...this.selected]
+      });
+      toast('✅ 任務已建立');
+      document.getElementById('assign-name').value = '';
+      document.getElementById('assign-note').value = '';
+      this.selected.clear();
+      this.renderCharPicker();
+      await this.renderList();
+    } catch (e) {
+      toast('建立失敗: ' + e.message);
+    }
+  },
+
+  async renderList() {
+    const el = document.getElementById('assignment-list');
+    if (!el) return;
+    let list = [];
+    try {
+      list = await AdminAPI.getAssignments();
+    } catch (e) {
+      el.innerHTML = `<p style="color:#c0392b">載入失敗: ${escapeHtml(e.message)}</p>`;
+      return;
+    }
+    if (list.length === 0) {
+      el.innerHTML = '<p style="color:#636e72">仲未有任務</p>';
+      return;
+    }
+    el.innerHTML = list.map(a => {
+      const pct = a.total ? Math.round((a.completedCount / a.total) * 100) : 0;
+      const chars = this.chars.filter(c => a.charIds.includes(c.id)).map(c => c.char).join(' ');
+      const date = new Date(a.createdAt).toLocaleDateString('zh-HK');
+      return `<div class="assignment-item ${a.allDone ? 'done' : ''}">
+        <div class="assignment-head">
+          <div>
+            <span class="assignment-name">${escapeHtml(a.name)}</span>
+            <span class="assignment-user">👦 ${escapeHtml(a.username)}</span>
+            ${a.allDone ? '<span class="assignment-badge">✅ 已完成</span>' : ''}
+          </div>
+          <div class="assignment-date">${date}</div>
+        </div>
+        ${a.note ? `<div class="assignment-note">${escapeHtml(a.note)}</div>` : ''}
+        <div class="assignment-chars">${chars}</div>
+        <div class="assignment-progress">
+          <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+          <span>${a.completedCount} / ${a.total}</span>
+        </div>
+        <div class="assignment-actions">
+          <button class="btn-small btn-reset" data-id="${a.id}">🔄 重設進度</button>
+          <button class="btn-small btn-danger btn-del-assign" data-id="${a.id}">🗑 刪除</button>
+        </div>
+      </div>`;
+    }).join('');
+
+    el.querySelectorAll('.btn-del-assign').forEach(btn => {
+      btn.onclick = async () => {
+        if (!confirm('確定刪除呢個任務？')) return;
+        try {
+          await AdminAPI.deleteAssignment(btn.dataset.id);
+          toast('已刪除');
+          this.renderList();
+        } catch (e) {
+          toast('刪除失敗: ' + e.message);
+        }
+      };
+    });
+    el.querySelectorAll('.btn-reset').forEach(btn => {
+      btn.onclick = async () => {
+        if (!confirm('重設進度？小朋友要由頭再做一次')) return;
+        try {
+          await AdminAPI.updateAssignment(btn.dataset.id, { resetDone: true });
+          toast('已重設');
+          this.renderList();
+        } catch (e) {
+          toast('重設失敗: ' + e.message);
+        }
+      };
+    });
+  }
+};
 
 // ===== Char Import =====
 let importPreviewData = [];
@@ -1893,6 +2261,9 @@ document.addEventListener('DOMContentLoaded', () => {
       if (btn.dataset.tab === 'profile') {
         await User.checkSession();
         loadProfile();
+      }
+      if (btn.dataset.tab === 'assignments') {
+        AdminAssignments.load();
       }
     };
   });

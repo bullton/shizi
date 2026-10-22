@@ -11,6 +11,7 @@
   <div class="logo">🎨 識字樂</div>
   <nav id="nav-buttons">
     <button class="nav-btn active" data-view="game">🎮 玩遊戲</button>
+    <button class="nav-btn hidden" data-view="tasks" id="tasks-nav">📋 我的任務</button>
     <button class="nav-btn" data-view="admin">⚙️ 管理字庫</button>
     <span id="user-nav" class="hidden">
       <button class="nav-btn" data-view="dashboard">📊 我的進度</button>
@@ -49,6 +50,11 @@
 
   <!-- 遊戲 -->
   <section id="view-game" class="view active">
+    <div id="task-banner" class="task-banner hidden">
+      <span class="task-banner-label">📋 任務</span>
+      <span id="task-banner-name">—</span>
+      <button class="btn btn-tiny" id="task-back-btn">← 返回任務</button>
+    </div>
     <div class="game-info card">
       <div class="info-item">
         <span class="info-label">⭐ 分數</span>
@@ -93,6 +99,14 @@
         <div class="celebration-text">答對了！</div>
       </div>
     </div>
+  </section>
+
+  <!-- 我的任務 -->
+  <section id="view-tasks" class="view">
+    <div class="dashboard-header">
+      <h2>📋 我的任務</h2>
+    </div>
+    <div id="tasks-list" class="task-list"></div>
   </section>
 
   <!-- 管理字庫 -->
@@ -238,6 +252,7 @@
 
     <div class="admin-tabs">
       <button class="tab-btn active" data-tab="users">👥 用戶管理</button>
+      <button class="tab-btn" data-tab="assignments">📋 布置任務</button>
       <button class="tab-btn" data-tab="chars">📊 字學習統計</button>
       <button class="tab-btn" data-tab="profile">👤 個人資料</button>
     </div>
@@ -255,6 +270,41 @@
         </div>
         <div id="user-detail-stats"></div>
         <div id="user-detail-records"></div>
+      </div>
+    </div>
+
+    <!-- 布置任務 Tab -->
+    <div id="tab-assignments" class="admin-tab">
+      <div class="card">
+        <h3>📋 新建任務</h3>
+        <div class="form-field">
+          <label>做給邊個（小孩）</label>
+          <select id="assign-user"></select>
+        </div>
+        <div class="form-field">
+          <label>任務名稱</label>
+          <input type="text" id="assign-name" placeholder="例：10月22日 功課">
+        </div>
+        <div class="form-field">
+          <label>備註（給小孩睇）</label>
+          <input type="text" id="assign-note" placeholder="例：今日要學晒呢 5 個字">
+        </div>
+        <div class="form-field">
+          <label>揀字（可貼上漢字快速搜尋）</label>
+          <input type="text" id="assign-search" placeholder="貼上漢字，例如：回困因國固">
+          <small style="color:#636e72">輸入後撳「加入」把字加落清單</small>
+          <button class="btn btn-secondary small" id="assign-add-btn" style="margin-top:8px">➕ 加入</button>
+        </div>
+        <div class="char-picker" id="assign-chars-picker"></div>
+        <div id="assign-summary" class="assign-summary">未揀任何字</div>
+        <div class="form-actions">
+          <button class="btn btn-primary" id="assign-save-btn">💾 建立任務</button>
+          <button class="btn btn-secondary" id="assign-clear-btn">清空選字</button>
+        </div>
+      </div>
+      <div class="card">
+        <h3>📋 已布置的任務</h3>
+        <div class="assignment-list" id="assignment-list"></div>
       </div>
     </div>
 

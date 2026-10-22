@@ -56,7 +56,7 @@ function loadData() {
       return JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
     }
   } catch (e) {}
-  return { users: [], progress: [], attempts: [], chars: [] };
+  return { users: [], progress: [], attempts: [], chars: [], assignments: [] };
 }
 
 // 簡單異步互斥鎖：避免並發寫丟失
@@ -81,6 +81,7 @@ const db = {
   progress: [],
   attempts: [],
   chars: [],
+  assignments: [],
   config: {
     aiToken: ''
   }
@@ -92,6 +93,7 @@ db.users = savedData.users || [];
 db.progress = savedData.progress || [];
 db.attempts = savedData.attempts || [];
 db.chars = savedData.chars || [];
+db.assignments = savedData.assignments || [];
 db.config = savedData.config || { aiToken: '' };
 
 // 首次運行自動 seed DEFAULT_CHARS（僅當數據文件不存在時）
@@ -104,6 +106,36 @@ db.config = savedData.config || { aiToken: '' };
     console.log(`[shizi] 已自動 seed ${db.chars.length} 個預設字到 server`);
   }
 })();
+
+// ===== 任務輔助 =====
+function decorateAssignment(a, chars) {
+  const done = a.done || {};
+  const total = (a.charIds || []).length;
+  const completedCount = (a.charIds || []).filter(id => done[String(id)]).length;
+  const completedCharIds = (a.charIds || [])
+    .filter(id => done[String(id)])
+    .map(id => chars.find(c => c.id === id)?.char)
+    .filter(Boolean);
+  return {
+    id: a.id,
+    userId: a.userId,
+    name: a.name,
+    note: a.note || '',
+    charIds: a.charIds || [],
+    createdAt: a.createdAt,
+    updatedAt: a.updatedAt || null,
+    total,
+    completedCount,
+    remainingCount: total - completedCount,
+    completedCharIds,
+    allDone: total > 0 && completedCount >= total,
+    lastPracticed: Object.values(done)
+      .map(d => d.lastAt)
+      .filter(Boolean)
+      .sort()
+      .pop() || null
+  };
+}
 
 // ===== Password hashing =====
 const crypto = require('crypto');
@@ -378,6 +410,43 @@ async function handleAPI(req, res) {
   // Char routes (public read, admin write)
   if (pathname === '/api/chars' && method === 'GET') {
     jsonResponse(res, 200, db.chars);
+    return;
+  }
+
+  // ===== 任務（小孩用，非管理員）=====
+  // 小孩查看自己的任務
+  if (pathname === '/api/assignments' && method === 'GET') {
+    const u = requireAuth(req, res);
+    if (!u) return jsonResponse(res, 401, { error: '請先登入' });
+    const mine = db.assignments
+      .filter(a => a.userId === u.id)
+      .map(a => decorateAssignment(a, db.chars));
+    jsonResponse(res, 200, mine);
+    return;
+  }
+
+  // 記錄任務內某個字已完成
+  if (pathname.startsWith('/api/assignments/') && pathname.endsWith('/complete') && method === 'POST') {
+    const u = requireAuth(req, res);
+    if (!u) return jsonResponse(res, 401, { error: '請先登入' });
+    const id = parseInt(pathname.split('/')[3]);
+    const a = db.assignments.find(x => x.id === id && x.userId === u.id);
+    if (!a) return jsonResponse(res, 404, { error: '任務不存在' });
+    try {
+      const { charId, correct } = await parseBody(req);
+      if (!a.done) a.done = {};
+      const key = String(charId);
+      const prev = a.done[key] || { attempts: 0, correctCount: 0 };
+      a.done[key] = {
+        attempts: prev.attempts + 1,
+        correctCount: prev.correctCount + (correct ? 1 : 0),
+        lastAt: new Date().toISOString()
+      };
+      await saveData(db);
+      jsonResponse(res, 200, decorateAssignment(a, db.chars));
+    } catch (e) {
+      jsonResponse(res, 400, { error: '請求失敗' });
+    }
     return;
   }
 
@@ -755,6 +824,85 @@ ${decompsStr}
   // Admin routes
   if (pathname.startsWith('/api/admin/') && user.role !== 'admin') {
     return jsonResponse(res, 403, { error: '需要管理員權限' });
+  }
+
+  // 管理員：任務列表
+  if (pathname === '/api/admin/assignments' && method === 'GET') {
+    const list = db.assignments.map(a => {
+      const u = db.users.find(x => x.id === a.userId);
+      return {
+        ...decorateAssignment(a, db.chars),
+        username: u ? (u.nickname || u.username) : '（已刪除用戶）'
+      };
+    }).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    jsonResponse(res, 200, list);
+    return;
+  }
+
+  // 管理員：建立任務
+  if (pathname === '/api/admin/assignments' && method === 'POST') {
+    try {
+      const { userId, name, charIds, note } = await parseBody(req);
+      if (!userId) return jsonResponse(res, 400, { error: '請選擇小孩' });
+      if (!Array.isArray(charIds) || charIds.length === 0) {
+        return jsonResponse(res, 400, { error: '請至少選一個字' });
+      }
+      const validIds = new Set(db.chars.map(c => c.id));
+      const cleanIds = charIds.filter(id => validIds.has(id));
+      if (cleanIds.length === 0) return jsonResponse(res, 400, { error: '選中的字不存在' });
+
+      const assignment = {
+        id: Date.now(),
+        userId: parseInt(userId),
+        name: (name && name.trim()) || `${new Date().toISOString().slice(0, 10)} 的功課`,
+        charIds: cleanIds,
+        note: (note && note.trim()) || '',
+        done: {},
+        createdAt: new Date().toISOString()
+      };
+      db.assignments.push(assignment);
+      await saveData(db);
+      jsonResponse(res, 200, decorateAssignment(assignment, db.chars));
+    } catch (e) {
+      jsonResponse(res, 400, { error: '請求失敗' });
+    }
+    return;
+  }
+
+  // 管理員：更新任務
+  if (pathname.startsWith('/api/admin/assignments/') && method === 'PUT') {
+    const id = parseInt(pathname.split('/').pop());
+    const a = db.assignments.find(x => x.id === id);
+    if (!a) return jsonResponse(res, 404, { error: '任務不存在' });
+    try {
+      const { name, charIds, note, resetDone, userId } = await parseBody(req);
+      if (name !== undefined) a.name = name.trim() || a.name;
+      if (note !== undefined) a.note = note.trim();
+      if (userId !== undefined) a.userId = parseInt(userId);
+      if (Array.isArray(charIds)) {
+        const validIds = new Set(db.chars.map(c => c.id));
+        const cleanIds = charIds.filter(x => validIds.has(x));
+        if (cleanIds.length > 0) a.charIds = cleanIds;
+      }
+      if (resetDone) a.done = {};
+      a.updatedAt = new Date().toISOString();
+      await saveData(db);
+      jsonResponse(res, 200, decorateAssignment(a, db.chars));
+    } catch (e) {
+      jsonResponse(res, 400, { error: '請求失敗' });
+    }
+    return;
+  }
+
+  // 管理員：刪除任務
+  if (pathname.startsWith('/api/admin/assignments/') && method === 'DELETE') {
+    const id = parseInt(pathname.split('/').pop());
+    const idx = db.assignments.findIndex(x => x.id === id);
+    if (idx < 0) return jsonResponse(res, 404, { error: '任務不存在' });
+    db.assignments.splice(idx, 1);
+    await saveData(db);
+    jsonResponse(res, 200, { ok: true });
+    return;
   }
 
   if (pathname === '/api/admin/users' && method === 'GET') {
