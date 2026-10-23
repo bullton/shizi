@@ -322,9 +322,9 @@ const Data = {
   _loading: null,
   _isAdmin: false,
 
-  async _fetch() {
-    if (this._cache) return this._cache;
-    if (this._loading) return this._loading;
+  async _fetch(force = false) {
+    if (!force && this._cache) return this._cache;
+    if (!force && this._loading) return this._loading;
     this._loading = (async () => {
       try {
         const res = await fetch('/api/chars', { credentials: 'include' });
@@ -332,10 +332,11 @@ const Data = {
           const data = await res.json();
           this._cache = Array.isArray(data) ? data : [];
         } else if (res.status === 401) {
-          // 未登入：清空 cache，唔好用舊資料
-          this._cache = [];
+          // 未登入：清空 cache（用 null 標記「未載入」，
+          // 唔可以用 [] 因為 [] 係 truthy，會令之後永遠唔重新載入）
+          this._cache = null;
           this._loading = null;
-          return this._cache;
+          return [];
         } else {
           this._cache = this._loadLocal();
         }
@@ -368,13 +369,13 @@ const Data = {
     }
   },
 
-  async init() {
-    await this._fetch();
+  async init(force = false) {
+    await this._fetch(force);
     this._saveLocal();
   },
 
-  async getAll() {
-    return await this._fetch();
+  async getAll(force = false) {
+    return await this._fetch(force);
   },
 
   async add(data) {
@@ -387,14 +388,14 @@ const Data = {
       });
       if (res.ok) {
         const newChar = await res.json();
-        this._cache = await this._fetch();
+        this._cache = await this._fetch(true);
         this._saveLocal();
         return newChar;
       }
     } catch {}
     // fallback: local
     const newChar = { id: Date.now(), ...data };
-    this._cache = await this._fetch();
+    this._cache = await this._fetch(true);
     this._cache.push(newChar);
     this._saveLocal();
     return newChar;
@@ -410,13 +411,13 @@ const Data = {
       });
       if (res.ok) {
         const updated = await res.json();
-        this._cache = await this._fetch();
+        this._cache = await this._fetch(true);
         this._saveLocal();
         return updated;
       }
     } catch {}
     // fallback: local
-    this._cache = await this._fetch();
+    this._cache = await this._fetch(true);
     const i = this._cache.findIndex(c => c.id === id);
     if (i >= 0) {
       this._cache[i] = { ...this._cache[i], ...data, id };
@@ -437,7 +438,7 @@ const Data = {
       }
     } catch {}
     // fallback: local
-    this._cache = await this._fetch();
+    this._cache = await this._fetch(true);
     this._cache = this._cache.filter(c => c.id !== id);
     this._saveLocal();
   },
@@ -1406,8 +1407,6 @@ function showView(name) {
 
 // ===== 啟動 =====
 async function init() {
-  await Data.init();
-
   document.querySelectorAll('.nav-btn').forEach(btn => {
     btn.onclick = () => showView(btn.dataset.view);
   });
@@ -1479,12 +1478,12 @@ document.getElementById('auth-submit').onclick = async () => {
       document.getElementById('auth-submit').textContent = '登入';
       document.getElementById('auth-password').value = '';
       document.getElementById('auth-error').classList.add('hidden');
-      await Data.init();
+      await Data.init(true);
       showView('game');
     } else {
       await User.login(username, password);
       toast('登入成功！');
-      await Data.init();
+      await Data.init(true);
       showView('game');
       errorEl.classList.add('hidden');
       document.getElementById('auth-username').value = '';
