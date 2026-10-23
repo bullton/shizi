@@ -246,8 +246,12 @@ const AdminAPI = {
     return this.request('/user/' + userId, 'PUT', { role });
   },
 
-  async deleteUser(userId) {
+  async   deleteUser(userId) {
     return this.request('/user/' + userId, 'DELETE');
+  },
+
+  clearUserProgress(userId) {
+    return this.request('/user/' + userId + '/progress', 'DELETE');
   },
 
   async getChars() {
@@ -1679,8 +1683,11 @@ async function loadAdminPanel() {
 
     document.getElementById('admin-user-list').innerHTML = users.map(u => `
       <div class="user-item" data-id="${u.id}">
-        <span class="user-name">${u.nickname || u.username} ${u.role === 'admin' ? '👑' : ''}</span>
-        <span class="user-stats">已學: ${u.charsKnown} 字 | 練習: ${u.totalAttempts || 0} 次</span>
+        <span class="user-name">${u.nickname || u.username} <span class="role-badge ${u.role}">${u.role === 'admin' ? '👑 管理員' : '🧒 學生'}</span></span>
+        <span class="user-stats">
+          已學: ${u.charsKnown} 字 | 練習: ${u.totalAttempts || 0} 次
+          ${u.taskCount ? ` | 任務: ${u.taskDoneCount}/${u.taskCount} 個完成（共 ${u.taskCharCount} 字）` : ' | 未布置任務'}
+        </span>
         <div class="user-actions">
           <button class="btn-small btn-view" data-id="${u.id}">查看</button>
           <button class="btn-small btn-toggle-role" data-id="${u.id}" data-role="${u.role === 'admin' ? 'user' : 'admin'}">${u.role === 'admin' ? '降級' : '升級'}</button>
@@ -2253,11 +2260,25 @@ async function showUserDetail(userId) {
             <span class="record-stats">次: ${p.attempts} | 平均: ${p.avgTime ? (p.avgTime/1000).toFixed(1) + 's' : '-'} | 最佳: ${p.bestTime ? (p.bestTime/1000).toFixed(1) + 's' : '-'}</span>
             <span class="record-date">${p.lastPracticed ? new Date(p.lastPracticed).toLocaleDateString() : '-'}</span>
           </div>
-        `).join('') || '<p暫無記錄</p>'}
+        `).join('') || '<p>暫無記錄</p>'}
+      </div>
+      <div class="form-actions" style="margin-top:14px">
+        <button class="btn btn-secondary" id="clear-user-progress-btn">🧹 清除此用戶進度</button>
       </div>
     `;
     document.getElementById('user-detail-panel').style.display = 'block';
     document.getElementById('user-detail-panel').scrollIntoView();
+    document.getElementById('clear-user-progress-btn').onclick = async () => {
+      if (!confirm(`確定清除「${data.user.nickname || data.user.username}」嘅所有學習進度？`)) return;
+      try {
+        await AdminAPI.clearUserProgress(userId);
+        toast('已清除進度');
+        showUserDetail(userId);
+        loadAdminPanel();
+      } catch (e) {
+        toast('清除失敗: ' + e.message);
+      }
+    };
   } catch (e) {
     toast('載入用戶詳情失敗: ' + e.message);
   }

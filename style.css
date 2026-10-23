@@ -1878,3 +1878,15 @@ nav {
 .assignment-actions { display: flex; gap: 8px; }
 .btn-reset { background: #74b9ff; color: #fff; }
 .btn-reset:hover { background: #5aa8f0; }
+
+/* ===== 角色徽章 ===== */
+.role-badge {
+  display: inline-block;
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 600;
+  vertical-align: middle;
+}
+.role-badge.admin { background: #fff3cd; color: #b8860b; }
+.role-badge.user { background: #d1ecf1; color: #0c5460; }

@@ -384,17 +384,18 @@ async function handleAPI(req, res) {
     return;
   }
 
-  // Public leaderboard (no auth required)
+  // Leaderboard (只顯示學生帳號，老師/管理員唔參與排名)
   if (pathname === '/api/leaderboard' && method === 'GET') {
     const userStats = {};
     db.progress.forEach(p => {
+      const u = db.users.find(x => x.id === p.userId);
+      if (!u || u.role === 'admin') return;  // 排除管理員
       if (!userStats[p.userId]) {
-        const u = db.users.find(x => x.id === p.userId);
         userStats[p.userId] = {
           userId: p.userId,
-          username: u ? u.username : '未知',
-          nickname: u ? (u.nickname || u.username) : '未知',
-          avatar: u ? (u.avatar || null) : null,
+          username: u.username,
+          nickname: u.nickname || u.username,
+          avatar: u.avatar || null,
           charsKnown: 0,
           totalAttempts: 0,
           avgTime: 0
@@ -457,6 +458,99 @@ async function handleAPI(req, res) {
     }
     return;
   }
+
+  // ===== 學習進度（任何登入用戶）=====
+  if (pathname === '/api/progress' && method === 'GET') {
+    const u = requireAuth(req, res);
+    if (!u) return jsonResponse(res, 401, { error: '請先登入' });
+    const progress = db.progress.filter(p => p.userId === u.id)
+      .sort((a, b) => new Date(b.lastPracticed) - new Date(a.lastPracticed));
+    jsonResponse(res, 200, progress);
+    return;
+  }
+
+  if (pathname === '/api/progress' && method === 'POST') {
+    const u = requireAuth(req, res);
+    if (!u) return jsonResponse(res, 401, { error: '請先登入' });
+    try {
+      const { char, charId, responseTime, correct } = await parseBody(req);
+      if (!char) return jsonResponse(res, 400, { error: '缺少字符' });
+
+      const now = new Date().toISOString();
+
+      // Insert attempt
+      db.attempts.push({
+        id: Date.now(),
+        userId: u.id,
+        char,
+        charId: charId || null,
+        responseTime: responseTime || 0,
+        correct: correct ? 1 : 0,
+        practicedAt: now
+      });
+
+      // Update or create progress
+      const existingIdx = db.progress.findIndex(p => p.userId === u.id && p.char === char);
+      if (existingIdx >= 0) {
+        const p = db.progress[existingIdx];
+        p.attempts = (p.attempts || 0) + 1;
+        p.totalTime = (p.totalTime || 0) + (responseTime || 0);
+        p.avgTime = p.totalTime / p.attempts;
+        p.bestTime = p.bestTime ? Math.min(p.bestTime, responseTime || 0) : (responseTime || 0);
+        p.lastPracticed = now;
+      } else {
+        db.progress.push({
+          id: Date.now(),
+          userId: u.id,
+          char,
+          charId: charId || null,
+          attempts: 1,
+          totalTime: responseTime || 0,
+          avgTime: responseTime || 0,
+          bestTime: responseTime || 0,
+          lastPracticed: now
+        });
+      }
+
+      saveData(db);
+      jsonResponse(res, 200, { success: true });
+    } catch (e) {
+      jsonResponse(res, 500, { error: '記錄失敗' });
+    }
+    return;
+  }
+
+  if (pathname === '/api/stats' && method === 'GET') {
+    const u = requireAuth(req, res);
+    if (!u) return jsonResponse(res, 401, { error: '請先登入' });
+    const userProgress = db.progress.filter(p => p.userId === u.id);
+    const totalChars = userProgress.length;
+    const totalAttempts = userProgress.reduce((sum, p) => sum + (p.attempts || 0), 0);
+    const avgTime = userProgress.length > 0
+      ? userProgress.reduce((sum, p) => sum + (p.avgTime || 0), 0) / userProgress.length
+      : 0;
+
+    // Recent activity (last 7 days)
+    const recentActivity = [];
+    for (let i = 0; i < 7; i++) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      const dateStr = date.toISOString().split('T')[0];
+      const count = db.attempts.filter(a =>
+        a.userId === u.id && a.practicedAt && a.practicedAt.startsWith(dateStr)
+      ).length;
+      recentActivity.push({ date: dateStr, count });
+    }
+
+    jsonResponse(res, 200, {
+      totalChars,
+      totalAttempts,
+      avgTime,
+      recentActivity: recentActivity.reverse()
+    });
+    return;
+  }
+
 
   // Admin-only char routes
   const adminUser = requireAuth(req, res);
@@ -744,91 +838,6 @@ ${decompsStr}
   const user = requireAuth(req, res);
   if (!user) return jsonResponse(res, 401, { error: '請先登入' });
 
-  if (pathname === '/api/progress' && method === 'GET') {
-    const progress = db.progress.filter(p => p.userId === user.id)
-      .sort((a, b) => new Date(b.lastPracticed) - new Date(a.lastPracticed));
-    jsonResponse(res, 200, progress);
-    return;
-  }
-
-  if (pathname === '/api/progress' && method === 'POST') {
-    try {
-      const { char, charId, responseTime, correct } = await parseBody(req);
-      if (!char) return jsonResponse(res, 400, { error: '缺少字符' });
-
-      const now = new Date().toISOString();
-
-      // Insert attempt
-      db.attempts.push({
-        id: Date.now(),
-        userId: user.id,
-        char,
-        charId: charId || null,
-        responseTime: responseTime || 0,
-        correct: correct ? 1 : 0,
-        practicedAt: now
-      });
-
-      // Update or create progress
-      const existingIdx = db.progress.findIndex(p => p.userId === user.id && p.char === char);
-      if (existingIdx >= 0) {
-        const p = db.progress[existingIdx];
-        p.attempts = (p.attempts || 0) + 1;
-        p.totalTime = (p.totalTime || 0) + (responseTime || 0);
-        p.avgTime = p.totalTime / p.attempts;
-        p.bestTime = p.bestTime ? Math.min(p.bestTime, responseTime || 0) : (responseTime || 0);
-        p.lastPracticed = now;
-      } else {
-        db.progress.push({
-          id: Date.now(),
-          userId: user.id,
-          char,
-          charId: charId || null,
-          attempts: 1,
-          totalTime: responseTime || 0,
-          avgTime: responseTime || 0,
-          bestTime: responseTime || 0,
-          lastPracticed: now
-        });
-      }
-
-      saveData(db);
-      jsonResponse(res, 200, { success: true });
-    } catch (e) {
-      jsonResponse(res, 500, { error: '記錄失敗' });
-    }
-    return;
-  }
-
-  if (pathname === '/api/stats' && method === 'GET') {
-    const userProgress = db.progress.filter(p => p.userId === user.id);
-    const totalChars = userProgress.length;
-    const totalAttempts = userProgress.reduce((sum, p) => sum + (p.attempts || 0), 0);
-    const avgTime = userProgress.length > 0
-      ? userProgress.reduce((sum, p) => sum + (p.avgTime || 0), 0) / userProgress.length
-      : 0;
-
-    // Recent activity (last 7 days)
-    const recentActivity = [];
-    for (let i = 0; i < 7; i++) {
-      const date = new Date();
-      date.setDate(date.getDate() - i);
-      const dateStr = date.toISOString().split('T')[0];
-      const count = db.attempts.filter(a =>
-        a.userId === user.id && a.practicedAt && a.practicedAt.startsWith(dateStr)
-      ).length;
-      recentActivity.push({ date: dateStr, count });
-    }
-
-    jsonResponse(res, 200, {
-      totalChars,
-      totalAttempts,
-      avgTime,
-      recentActivity: recentActivity.reverse()
-    });
-    return;
-  }
-
   // Admin routes
   if (pathname.startsWith('/api/admin/') && user.role !== 'admin') {
     return jsonResponse(res, 403, { error: '需要管理員權限' });
@@ -916,6 +925,7 @@ ${decompsStr}
   if (pathname === '/api/admin/users' && method === 'GET') {
     const users = db.users.map(u => {
       const userProgress = db.progress.filter(p => p.userId === u.id);
+      const userAssignments = db.assignments.filter(a => a.userId === u.id);
       return {
         id: u.id,
         username: u.username,
@@ -926,7 +936,14 @@ ${decompsStr}
         totalAttempts: userProgress.reduce((sum, p) => sum + (p.attempts || 0), 0),
         avgResponseTime: userProgress.length > 0
           ? userProgress.reduce((sum, p) => sum + (p.avgTime || 0), 0) / userProgress.length
-          : 0
+          : 0,
+        taskCount: userAssignments.length,
+        taskDoneCount: userAssignments.filter(a => {
+          const done = a.done || {};
+          return (a.charIds || []).length > 0 &&
+                 (a.charIds || []).every(id => done[String(id)]);
+        }).length,
+        taskCharCount: userAssignments.reduce((sum, a) => sum + (a.charIds || []).length, 0)
       };
     }).sort((a, b) => b.charsKnown - a.charsKnown);
     jsonResponse(res, 200, users);
@@ -960,6 +977,20 @@ ${decompsStr}
     } catch (e) {
       jsonResponse(res, 400, { error: '請求無效' });
     }
+    return;
+  }
+
+  if (pathname.startsWith('/api/admin/user/') && pathname.endsWith('/progress') && method === 'DELETE') {
+    const userId = parseInt(pathname.split('/')[4]);
+    if (!db.users.find(u => u.id === userId)) return jsonResponse(res, 404, { error: '用戶不存在' });
+    db.progress = db.progress.filter(p => p.userId !== userId);
+    db.attempts = db.attempts.filter(a => a.userId !== userId);
+    // 清埋呢個用戶自己任務嘅進度
+    db.assignments.forEach(a => {
+      if (a.userId === userId && a.done) a.done = {};
+    });
+    await saveData(db);
+    jsonResponse(res, 200, { success: true });
     return;
   }
 
