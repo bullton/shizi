@@ -387,6 +387,20 @@ async function handleAPI(req, res) {
   // Leaderboard (只顯示學生帳號，老師/管理員唔參與排名)
   if (pathname === '/api/leaderboard' && method === 'GET') {
     const userStats = {};
+    // 先放晒所有學生（即使未練習都上榜，排最後）
+    db.users.forEach(u => {
+      if (u.role === 'admin') return;
+      userStats[u.id] = {
+        userId: u.id,
+        username: u.username,
+        nickname: u.nickname || u.username,
+        avatar: u.avatar || null,
+        charsKnown: 0,
+        totalAttempts: 0,
+        avgTime: 0
+      };
+    });
+    // 再累計進度
     db.progress.forEach(p => {
       const u = db.users.find(x => x.id === p.userId);
       if (!u || u.role === 'admin') return;  // 排除管理員

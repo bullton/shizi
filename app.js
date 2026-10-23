@@ -1542,14 +1542,14 @@ async function loadDashboard() {
     const leaderboard = await User.request('/leaderboard');
     const lbList = document.getElementById('leaderboard-list');
     lbList.innerHTML = leaderboard.map((u, i) => `
-      <div class="leaderboard-item">
+      <div class="leaderboard-item ${u.charsKnown === 0 ? 'no-progress' : ''}">
         <span class="leaderboard-rank ${i === 0 ? 'top-1' : i === 1 ? 'top-2' : i === 2 ? 'top-3' : ''}">${i + 1}</span>
         <span class="leaderboard-avatar">${u.avatar || u.nickname?.[0]?.toUpperCase() || '?'}</span>
         <span class="leaderboard-name">${u.nickname || u.username}${u.userId === User.current?.id ? ' (我)' : ''}</span>
         <span class="leaderboard-stats">已學: ${u.charsKnown} 字 | 平均: ${u.avgTime ? (u.avgTime/1000).toFixed(1) + 's' : '-'}</span>
         <span class="leaderboard-badge">${u.charsKnown >= 10 ? '🌟' : ''}</span>
       </div>
-    `).join('') || '<p>暫無數據</p>';
+    `).join('') || '<p>暫無其他同學，開始練習就會上榜！</p>';
   } catch (e) {
     console.warn('載入進度失敗:', e);
   }

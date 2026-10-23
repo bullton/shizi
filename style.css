@@ -1890,3 +1890,4 @@ nav {
 }
 .role-badge.admin { background: #fff3cd; color: #b8860b; }
 .role-badge.user { background: #d1ecf1; color: #0c5460; }
+.leaderboard-item.no-progress { opacity: 0.55; }
