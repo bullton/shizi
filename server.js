@@ -325,6 +325,14 @@ async function handleAPI(req, res) {
     return;
   }
 
+  // ===== 全域登入閘門 =====
+  // 除咗 register / login / logout / me 之外，所有 API 都必須登入
+  const PUBLIC_API = ['/api/register', '/api/login', '/api/logout', '/api/me'];
+  if (!PUBLIC_API.includes(pathname)) {
+    const authUser = requireAuth(req, res);
+    if (!authUser) return jsonResponse(res, 401, { error: '請先登入' });
+  }
+
   if (pathname === '/api/profile' && method === 'PUT') {
     const user = requireAuth(req, res);
     if (!user) return jsonResponse(res, 401, { error: '未登入' });

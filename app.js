@@ -61,7 +61,15 @@ const User = {
     const options = { method, headers: { 'Content-Type': 'application/json' }, credentials: 'include' };
     if (body) options.body = JSON.stringify(body);
     const res = await fetch(this.apiBase + path, options);
-    const data = await res.json();
+    let data = {};
+    try { data = await res.json(); } catch {}
+    if (res.status === 401 && !path.startsWith('/login') && !path.startsWith('/register')) {
+      this.current = null;
+      this.updateUI();
+      toast('請先登入');
+      showView('login');
+      throw new Error(data.error || '請先登入');
+    }
     if (!res.ok) throw new Error(data.error || '請求失敗');
     return data;
   },
@@ -120,11 +128,15 @@ const User = {
     const adminBtn = document.getElementById('admin-btn');
     const userStats = document.getElementById('user-stats');
     const tasksNav = document.getElementById('tasks-nav');
+    const gameNav = document.getElementById('game-nav');
+    const charLibNav = document.getElementById('charlib-nav');
 
     if (this.current) {
       userNav.classList.remove('hidden');
       loginNav.classList.add('hidden');
       tasksNav?.classList.remove('hidden');
+      gameNav?.classList.remove('hidden');
+      charLibNav?.classList.toggle('hidden', this.current.role !== 'admin');
       const displayName = this.current.nickname || this.current.username;
       const displayAvatar = this.current.avatar || displayName[0].toUpperCase();
       userInfo.innerHTML = `<span style="font-size:20px">${displayAvatar}</span> ${displayName}`;
@@ -134,6 +146,8 @@ const User = {
       userNav.classList.add('hidden');
       loginNav.classList.remove('hidden');
       tasksNav?.classList.add('hidden');
+      gameNav?.classList.add('hidden');
+      charLibNav?.classList.add('hidden');
       userStats.classList.add('hidden');
     }
   }
@@ -207,7 +221,15 @@ const AdminAPI = {
     const options = { method, headers: { 'Content-Type': 'application/json' }, credentials: 'include' };
     if (body) options.body = JSON.stringify(body);
     const res = await fetch(this.apiBase + path, options);
-    const data = await res.json();
+    let data = {};
+    try { data = await res.json(); } catch {}
+    if (res.status === 401) {
+      User.current = null;
+      User.updateUI();
+      toast('請先登入');
+      showView('login');
+      throw new Error(data.error || '請先登入');
+    }
     if (!res.ok) throw new Error(data.error || '請求失敗');
     return data;
   },
@@ -305,6 +327,11 @@ const Data = {
         if (res.ok) {
           const data = await res.json();
           this._cache = Array.isArray(data) ? data : [];
+        } else if (res.status === 401) {
+          // 未登入：清空 cache，唔好用舊資料
+          this._cache = [];
+          this._loading = null;
+          return this._cache;
         } else {
           this._cache = this._loadLocal();
         }
@@ -1341,7 +1368,19 @@ function escapeHtml(s) {
 }
 
 // ===== 視圖切換 =====
+const PROTECTED_VIEWS = ['game', 'tasks', 'dashboard', 'admin', 'admin-panel'];
 function showView(name) {
+  // 未登入唔可以進入受保護頁面
+  if (PROTECTED_VIEWS.includes(name) && !User.current) {
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    document.getElementById('view-login').classList.add('active');
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    return;
+  }
+  // 非管理員唔可以進入管理頁面
+  if ((name === 'admin' || name === 'admin-panel') && User.current?.role !== 'admin') {
+    return;
+  }
   document.querySelectorAll('.nav-btn').forEach(b =>
     b.classList.toggle('active', b.dataset.view === name));
   document.querySelectorAll('.view').forEach(v =>
@@ -1402,8 +1441,14 @@ async function init() {
     }
   });
 
-  await Game.start();
-  User.checkSession();
+  // 必須先登入先可以開始玩
+  const loggedIn = await User.checkSession();
+  if (loggedIn) {
+    await Data.init();
+    showView('game');
+  } else {
+    showView('login');
+  }
 }
 
 // ===== 認證表單 =====
@@ -1430,11 +1475,13 @@ document.getElementById('auth-submit').onclick = async () => {
       document.getElementById('auth-submit').textContent = '登入';
       document.getElementById('auth-password').value = '';
       document.getElementById('auth-error').classList.add('hidden');
-      showView('dashboard');
+      await Data.init();
+      showView('game');
     } else {
       await User.login(username, password);
       toast('登入成功！');
-      showView('dashboard');
+      await Data.init();
+      showView('game');
       errorEl.classList.add('hidden');
       document.getElementById('auth-username').value = '';
       document.getElementById('auth-password').value = '';
@@ -1458,7 +1505,10 @@ document.getElementById('logout-btn').onclick = async () => {
   try {
     await User.logout();
     toast('已登出');
-    showView('game');
+    Game.taskId = null;
+    Game.taskName = null;
+    Game._setTaskBanner(null);
+    showView('login');
   } catch (e) {
     toast('登出失敗: ' + e.message);
   }
