@@ -96,6 +96,24 @@ db.chars = savedData.chars || [];
 db.assignments = savedData.assignments || [];
 db.config = savedData.config || { aiToken: '' };
 
+// 資料完整性檢查：用戶 id 撞會令兩個帳號共用進度，即刻修正
+(async () => {
+  let fixed = 0;
+  const seen = new Set();
+  for (const u of db.users) {
+    if (seen.has(u.id)) {
+      u.id = generateId(new Set(db.users.map(x => x.id)));
+      fixed++;
+      console.warn(`[shizi] 修正重複用戶 id: ${u.username} -> ${u.id}`);
+    }
+    seen.add(u.id);
+  }
+  if (fixed > 0) {
+    await saveData(db);
+    console.log(`[shizi] 已修正 ${fixed} 個重複用戶 id`);
+  }
+})();
+
 // 首次運行自動 seed DEFAULT_CHARS（僅當數據文件不存在時）
 // 如果數據文件存在但 chars 為空，說明是被手動清空，不自動補充（避免誤刪自定義數據）
 (async () => {
@@ -135,6 +153,20 @@ function decorateAssignment(a, chars) {
       .sort()
       .pop() || null
   };
+}
+
+// ===== 唯一 ID 生成 =====
+// 用戶 id 絕對不能撞，否則兩個帳號會共用同一份進度（進度串號）
+// Date.now() * 1000 + seq ≈ 1.8e15，仍在 Number.MAX_SAFE_INTEGER (9e15) 之內
+let idSeq = 0;
+function generateId(existingIds) {
+  const used = existingIds || new Set();
+  let id;
+  do {
+    idSeq = (idSeq + 1) % 1000;
+    id = Date.now() * 1000 + idSeq;
+  } while (used.has(id));
+  return id;
 }
 
 // ===== Password hashing =====
@@ -262,7 +294,7 @@ async function handleAPI(req, res) {
       }
       const isFirstUser = db.users.length === 0;
       const user = {
-        id: Date.now(),
+        id: generateId(new Set(db.users.map(u => u.id))),
         username,
         password: hashPassword(password),
         role: isFirstUser ? 'admin' : 'user',
@@ -384,12 +416,11 @@ async function handleAPI(req, res) {
     return;
   }
 
-  // Leaderboard (只顯示學生帳號，老師/管理員唔參與排名)
+  // 排行榜（公開：全體用戶都上榜，只係統計數字，唔涉及個人練習記錄）
   if (pathname === '/api/leaderboard' && method === 'GET') {
     const userStats = {};
-    // 先放晒所有學生（即使未練習都上榜，排最後）
+    // 先放晒所有用戶（未練習都上榜，排最後）
     db.users.forEach(u => {
-      if (u.role === 'admin') return;
       userStats[u.id] = {
         userId: u.id,
         username: u.username,
@@ -402,19 +433,7 @@ async function handleAPI(req, res) {
     });
     // 再累計進度
     db.progress.forEach(p => {
-      const u = db.users.find(x => x.id === p.userId);
-      if (!u || u.role === 'admin') return;  // 排除管理員
-      if (!userStats[p.userId]) {
-        userStats[p.userId] = {
-          userId: p.userId,
-          username: u.username,
-          nickname: u.nickname || u.username,
-          avatar: u.avatar || null,
-          charsKnown: 0,
-          totalAttempts: 0,
-          avgTime: 0
-        };
-      }
+      if (!userStats[p.userId]) return;
       userStats[p.userId].charsKnown++;
       userStats[p.userId].totalAttempts += p.attempts || 0;
       userStats[p.userId].avgTime += p.avgTime || 0;
@@ -494,7 +513,7 @@ async function handleAPI(req, res) {
 
       // Insert attempt
       db.attempts.push({
-        id: Date.now(),
+        id: generateId(new Set(db.attempts.map(a => a.id))),
         userId: u.id,
         char,
         charId: charId || null,
@@ -514,7 +533,7 @@ async function handleAPI(req, res) {
         p.lastPracticed = now;
       } else {
         db.progress.push({
-          id: Date.now(),
+          id: generateId(new Set(db.progress.map(p => p.id))),
           userId: u.id,
           char,
           charId: charId || null,
@@ -883,7 +902,7 @@ ${decompsStr}
       if (cleanIds.length === 0) return jsonResponse(res, 400, { error: '選中的字不存在' });
 
       const assignment = {
-        id: Date.now(),
+        id: generateId(new Set(db.assignments.map(a => a.id))),
         userId: parseInt(userId),
         name: (name && name.trim()) || `${new Date().toISOString().slice(0, 10)} 的功課`,
         charIds: cleanIds,
