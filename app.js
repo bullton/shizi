@@ -2156,12 +2156,25 @@ function processCharForImport(char) {
   const decompositions = window.ChaiziDict?.[char];
   if (!decompositions) return null;
   const allDecomps = decompositions.map(d => d.split(' '));
-  const defaultComponents = allDecomps[0];
+  // 預設拆法用「唯一字典」（同遊戲一致：辵→辶、水→氵…）
+  const unique = window.ChaiziDictUnique?.[char];
+  const defaultComponents = Array.isArray(unique)
+    ? [...unique]
+    : (unique ? unique.split(' ') : allDecomps[0]);
   const defaultLayout = autoLayout(defaultComponents);
   const defaultHint = generateHint(char, defaultComponents, defaultLayout);
+  // 選項清單：唯一拆法排頭，其他原字典拆法去重後跟後
+  const seen = new Set([defaultComponents.join(' ')]);
+  const options = [defaultComponents];
+  for (const d of allDecomps) {
+    const key = d.join(' ');
+    if (seen.has(key)) continue;
+    seen.add(key);
+    options.push(d);
+  }
   return {
     char,
-    decompositions: allDecomps,
+    decompositions: options,
     components: defaultComponents,
     layout: defaultLayout,
     hint: defaultHint
