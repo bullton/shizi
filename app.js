@@ -169,18 +169,8 @@ const Tasks = {
     } catch {
       this.list = [];
     }
-    const freeCard = `
-      <div class="task-card free">
-        <div class="task-card-head">
-          <div class="task-card-title">🎲 自由練習</div>
-          <div class="task-card-status">隨機抽字</div>
-        </div>
-        <div class="task-card-note">喺成個字庫入面隨機抽字，冇次序，唔使跟任務</div>
-        <button class="btn btn-primary" data-start-free="1">▶️ 開始自由練習</button>
-      </div>`;
-
     if (this.list.length === 0) {
-      el.innerHTML = freeCard + `<div class="task-empty"><p>暫時冇任務 🎈</p><p style="color:#636e72;font-size:14px;margin-top:8px">可以先自由練習，或等老師布置</p></div>`;
+      el.innerHTML = `<div class="task-empty"><p>暫時冇任務 🎈</p><p style="color:#636e72;font-size:14px;margin-top:8px">等老師布置功課就可以開始做</p></div>`;
       this._bindButtons();
       return;
     }
@@ -195,10 +185,9 @@ const Tasks = {
       html += `<h3 class="task-section-title">已完成 (${done.length})</h3>`;
       html += done.map(t => this._card(t)).join('');
     }
-    el.innerHTML = html + freeCard;
+    el.innerHTML = html;
     this._bindButtons();
   },
-
   _bindButtons() {
     const el = document.getElementById('tasks-list');
     el.querySelectorAll('[data-start-task]').forEach(btn => {
@@ -206,12 +195,6 @@ const Tasks = {
         const t = this.list.find(x => x.id == btn.dataset.startTask);
         if (!t) return;
         Game._pendingTask = t;
-        showView('game');
-      };
-    });
-    el.querySelectorAll('[data-start-free]').forEach(btn => {
-      btn.onclick = () => {
-        Game._pendingTask = null;
         showView('game');
       };
     });

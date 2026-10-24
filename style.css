@@ -1969,7 +1969,3 @@ nav {
   box-shadow: 0 3px 10px rgba(108, 92, 231, 0.3);
 }
 .task-banner.free .task-banner-label { font-weight: 700; }
-.task-card.free {
-  border-left-color: #6c5ce7;
-  background: linear-gradient(135deg, #f5f3ff, #ffffff);
-}
