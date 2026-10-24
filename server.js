@@ -800,6 +800,139 @@ async function handleAPI(req, res) {
   }
 
   // AI analyze char (admin only)
+  // ===== 批量 AI 分析 =====
+  // 一次過問 AI 多隻字嘅結構，用於批量導入時自動判斷
+  if (pathname === '/api/analyze-chars' && method === 'POST') {
+    const adminUser = requireAuth(req, res);
+    if (!adminUser) return jsonResponse(res, 401, { error: '請先登入' });
+    if (adminUser.role !== 'admin') return jsonResponse(res, 403, { error: '需要管理員權限' });
+    try {
+      const { chars } = await parseBody(req);
+      if (!Array.isArray(chars) || chars.length === 0) {
+        return jsonResponse(res, 400, { error: '缺少字符' });
+      }
+      if (!db.config.aiToken) {
+        return jsonResponse(res, 400, { error: '請先配置 AI Token' });
+      }
+      if (chars.length > 40) {
+        return jsonResponse(res, 400, { error: '一次最多分析 40 個字' });
+      }
+
+      const validLayouts = [
+        'left-right', 'top-bottom', 'top-bottom-bottom', 'vertical-3',
+        'top-bottom-bottom-bottom', 'top-2-bottom', 'surround',
+        'half-surround-left', 'complex-3-left', 'complex-4-left',
+        'surround-3', 'left-right-right', 'stack'
+      ];
+
+      // 每個字：拆法（用唯一字典）
+      const items = chars.map(ch => {
+        const comps = longestDecomp(ch);
+        return { char: ch, components: comps };
+      }).filter(x => x.components.length > 0);
+
+      if (items.length === 0) {
+        return jsonResponse(res, 400, { error: '字典搵唔到呢啲字' });
+      }
+
+      const itemStr = items.map((it, i) =>
+        `${i + 1}. 「${it.char}」= ${it.components.join(' + ')}`).join('\n');
+
+      const prompt = `你是繁體中文字形結構專家。請分析以下 ${items.length} 個漢字的視覺結構。
+
+${itemStr}
+
+## 可用的 layout 值：
+- left-right = 左右結構（左部 + 右部）
+- top-bottom = 上下結構（上 + 下）
+- top-bottom-bottom = 品字結構（頂部1個 + 底部2個並排）
+- vertical-3 = 三疊結構（3個上下堆疊）
+- top-bottom-bottom-bottom = 四疊結構（4個上下堆疊）
+- top-2-bottom = 上中下結構（頂部1 + 中間2並排 + 底1）
+- surround = 包圍結構（外框包住內部）
+- half-surround-left = 半包圍（走之旁辶包左）
+- complex-3-left = 三方結構（辶左 + 上下右）
+- complex-4-left = 四方結構（辶左 + 右3上下）
+- surround-3 = 包圍結構（冖包住上下）
+- left-right-right = 左右右結構（左1 + 中右2並排）
+- stack = 通用堆疊（5+部件上下堆疊）
+
+## 要求：
+1. 每個字嘅 layout 部件數必須等於該字嘅部件數
+2. 部件數 5+ 一律用 stack
+3. 部件位置用 0-1 歸一化坐標（x/y/w/h），部件頂部接近 0、底部接近 1、左側接近 0、右側接近 1
+
+## 回覆格式（嚴格 JSON 數組，無多餘文字）：
+[
+  {
+    "index": 1,
+    "layout": "left-right",
+    "positions": [
+      { "x": 0.04, "y": 0.16, "w": 0.24, "h": 0.76 },
+      { "x": 0.31, "y": 0.20, "w": 0.65, "h": 0.68 }
+    ]
+  },
+  ...
+]`;
+
+      const aiRes = await fetch('https://api.minimax.cn/anthropic/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${db.config.aiToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: 'MiniMax-M3',
+          output_config: { effort: 'max' },
+          max_tokens: 8000,
+          messages: [{ role: 'user', content: prompt }]
+        })
+      });
+
+      if (!aiRes.ok) {
+        const err = await aiRes.text();
+        return jsonResponse(res, 502, { error: 'AI API 錯誤: ' + err });
+      }
+      const aiData = await aiRes.json();
+      const content = aiData.content?.[0]?.text || '';
+
+      let arr;
+      try {
+        const jsonMatch = content.match(/\[[\s\S]*\]/);
+        if (!jsonMatch) return jsonResponse(res, 500, { error: '無法解析 AI 回覆' });
+        arr = JSON.parse(jsonMatch[0]);
+      } catch (e) {
+        return jsonResponse(res, 500, { error: '解析 AI 回覆失敗' });
+      }
+
+      const results = [];
+      for (const r of arr) {
+        const idx = (r.index || 0) - 1;
+        const it = items[idx];
+        if (!it) continue;
+        let layout = r.layout;
+        if (!validLayouts.includes(layout)) {
+          layout = it.components.length >= 5 ? 'stack' : 'top-bottom';
+        }
+        let positions = null;
+        if (Array.isArray(r.positions) && r.positions.length === it.components.length) {
+          positions = r.positions.map(p => ({
+            x: Math.max(0, Math.min(1, parseFloat(p.x) || 0)),
+            y: Math.max(0, Math.min(1, parseFloat(p.y) || 0)),
+            w: Math.max(0.05, Math.min(1, parseFloat(p.w) || 0.3)),
+            h: Math.max(0.05, Math.min(1, parseFloat(p.h) || 0.3))
+          }));
+        }
+        results.push({ char: it.char, components: it.components, layout, positions });
+      }
+
+      jsonResponse(res, 200, { results });
+    } catch (e) {
+      jsonResponse(res, 500, { error: '批量分析失敗: ' + e.message });
+    }
+    return;
+  }
+
   if (pathname === '/api/analyze-char' && method === 'POST') {
     const adminUser = requireAuth(req, res);
     if (!adminUser) return jsonResponse(res, 401, { error: '請先登入' });
