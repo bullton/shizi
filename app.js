@@ -169,8 +169,19 @@ const Tasks = {
     } catch {
       this.list = [];
     }
+    const freeCard = `
+      <div class="task-card free">
+        <div class="task-card-head">
+          <div class="task-card-title">🎲 自由練習</div>
+          <div class="task-card-status">隨機抽字</div>
+        </div>
+        <div class="task-card-note">喺成個字庫入面隨機抽字，冇次序，唔使跟任務</div>
+        <button class="btn btn-primary" data-start-free="1">▶️ 開始自由練習</button>
+      </div>`;
+
     if (this.list.length === 0) {
-      el.innerHTML = `<div class="task-empty"><p>暫時冇任務 🎈</p><p style="color:#636e72;font-size:14px;margin-top:8px">可以先玩遊戲，或等老師布置</p></div>`;
+      el.innerHTML = freeCard + `<div class="task-empty"><p>暫時冇任務 🎈</p><p style="color:#636e72;font-size:14px;margin-top:8px">可以先自由練習，或等老師布置</p></div>`;
+      this._bindButtons();
       return;
     }
     const undone = this.list.filter(t => !t.allDone);
@@ -184,12 +195,23 @@ const Tasks = {
       html += `<h3 class="task-section-title">已完成 (${done.length})</h3>`;
       html += done.map(t => this._card(t)).join('');
     }
-    el.innerHTML = html;
+    el.innerHTML = html + freeCard;
+    this._bindButtons();
+  },
+
+  _bindButtons() {
+    const el = document.getElementById('tasks-list');
     el.querySelectorAll('[data-start-task]').forEach(btn => {
-      btn.onclick = async () => {
+      btn.onclick = () => {
         const t = this.list.find(x => x.id == btn.dataset.startTask);
         if (!t) return;
         Game._pendingTask = t;
+        showView('game');
+      };
+    });
+    el.querySelectorAll('[data-start-free]').forEach(btn => {
+      btn.onclick = () => {
+        Game._pendingTask = null;
         showView('game');
       };
     });
@@ -471,6 +493,7 @@ const Game = {
   taskName: null,
   taskDone: new Set(),
   _pendingTask: null,
+  _startToken: 0,
   _pendingTimers: [],
 
   _clearTimers() {
@@ -489,25 +512,31 @@ const Game = {
 
   _setTaskBanner(name) {
     const banner = document.getElementById('task-banner');
+    const free = document.getElementById('free-banner');
     if (name) {
       banner.classList.remove('hidden');
+      free.classList.add('hidden');
       document.getElementById('task-banner-name').textContent = name;
     } else {
       banner.classList.add('hidden');
+      free.classList.remove('hidden');
     }
   },
 
-  // 從頭開始（無任務模式：所有字）
+  // 自由練習：從字庫隨機抽字（每次進入/重玩都重新洗牌）
   async start() {
+    const token = ++this._startToken;
     this.taskId = null;
     this.taskName = null;
     this.taskDone = new Set();
     this._setTaskBanner(null);
-    this.chars = await Data.getAll();
-    if (this.chars.length === 0) {
+    const all = await Data.getAll();
+    if (token !== this._startToken) return;  // 有更新嘅 start()，放棄今次
+    if (all.length === 0) {
       this._showEmpty();
       return;
     }
+    this.chars = this._shuffle(all);
     this.score = 0;
     this.index = 0;
     this._updateScore();
@@ -517,7 +546,9 @@ const Game = {
 
   // 開始任務：只做指定的字，已完成的字排後面（斷點續做）
   async startTask(task) {
+    const token = ++this._startToken;
     const all = await Data.getAll();
+    if (token !== this._startToken) return;
     const byId = new Map(all.map(c => [c.id, c]));
     let ids = task.charIds.filter(id => byId.has(id));
 
@@ -698,15 +729,16 @@ const Game = {
     const display = document.getElementById('character-display');
     const isTask = !!this.taskId;
     const allDone = isTask && this.taskDone.size >= this.chars.length;
-    const title = allDone ? '🏆 任務完成！' : (isTask ? '🎉 做完晒！' : '🎉 完成晒！');
+    const title = allDone ? '🏆 任務完成！' : (isTask ? '🎉 做完晒！' : '🎉 自由練習完成！');
     const body = allDone
       ? `<p>你做完咗「${escapeHtml(this.taskName)}」全部 ${this.chars.length} 個字，真棒！</p>`
-      : `<p>你一共拎到 <strong>${this.score}</strong> 分！</p>`;
+      : `<p>你一共拎到 <strong>${this.score}</strong> 分${isTask ? '' : `，練咗 ${this.chars.length} 個字`}！</p>`;
 
     const btns = isTask
       ? `<button class="btn btn-primary" onclick="Game.restart()">🔁 再做多次</button>
          <button class="btn btn-secondary" onclick="Tasks.refresh(); showView('tasks')">📋 返回任務</button>`
-      : `<button class="btn btn-primary" onclick="Game.restart()">🔄 再玩一次</button>`;
+      : `<button class="btn btn-primary" onclick="Game.restart()">🔀 換一批再練</button>
+         <button class="btn btn-secondary" onclick="Tasks.refresh(); showView('tasks')">📋 返回任務</button>`;
 
     display.innerHTML = `
       <div class="game-over">
@@ -921,6 +953,10 @@ const Game = {
   restart() {
     this.index = 0;
     this.score = 0;
+    // 自由練習：重新隨機抽字；任務模式：維持原順序
+    if (!this.taskId) {
+      this.chars = this._shuffle(this.chars);
+    }
     this._clearTimers();
     this._updateScore();
     this._updateProgress();
@@ -1435,6 +1471,11 @@ async function init() {
     showView('tasks');
   };
 
+  // 自由練習：換一批字
+  document.getElementById('free-refresh-btn').onclick = () => {
+    Game.start();
+  };
+
   // Click outside to deselect piece
   document.addEventListener('click', e => {
     if (!e.target.classList.contains('piece') &&
@@ -1444,11 +1485,11 @@ async function init() {
     }
   });
 
-  // 必須先登入先可以開始玩
+  // 必須先登入先可以開始玩；登入後自動去任務頁
   const loggedIn = await User.checkSession();
   if (loggedIn) {
     await Data.init();
-    showView('game');
+    showView('tasks');
   } else {
     showView('login');
   }
@@ -1479,12 +1520,12 @@ document.getElementById('auth-submit').onclick = async () => {
       document.getElementById('auth-password').value = '';
       document.getElementById('auth-error').classList.add('hidden');
       await Data.init(true);
-      showView('game');
+      showView('tasks');
     } else {
       await User.login(username, password);
       toast('登入成功！');
       await Data.init(true);
-      showView('game');
+      showView('tasks');
       errorEl.classList.add('hidden');
       document.getElementById('auth-username').value = '';
       document.getElementById('auth-password').value = '';

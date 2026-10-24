@@ -1962,3 +1962,14 @@ nav {
 }
 .user-task-name { font-weight: 700; color: #2d3436; font-size: 15px; }
 .user-task-count { margin-left: auto; font-size: 13px; color: #636e72; }
+
+/* ===== 自由練習 ===== */
+.task-banner.free {
+  background: linear-gradient(135deg, #6c5ce7, #a29bfe);
+  box-shadow: 0 3px 10px rgba(108, 92, 231, 0.3);
+}
+.task-banner.free .task-banner-label { font-weight: 700; }
+.task-card.free {
+  border-left-color: #6c5ce7;
+  background: linear-gradient(135deg, #f5f3ff, #ffffff);
+}

@@ -10,8 +10,8 @@
 <header>
   <div class="logo">🎨 識字樂</div>
   <nav id="nav-buttons">
-    <button class="nav-btn active hidden" data-view="game" id="game-nav">🎮 玩遊戲</button>
     <button class="nav-btn hidden" data-view="tasks" id="tasks-nav">📋 我的任務</button>
+    <button class="nav-btn active hidden" data-view="game" id="game-nav">🎲 自由練習</button>
     <button class="nav-btn hidden" data-view="admin" id="charlib-nav">⚙️ 管理字庫</button>
     <span id="user-nav" class="hidden">
       <button class="nav-btn" data-view="dashboard">📊 我的進度</button>
@@ -54,6 +54,11 @@
       <span class="task-banner-label">📋 任務</span>
       <span id="task-banner-name">—</span>
       <button class="btn btn-tiny" id="task-back-btn">← 返回任務</button>
+    </div>
+    <div id="free-banner" class="task-banner free hidden">
+      <span class="task-banner-label">🎲 自由練習</span>
+      <span>隨機從字庫抽字，隨時可以重玩</span>
+      <button class="btn btn-tiny" id="free-refresh-btn">🔀 換一批</button>
     </div>
     <div class="game-info card">
       <div class="info-item">
