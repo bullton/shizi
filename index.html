@@ -119,6 +119,24 @@
     <div class="admin-layout">
       <div class="admin-left">
         <div class="card">
+          <h3>📝 詞語批量導入</h3>
+          <p style="color:#636e72;font-size:14px;margin-bottom:12px">輸入課文詞語，自動拆字並建立字庫；答對時會顯示相關詞語</p>
+          <textarea id="import-words" rows="4" placeholder="每行一個詞語，例如：&#10;媽媽&#10;回家&#10;香港"></textarea>
+          <div style="margin-top:12px;display:flex;gap:8px">
+            <button class="btn btn-primary" id="import-words-btn">🔍 預覽</button>
+          </div>
+        </div>
+
+        <div class="card" id="import-words-preview" style="display:none">
+          <h3>📋 詞語導入預覽</h3>
+          <div id="import-words-list"></div>
+          <div style="margin-top:16px;display:flex;gap:12px">
+            <button class="btn btn-primary" id="confirm-words-btn">✅ 確認導入</button>
+            <button class="btn btn-secondary" id="cancel-words-btn">✕ 取消</button>
+          </div>
+        </div>
+
+        <div class="card">
           <h3>📥 批量導入</h3>
           <p style="color:#636e72;font-size:14px;margin-bottom:12px">粘貼漢字，系統自動分析結構</p>
           <textarea id="import-chars" rows="3" placeholder="粘貼要導入的漢字，例如：回天地日月山水火木金"></textarea>
@@ -178,6 +196,10 @@
               <option value="left-right-right">左右右結構（林左右 + 手手上下）</option>
               <option value="stack">通用堆疊（5+部件）</option>
             </select>
+          </div>
+          <div class="form-field">
+            <label>詞語（用逗號分隔，答對時會顯示）</label>
+            <input type="text" id="form-words" placeholder="例：媽媽, 媽咪">
           </div>
           <div class="form-field">
             <label>粵語提示</label>

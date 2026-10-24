@@ -172,6 +172,20 @@ function decorateAssignment(a, chars) {
   };
 }
 
+// ===== 詞語輔助 =====
+function normalizeWords(words) {
+  if (!Array.isArray(words)) return [];
+  const seen = new Set();
+  const out = [];
+  for (const w of words) {
+    const t = typeof w === 'string' ? w.trim() : '';
+    if (!t || seen.has(t)) continue;
+    seen.add(t);
+    out.push(t);
+  }
+  return out;
+}
+
 // ===== 唯一 ID 生成 =====
 // 用戶 id 絕對不能撞，否則兩個帳號會共用同一份進度（進度串號）
 // Date.now() * 1000 + seq ≈ 1.8e15，仍在 Number.MAX_SAFE_INTEGER (9e15) 之內
@@ -609,23 +623,86 @@ async function handleAPI(req, res) {
 
   if (pathname === '/api/chars' && method === 'POST') {
     try {
-      const { char, components, layout, hint, positions } = await parseBody(req);
+      const { char, components, layout, hint, positions, words } = await parseBody(req);
       if (!char || !components) return jsonResponse(res, 400, { error: '缺少必要欄位' });
       if (db.chars.find(c => c.char === char)) {
         return jsonResponse(res, 400, { error: '該字已存在' });
       }
       const newChar = {
-        id: Date.now(),
+        id: generateId(new Set(db.chars.map(x => x.id))),
         char,
         components,
         layout: layout || 'left-right',
         hint: hint || '',
         positions: positions || null,
+        words: normalizeWords(words),
         createdAt: new Date().toISOString()
       };
       db.chars.push(newChar);
       await saveData(db);
       jsonResponse(res, 201, newChar);
+    } catch (e) {
+      jsonResponse(res, 400, { error: '無效的請求' });
+    }
+    return;
+  }
+
+  // 詞語批量導入：新增字 + 把詞語掛到每個字上
+  if (pathname === '/api/chars/words' && method === 'POST') {
+    try {
+      const { words, newChars } = await parseBody(req);
+      if (!Array.isArray(words) || words.length === 0) {
+        return jsonResponse(res, 400, { error: '缺少詞語' });
+      }
+      const cleanWords = normalizeWords(words);
+      // 每個字出現喺邊啲詞語入面
+      const charWords = {};
+      for (const w of cleanWords) {
+        for (const ch of new Set(w.replace(/\s/g, ''))) {
+          if (!charWords[ch]) charWords[ch] = [];
+          charWords[ch].push(w);
+        }
+      }
+
+      const results = { added: 0, updated: 0, skipped: 0, errors: [] };
+
+      // 1. 新增字
+      if (Array.isArray(newChars)) {
+        for (const item of newChars) {
+          const { char, components, layout, hint, positions } = item;
+          if (!char || !components) {
+            results.errors.push({ char: char || '?', error: '缺少必要欄位' });
+            results.skipped++;
+            continue;
+          }
+          if (db.chars.find(c => c.char === char)) {
+            results.skipped++;
+            continue;
+          }
+          db.chars.push({
+            id: generateId(new Set(db.chars.map(x => x.id))),
+            char,
+            components,
+            layout: layout || 'left-right',
+            hint: hint || '',
+            positions: positions || null,
+            words: normalizeWords(charWords[char] || []),
+            createdAt: new Date().toISOString()
+          });
+          results.added++;
+        }
+      }
+
+      // 2. 已存在嘅字：合併詞語
+      for (const ch of Object.keys(charWords)) {
+        const exist = db.chars.find(c => c.char === ch);
+        if (!exist) continue;
+        exist.words = normalizeWords([...(exist.words || []), ...charWords[ch]]);
+        results.updated++;
+      }
+
+      await saveData(db);
+      jsonResponse(res, 200, { ...results, wordCount: cleanWords.length });
     } catch (e) {
       jsonResponse(res, 400, { error: '無效的請求' });
     }
@@ -675,6 +752,7 @@ async function handleAPI(req, res) {
       const updates = await parseBody(req);
       // 只允許更新特定字段，避免 id/createdAt 被改
       const allowed = ['char', 'components', 'layout', 'hint', 'positions'];
+      if ('words' in updates) db.chars[idx].words = normalizeWords(updates.words);
       for (const k of allowed) {
         if (k in updates) db.chars[idx][k] = updates[k];
       }

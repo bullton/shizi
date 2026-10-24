@@ -578,6 +578,7 @@ const Game = {
     this._clearTimers();
     const display = document.getElementById('character-display');
     display.classList.remove('complete-mode');
+    display.classList.remove('has-words');
     document.getElementById('celebration').classList.add('hidden');
     this.current = this.chars[this.index];
     this.startTime = Date.now();
@@ -590,6 +591,7 @@ const Game = {
     const display = document.getElementById('character-display');
     display.innerHTML = '';
     display.classList.remove('complete-mode');
+    display.classList.remove('has-words');
 
     const hasCustomPositions = this.current.positions &&
       Object.keys(this.current.positions).length === this.current.components.length;
@@ -860,14 +862,27 @@ const Game = {
     const tray = document.getElementById('pieces-tray');
     const char = this.current.char;
     const hint = this.current.hint;
+    const words = this.current.words || [];
     const responseTime = Date.now() - this.startTime;
     User.recordProgress(char, this.current.id, responseTime, true);
     this._markTaskDone();
     display.querySelectorAll('.slot').forEach(s => s.classList.add('fade-out'));
     tray.classList.add('fade-out');
     this._setTimer(() => {
-      display.innerHTML = `<div class="complete-character">${char}</div>`;
+      const wordsHtml = words.length ? `
+        <div class="char-words">
+          <div class="char-words-label">💬 詞語</div>
+          <div class="char-words-list">
+            ${words.map(w => `<button class="word-chip" data-word="${escapeHtml(w)}">${escapeHtml(w)}</button>`).join('')}
+          </div>
+        </div>` : '';
+      display.innerHTML = `<div class="complete-character">${char}</div>${wordsHtml}`;
       display.classList.add('complete-mode');
+      display.classList.toggle('has-words', words.length > 0);
+      // 撳詞語可以讀出嚟
+      display.querySelectorAll('.word-chip').forEach(btn => {
+        btn.onclick = () => this._speak(btn.dataset.word);
+      });
       tray.innerHTML = '';
       tray.classList.remove('fade-out');
       this._playSuccess();
@@ -948,6 +963,130 @@ const Game = {
 };
 
 // ===== 管理後台 =====
+// ===== 詞語批量導入 =====
+const WordImport = {
+  words: [],
+  newChars: [],
+
+  // 解析輸入：每行一個詞，或用空白/標點分隔
+  parse(input) {
+    const lines = input.split(/[\n\r]+/).map(s => s.trim()).filter(Boolean);
+    const words = [];
+    for (const line of lines) {
+      // 一行入面可能有多个词，用空格/逗号/顿号/句号分开
+      const parts = line.split(/[\s,，、。！？!?；;：:]+/).map(s => s.trim()).filter(Boolean);
+      if (parts.length > 1) words.push(...parts);
+      else words.push(line);
+    }
+    // 去掉重复 + 只保留含汉字的
+    const seen = new Set();
+    const out = [];
+    for (const w of words) {
+      if (seen.has(w)) continue;
+      if (!/[\u4e00-\u9fff]/.test(w)) continue;
+      seen.add(w);
+      out.push(w);
+    }
+    return out;
+  },
+
+  async preview() {
+    const input = document.getElementById('import-words').value;
+    const words = this.parse(input);
+    if (words.length === 0) {
+      toast('請輸入至少一個詞語');
+      return;
+    }
+    const existing = await Data.getAll();
+    const existMap = new Map(existing.map(c => [c.char, c]));
+
+    // 收集所有字
+    const allChars = new Set();
+    words.forEach(w => [...w.replace(/\s/g, '')].forEach(ch => allChars.add(ch)));
+
+    const newChars = [];
+    const missing = [];
+    for (const ch of allChars) {
+      if (existMap.has(ch)) continue;
+      const processed = processCharForImport(ch);
+      if (processed) {
+        newChars.push({
+          char: processed.char,
+          components: processed.components,
+          layout: processed.layout,
+          hint: processed.hint
+        });
+      } else {
+        missing.push(ch);
+      }
+    }
+
+    this.words = words;
+    this.newChars = newChars;
+
+    const charWords = {};
+    words.forEach(w => [...w.replace(/\s/g, '')].forEach(ch => {
+      if (!charWords[ch]) charWords[ch] = [];
+      charWords[ch].push(w);
+    }));
+
+    document.getElementById('import-words-preview').style.display = 'block';
+    document.getElementById('import-words-list').innerHTML = `
+      <div class="word-import-summary">
+        <div>📖 <strong>${words.length}</strong> 個詞語</div>
+        <div>🆕 <strong>${newChars.length}</strong> 個新字會加入字庫</div>
+        <div>✅ <strong>${allChars.size - newChars.length - missing.length}</strong> 個字已在字庫（會加上詞語）</div>
+        ${missing.length ? `<div>⚠️ 字典冇：<strong>${missing.join('')}</strong>（會略過）</div>` : ''}
+      </div>
+      <div class="word-preview-list">
+        ${words.map(w => `
+          <div class="word-preview-item">
+            <span class="word-preview-text">${escapeHtml(w)}</span>
+            <span class="word-preview-chars">${[...w.replace(/\s/g, '')].map(ch =>
+              existMap.has(ch)
+                ? `<span class="wc exist" title="已在字庫">${ch}</span>`
+                : (newChars.find(n => n.char === ch)
+                  ? `<span class="wc new" title="新字">${ch}</span>`
+                  : `<span class="wc missing" title="字典冇">${ch}</span>`)
+            ).join('')}</span>
+          </div>
+        `).join('')}
+      </div>
+      ${newChars.length ? `<h4 style="margin-top:14px">新字會用以下結構：</h4>
+        <div class="word-preview-list">${newChars.map(n => `
+          <div class="word-preview-item">
+            <span class="word-preview-text" style="font-size:24px">${n.char}</span>
+            <span class="word-preview-chars" style="font-size:14px">${n.components.join(' + ')} · ${n.layout}</span>
+          </div>
+        `).join('')}</div>` : ''}
+    `;
+    document.getElementById('import-words-preview').scrollIntoView({ behavior: 'smooth' });
+  },
+
+  async confirm() {
+    try {
+      const res = await fetch('/api/chars/words', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ words: this.words, newChars: this.newChars })
+      });
+      const data = await res.json();
+      if (!res.ok) return toast('導入失敗: ' + (data.error || ''));
+      toast(`導入完成：新增 ${data.added} 字，更新 ${data.updated} 字，${data.wordCount} 個詞語`);
+      document.getElementById('import-words-preview').style.display = 'none';
+      document.getElementById('import-words').value = '';
+      this.words = [];
+      this.newChars = [];
+      await Data.init(true);
+      await Admin.init();
+    } catch (e) {
+      toast('導入失敗: ' + e.message);
+    }
+  }
+};
+
+// ===== 管理後台 =====
 const Admin = {
   editingId: null,
   positionEditorChar: null,
@@ -995,6 +1134,7 @@ const Admin = {
           <span class="components">${c.components.join(' + ')}</span>
         </div>
         <div class="char-meta">${layoutLabel}結構 · ${c.components.length}部件${c.positions ? ' · ✏️ 自定義' : ''}</div>
+        ${c.words && c.words.length ? `<div class="char-words-mini">💬 ${c.words.map(w => escapeHtml(w)).join('、')}</div>` : ''}
         <div class="char-hint-mini">${escapeHtml(c.hint || '(無口訣)')}</div>
         <div class="char-actions">
           <button class="btn-edit" data-id="${c.id}">✏️ 編輯</button>
@@ -1019,6 +1159,7 @@ const Admin = {
     document.getElementById('form-components').value = c.components.join(',');
     document.getElementById('form-layout').value = c.layout;
     document.getElementById('form-hint').value = c.hint || '';
+    document.getElementById('form-words').value = (c.words || []).join(', ');
     document.getElementById('save-btn').textContent = '💾 更新';
   },
 
@@ -1029,6 +1170,7 @@ const Admin = {
     document.getElementById('form-components').value = '';
     document.getElementById('form-layout').value = 'left-right';
     document.getElementById('form-hint').value = '';
+    document.getElementById('form-words').value = '';
     document.getElementById('save-btn').textContent = '💾 保存';
   },
 
@@ -1042,6 +1184,8 @@ const Admin = {
     const components = componentsRaw.split(',').map(s => s.trim()).filter(Boolean);
     const layout = document.getElementById('form-layout').value;
     const hint = document.getElementById('form-hint').value.trim();
+    const wordsRaw = document.getElementById('form-words')?.value || '';
+    const words = wordsRaw.split(/[,，、]/).map(s => s.trim()).filter(Boolean);
 
     if (!char) return toast('請填寫字');
     if (components.length < 1) return toast('請填寫部件');
@@ -1050,7 +1194,7 @@ const Admin = {
     if (this.editingId) {
       const chars = await Data.getAll();
       const old = chars.find(x => x.id === this.editingId);
-      const updates = { char, components, layout, hint };
+      const updates = { char, components, layout, hint, words };
       if (old && old.layout !== layout) {
         updates.positions = null;
       } else if (old && old.positions) {
@@ -1059,7 +1203,7 @@ const Admin = {
       await Data.update(this.editingId, updates);
       toast('已更新');
     } else {
-      await Data.add({ char, components, layout, hint });
+      await Data.add({ char, components, layout, hint, words });
       toast('已新增');
     }
     this.cancel();
@@ -2237,6 +2381,19 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('cancel-import-btn')?.addEventListener('click', () => {
     document.getElementById('import-preview').style.display = 'none';
     importPreviewData = [];
+  });
+
+  // ===== 詞語批量導入 =====
+  document.getElementById('import-words-btn')?.addEventListener('click', () => {
+    WordImport.preview();
+  });
+  document.getElementById('confirm-words-btn')?.addEventListener('click', () => {
+    WordImport.confirm();
+  });
+  document.getElementById('cancel-words-btn')?.addEventListener('click', () => {
+    document.getElementById('import-words-preview').style.display = 'none';
+    WordImport.words = [];
+    WordImport.newChars = [];
   });
 
   document.getElementById('sync-btn')?.addEventListener('click', async () => {
