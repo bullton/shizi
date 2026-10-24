@@ -2216,12 +2216,13 @@ document.addEventListener('DOMContentLoaded', () => {
       toast('請輸入字符');
       return;
     }
-    const decompositions = window.ChaiziDict?.[char];
-    if (!decompositions) {
+    // 同遊戲一致：用唯一字典做首選拆法（原字典其他拆法做備選）
+    const processed = processCharForImport(char);
+    if (!processed) {
       toast('字符不在字典中');
       return;
     }
-    const allDecomps = decompositions.map(d => d.split(' '));
+    const allDecomps = processed.decompositions;
     const btn = document.getElementById('analyze-single-btn');
     btn.textContent = '分析中...';
     btn.disabled = true;
