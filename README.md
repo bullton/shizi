@@ -47,11 +47,74 @@ http://localhost:8080/
 
 ```
 識字樂/
-├── index.html      # 主頁面（遊戲 + 管理）
-├── style.css       # 樣式
-├── app.js          # 所有邏輯（數據 + 遊戲 + 管理）
-└── README.md       # 本文件
+├── index.html            # 主頁面（遊戲 + 管理）
+├── style.css             # 樣式
+├── app.js                # 所有邏輯（數據 + 遊戲 + 管理）
+├── server.js             # 後端 API（登入、字庫、任務、進度）
+├── chaizi-data.js        # 原始拆字字典（kfcd/chaizi，CC BY 3.0）
+├── chaizi-unique.js      # 每字唯一拆法字典（由原始字典 + 規則生成）
+├── dict-changes.csv      # ⚠️ 字典變更記錄（文字；原拆分；新拆分）
+├── tools/
+│   ├── dict-transform.js # 字典變更工具（套用規則 + 自動記錄）
+│   └── dict-rules.json   # 變更規則 + 基準算法定義
+├── shizi-data.json       # 運行時數據（用戶、字庫、任務、進度）
+└── README.md             # 本文件
 ```
+
+## ⚠️ 修改字典的規矩（重要）
+
+**所有字典修改必須經 `tools/dict-transform.js`，唔可以手改 `chaizi-unique.js`。**
+每次改動都會自動記錄到 `dict-changes.csv`，方便檢查同訂正。
+
+### 步驟
+
+```bash
+# 1. 去 tools/dict-rules.json 加一條新規則
+#    {
+#      "name": "規則名",
+#      "from": "水", "to": "氵",
+#      "position": "first",        // first | last | any
+#      "exclude": ["求","淼","沝"],  // 例外，不改
+#      "date": "2026-10-24",
+#      "note": "點解咁改"
+#    }
+
+# 2. 預覽會改咗乜（唔會寫檔）
+node tools/dict-transform.js --dry
+
+# 3. 套用 + 自動寫入 dict-changes.csv
+node tools/dict-transform.js
+
+# 4. 驗證：字典 = 基準 + 所有規則，冇未記錄嘅改動
+node tools/dict-transform.js --check
+```
+
+### `dict-changes.csv` 格式
+
+UTF-8 with BOM，`；` 分隔，Excel 直接開得：
+
+```csv
+文字；原拆分；新拆分
+呇；水 口；氵 口
+塗；水 余 土；氵 余 土
+泄；水 世；氵 世
+```
+
+### 其他指令
+
+```bash
+node tools/dict-transform.js --rule 0   # 只套用第 0 條規則
+node tools/dict-transform.js --baseline # 用原始字典重建基準（會還原所有規則，慎用）
+```
+
+`--check` 會用「原始字典 + 全部規則」重算一次，同 `chaizi-unique.js` 比對。
+如果有出入就會列出係邊啲字、期望值同實際值，並以 exit code 1 結束 —— 即係有人手改咗字典但冇記錄。
+
+### 已有規則記錄
+
+| 日期 | 規則 | 影響 |
+|------|------|------|
+| 2026-10-24 | 左邊三點水：首部件 `水` → `氵` | 916 字（例外：求、淼、沝 保留「水」） |
 
 ## 技術棧
 

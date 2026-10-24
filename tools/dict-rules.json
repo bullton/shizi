@@ -1,0 +1,23 @@
+{
+  "baseline": {
+    "source": "chaizi-data.js",
+    "description": "由原始字典生成 unique 字典的基準算法。每次改字典前，用同一個算法重算基準，然後依序套用 rules 內的規則，就應該同 chaizi-unique.js 完全一樣。若唔一樣，代表有人手改咗字典但冇記錄。",
+    "simplify": {
+      "辵": "辶",
+      "糸": "纟"
+    },
+    "filterEmpty": true,
+    "pick": "longest"
+  },
+  "rules": [
+    {
+      "name": "左邊三點水：首部件 水 → 氵",
+      "from": "水",
+      "to": "氵",
+      "position": "first",
+      "exclude": ["求", "淼", "沝"],
+      "date": "2026-10-24",
+      "note": "三點水在偏旁位置（第一部件）用氵；水在其他位置（泉=白+水、永、泵、暴…）保留全形。特例：求（水在字中間）、淼（三個水）、沝（生僻字形）保留水。"
+    }
+  ]
+}
