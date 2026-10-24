@@ -134,6 +134,20 @@ function decorateAssignment(a, chars) {
     .filter(id => done[String(id)])
     .map(id => chars.find(c => c.id === id)?.char)
     .filter(Boolean);
+  // 逐字詳情（管理員用：睇到每個字做咗幾多次、答啱幾多次）
+  const charDetails = (a.charIds || []).map(id => {
+    const c = chars.find(x => x.id === id);
+    const rec = done[String(id)];
+    return {
+      charId: id,
+      char: c ? c.char : '?',
+      components: c ? (c.components || []) : [],
+      done: !!rec,
+      attempts: rec ? (rec.attempts || 0) : 0,
+      correctCount: rec ? (rec.correctCount || 0) : 0,
+      lastAt: rec ? (rec.lastAt || null) : null
+    };
+  });
   return {
     id: a.id,
     userId: a.userId,
@@ -146,6 +160,9 @@ function decorateAssignment(a, chars) {
     completedCount,
     remainingCount: total - completedCount,
     completedCharIds,
+    charDetails,
+    attemptsTotal: charDetails.reduce((s, d) => s + d.attempts, 0),
+    correctTotal: charDetails.reduce((s, d) => s + d.correctCount, 0),
     allDone: total > 0 && completedCount >= total,
     lastPracticed: Object.values(done)
       .map(d => d.lastAt)
@@ -989,10 +1006,15 @@ ${decompsStr}
     if (!targetUser) return jsonResponse(res, 404, { error: '用戶不存在' });
     const progress = db.progress.filter(p => p.userId === userId);
     const attempts = db.attempts.filter(a => a.userId === userId).slice(-100);
+    const assignments = db.assignments
+      .filter(a => a.userId === userId)
+      .map(a => decorateAssignment(a, db.chars))
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     jsonResponse(res, 200, {
       user: { id: targetUser.id, username: targetUser.username, nickname: targetUser.nickname || targetUser.username, role: targetUser.role, createdAt: targetUser.createdAt },
       progress,
-      attempts
+      attempts,
+      assignments
     });
     return;
   }

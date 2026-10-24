@@ -1889,8 +1889,14 @@ const AdminAssignments = {
     }
     el.innerHTML = list.map(a => {
       const pct = a.total ? Math.round((a.completedCount / a.total) * 100) : 0;
-      const chars = this.chars.filter(c => a.charIds.includes(c.id)).map(c => c.char).join(' ');
       const date = new Date(a.createdAt).toLocaleDateString('zh-HK');
+      const lastAt = a.lastPracticed ? new Date(a.lastPracticed).toLocaleString('zh-HK') : '';
+      const chips = (a.charDetails || []).map(d => `
+        <span class="char-status ${d.done ? 'done' : ''}" title="${d.done
+          ? `做咗 ${d.attempts} 次，答啱 ${d.correctCount} 次`
+          : '未做'}${d.lastAt ? ` · ${new Date(d.lastAt).toLocaleString('zh-HK')}` : ''}">
+          ${d.char}<sub>${d.done ? d.correctCount + '/' + d.attempts : '—'}</sub>
+        </span>`).join('');
       return `<div class="assignment-item ${a.allDone ? 'done' : ''}">
         <div class="assignment-head">
           <div>
@@ -1901,10 +1907,14 @@ const AdminAssignments = {
           <div class="assignment-date">${date}</div>
         </div>
         ${a.note ? `<div class="assignment-note">${escapeHtml(a.note)}</div>` : ''}
-        <div class="assignment-chars">${chars}</div>
         <div class="assignment-progress">
           <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
-          <span>${a.completedCount} / ${a.total}</span>
+          <span>${a.completedCount} / ${a.total} 字</span>
+        </div>
+        <div class="assignment-chars-detail">${chips || '<span class="muted">（冇字）</span>'}</div>
+        <div class="assignment-meta">
+          總嘗試 ${a.attemptsTotal} 次 · 答啱 ${a.correctTotal} 次
+          ${lastAt ? ` · 最後練習 ${lastAt}` : ''}
         </div>
         <div class="assignment-actions">
           <button class="btn-small btn-reset" data-id="${a.id}">🔄 重設進度</button>
@@ -2265,6 +2275,34 @@ async function showUserDetail(userId) {
         <button class="btn btn-secondary" id="clear-user-progress-btn">🧹 清除此用戶進度</button>
       </div>
     `;
+
+    // 任務進度
+    const assignments = data.assignments || [];
+    const assignBox = document.getElementById('user-detail-records');
+    const taskHtml = assignments.length ? assignments.map(a => {
+      const pct = a.total ? Math.round((a.completedCount / a.total) * 100) : 0;
+      const chips = (a.charDetails || []).map(d => `
+        <span class="char-status ${d.done ? 'done' : ''}" title="${d.done
+          ? `做咗 ${d.attempts} 次，答啱 ${d.correctCount} 次` : '未做'}">
+          ${d.char}<sub>${d.done ? d.correctCount + '/' + d.attempts : '—'}</sub>
+        </span>`).join('');
+      return `<div class="user-task">
+        <div class="user-task-head">
+          <span class="user-task-name">${escapeHtml(a.name)}</span>
+          ${a.allDone ? '<span class="assignment-badge">✅ 已完成</span>' : '<span class="assignment-badge pending">📖 進行中</span>'}
+          <span class="user-task-count">${a.completedCount}/${a.total}</span>
+        </div>
+        <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+        <div class="assignment-chars-detail">${chips}</div>
+        <div class="assignment-meta">嘗試 ${a.attemptsTotal} 次 · 答啱 ${a.correctTotal} 次</div>
+      </div>`;
+    }).join('') : '<p>未布置任務</p>';
+
+    const taskSection = document.createElement('div');
+    taskSection.className = 'user-task-section';
+    taskSection.innerHTML = `<h4>📋 任務進度（${assignments.length} 個）</h4>${taskHtml}`;
+    assignBox.appendChild(taskSection);
+
     document.getElementById('user-detail-panel').style.display = 'block';
     document.getElementById('user-detail-panel').scrollIntoView();
     document.getElementById('clear-user-progress-btn').onclick = async () => {
