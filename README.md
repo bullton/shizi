@@ -139,3 +139,30 @@ node tools/dict-transform.js --baseline # 用原始字典重建基準（會還�
 
 > AI 對呢啲族群嘅 layout 標籤本身唔準確（例：把 `芥`=艹+介 標成左右），
 > 所以呢度以中文教學慣例為準，唔跟 AI 標籤。
+
+## 原子字庫（拆開只剩筆畫嘅字）
+
+`chaizi-atomic.js` 列出所有「拆開之後只剩筆畫」嘅字（78 個），例如：
+
+```
+水 = 乛 + 亅 + 丿 + 乀      口 = 丨 + 乛 + 一      人 = 丿 + 乀
+心 = 丿 + 乚 + 丶 + 丶      王 = 一 + 一 + 丨 + 一   十 = 一 + 丨
+```
+
+呢啲字**唔會**出現喺：
+- 練習字庫（`/api/chars?scope=practice`、前端 `Data.getPractice()`）
+- 布置任務時揀字（前端已過濾，後端 `POST /api/admin/assignments` 亦會拒收）
+- 詞語批量導入（會標示為「🔒 原子字」並略過）
+
+原因：筆畫係變形嘅部件（例如「乛」），小朋友拎唔到、砌唔返，做練習冇意義。
+
+管理端字庫仍然會顯示呢啲字（附 🔒 提示），可以按「🔒 移除原子字」一鍵清走。
+
+### 重新生成／驗證
+
+```bash
+node tools/dict-atomic.js          # 由 chaizi-unique.js 重新生成
+node tools/dict-atomic.js --check  # 檢查有冇過時
+```
+
+呢個係**衍生檔案**（由字典推導出嚟），唔使記錄落 `dict-changes.csv`——CSV 記錄嘅係「拆法改動」，呢度冇改過任何拆法。

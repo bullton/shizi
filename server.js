@@ -8,11 +8,19 @@ const BASE_DIR = __dirname;
 const DATA_FILE = path.join(BASE_DIR, 'shizi-data.json');
 
 // Load ChaiziDictUnique (new dict: each char has exactly 1 decomp)
+// + ChaiziAtomic (拆開只剩筆畫嘅字，唔會出現喺練習字庫／布置任務)
 globalThis.window = globalThis;
 require(path.join(BASE_DIR, 'chaizi-data.js'));
 require(path.join(BASE_DIR, 'chaizi-unique.js'));
+require(path.join(BASE_DIR, 'chaizi-atomic.js'));
 const ChaiziDict = globalThis.ChaiziDict;          // 原始字典（保留）
 const ChaiziDictUnique = globalThis.ChaiziDictUnique;  // 每字唯一拆法
+const ChaiziAtomic = new Set(globalThis.ChaiziAtomic || []);  // 原子字庫
+
+// 原子字：拆開只剩筆畫，冇練習價值
+function isAtomicChar(char) {
+  return ChaiziAtomic.has(char);
+}
 
 // 查字典（使用新字典：每字唯一）
 function longestDecomp(char) {
@@ -482,7 +490,31 @@ async function handleAPI(req, res) {
 
   // Char routes (public read, admin write)
   if (pathname === '/api/chars' && method === 'GET') {
-    jsonResponse(res, 200, db.chars);
+    // ?scope=practice → 唔含原子字（練習／布置任務用）
+    const scope = parsedUrl.query.scope;
+    const chars = scope === 'practice'
+      ? db.chars.filter(c => !isAtomicChar(c.char))
+      : db.chars;
+    jsonResponse(res, 200, chars.map(c => ({ ...c, atomic: isAtomicChar(c.char) })));
+    return;
+  }
+
+  // 原子字庫（拆開只剩筆畫嘅字）
+  if (pathname === '/api/chars/atomic' && method === 'GET') {
+    jsonResponse(res, 200, { chars: [...ChaiziAtomic] });
+    return;
+  }
+
+  // 由字庫移除所有原子字（管理員）
+  if (pathname === '/api/chars/atomic' && method === 'DELETE') {
+    const adminUser = requireAuth(req, res);
+    if (!adminUser) return jsonResponse(res, 401, { error: '請先登入' });
+    if (adminUser.role !== 'admin') return jsonResponse(res, 403, { error: '需要管理員權限' });
+    const before = db.chars.length;
+    db.chars = db.chars.filter(c => !isAtomicChar(c.char));
+    const removed = before - db.chars.length;
+    await saveData(db);
+    jsonResponse(res, 200, { removed, remaining: db.chars.length });
     return;
   }
 
@@ -655,10 +687,11 @@ async function handleAPI(req, res) {
         return jsonResponse(res, 400, { error: '缺少詞語' });
       }
       const cleanWords = normalizeWords(words);
-      // 每個字出現喺邊啲詞語入面
+      // 每個字出現喺邊啲詞語入面（原子字唔會入字庫，但詞語可以掛喺其他字上）
       const charWords = {};
       for (const w of cleanWords) {
         for (const ch of new Set(w.replace(/\s/g, ''))) {
+          if (isAtomicChar(ch)) continue;
           if (!charWords[ch]) charWords[ch] = [];
           charWords[ch].push(w);
         }
@@ -676,6 +709,10 @@ async function handleAPI(req, res) {
             continue;
           }
           if (db.chars.find(c => c.char === char)) {
+            results.skipped++;
+            continue;
+          }
+          if (isAtomicChar(char)) {
             results.skipped++;
             continue;
           }
@@ -1125,9 +1162,9 @@ ${decompsStr}
       if (!Array.isArray(charIds) || charIds.length === 0) {
         return jsonResponse(res, 400, { error: '請至少選一個字' });
       }
-      const validIds = new Set(db.chars.map(c => c.id));
+      const validIds = new Set(db.chars.filter(c => !isAtomicChar(c.char)).map(c => c.id));
       const cleanIds = charIds.filter(id => validIds.has(id));
-      if (cleanIds.length === 0) return jsonResponse(res, 400, { error: '選中的字不存在' });
+      if (cleanIds.length === 0) return jsonResponse(res, 400, { error: '選中的字不存在或屬原子字（唔可練習）' });
 
       const assignment = {
         id: generateId(new Set(db.assignments.map(a => a.id))),
@@ -1158,7 +1195,7 @@ ${decompsStr}
       if (note !== undefined) a.note = note.trim();
       if (userId !== undefined) a.userId = parseInt(userId);
       if (Array.isArray(charIds)) {
-        const validIds = new Set(db.chars.map(c => c.id));
+        const validIds = new Set(db.chars.filter(c => !isAtomicChar(c.char)).map(c => c.id));
         const cleanIds = charIds.filter(x => validIds.has(x));
         if (cleanIds.length > 0) a.charIds = cleanIds;
       }

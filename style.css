@@ -2066,3 +2066,15 @@ nav {
 @media (max-width: 600px) {
   .character-display.complete-mode.has-words .complete-character { font-size: 96px; }
 }
+
+/* ===== 原子字 ===== */
+.char-item.atomic { opacity: 0.65; background: #f8f9fa; }
+.char-atomic-note {
+  font-size: 12px;
+  color: #b8860b;
+  background: #fff3cd;
+  padding: 4px 8px;
+  border-radius: 6px;
+  margin: 4px 0;
+}
+.wc.atomic { background: #f8f9fa; border-color: #b2bec3; color: #95a5a6; text-decoration: line-through; }

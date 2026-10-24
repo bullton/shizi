@@ -467,6 +467,13 @@ const Data = {
     return await this._fetch(force);
   },
 
+  // 練習用字庫：排除「原子字」（拆開只剩筆畫嘅字，例如 水、口、人）
+  async getPractice(force = false) {
+    const all = await this._fetch(force);
+    const atomicSet = window.ChaiziAtomic ? new Set(window.ChaiziAtomic) : null;
+    return all.filter(c => !c.atomic && !(atomicSet && atomicSet.has(c.char)));
+  },
+
   async add(data) {
     try {
       const res = await fetch('/api/chars', {
@@ -597,7 +604,7 @@ const Game = {
     this.taskName = null;
     this.taskDone = new Set();
     this._setTaskBanner(null);
-    const all = await Data.getAll();
+    const all = await Data.getPractice();
     if (token !== this._startToken) return;  // 有更新嘅 start()，放棄今次
     if (all.length === 0) {
       this._showEmpty();
@@ -614,7 +621,7 @@ const Game = {
   // 開始任務：只做指定的字，已完成的字排後面（斷點續做）
   async startTask(task) {
     const token = ++this._startToken;
-    const all = await Data.getAll();
+    const all = await Data.getPractice();
     if (token !== this._startToken) return;
     const byId = new Map(all.map(c => [c.id, c]));
     let ids = task.charIds.filter(id => byId.has(id));
@@ -1081,7 +1088,7 @@ const WordImport = {
       toast('請輸入至少一個詞語');
       return;
     }
-    const existing = await Data.getAll();
+    const existing = await Data.getPractice();
     const existMap = new Map(existing.map(c => [c.char, c]));
 
     // 收集所有字
@@ -1090,8 +1097,12 @@ const WordImport = {
 
     const newChars = [];
     const missing = [];
+    const atomicSkipped = [];
+    const atomicSet = window.ChaiziAtomic ? new Set(window.ChaiziAtomic) : new Set();
     for (const ch of allChars) {
       if (existMap.has(ch)) continue;
+      // 原子字（拆開只剩筆畫）唔會入練習字庫
+      if (atomicSet.has(ch)) { atomicSkipped.push(ch); continue; }
       const processed = processCharForImport(ch);
       if (processed) {
         newChars.push({
@@ -1104,6 +1115,7 @@ const WordImport = {
         missing.push(ch);
       }
     }
+    this.atomicSkipped = atomicSkipped;
 
     this.words = words;
     this.newChars = newChars;
@@ -1121,6 +1133,7 @@ const WordImport = {
         <div>🆕 <strong>${newChars.length}</strong> 個新字會加入字庫</div>
         <div>✅ <strong>${allChars.size - newChars.length - missing.length}</strong> 個字已在字庫（會加上詞語）</div>
         ${missing.length ? `<div>⚠️ 字典冇：<strong>${missing.join('')}</strong>（會略過）</div>` : ''}
+        ${atomicSkipped.length ? `<div>🔒 原子字：<strong>${atomicSkipped.join('')}</strong>（拆開只剩筆畫，唔會入字庫）</div>` : ''}
       </div>
       <div class="word-preview-list">
         ${words.map(w => `
@@ -1131,7 +1144,9 @@ const WordImport = {
                 ? `<span class="wc exist" title="已在字庫">${ch}</span>`
                 : (newChars.find(n => n.char === ch)
                   ? `<span class="wc new" title="新字">${ch}</span>`
-                  : `<span class="wc missing" title="字典冇">${ch}</span>`)
+                  : (atomicSkipped.includes(ch)
+                    ? `<span class="wc atomic" title="原子字：拆開只剩筆畫">${ch}</span>`
+                    : `<span class="wc missing" title="字典冇">${ch}</span>`))
             ).join('')}</span>
           </div>
         `).join('')}
@@ -1180,6 +1195,7 @@ const Admin = {
     document.getElementById('save-btn').onclick = () => this.save();
     document.getElementById('cancel-btn').onclick = () => this.cancel();
     document.getElementById('reset-data-btn').onclick = () => this.resetData();
+    document.getElementById('purge-atomic-btn')?.addEventListener('click', () => this.purgeAtomicChars());
     document.getElementById('clear-positions-btn')?.addEventListener('click', () => this.clearAllPositions());
 
     document.getElementById('form-char').addEventListener('input', (e) => {
@@ -1209,7 +1225,7 @@ const Admin = {
 
     chars.forEach(c => {
       const item = document.createElement('div');
-      item.className = 'char-item';
+      item.className = 'char-item' + (c.atomic ? ' atomic' : '');
       const layoutLabel = { 'left-right': '左右', 'top-bottom': '上下', 'top-bottom-bottom': '品字' }[c.layout] || c.layout;
       item.innerHTML = `
         <div class="char-display-mini">
@@ -1217,6 +1233,7 @@ const Admin = {
           <span class="arrow">=</span>
           <span class="components">${c.components.join(' + ')}</span>
         </div>
+        ${c.atomic ? '<div class="char-atomic-note">🔒 原子字：拆開只剩筆畫，唔會喺練習／布置任務出現</div>' : ''}
         <div class="char-meta">${layoutLabel}結構 · ${c.components.length}部件${c.positions ? ' · ✏️ 自定義' : ''}</div>
         ${c.words && c.words.length ? `<div class="char-words-mini">💬 ${c.words.map(w => escapeHtml(w)).join('、')}</div>` : ''}
         <div class="char-hint-mini">${escapeHtml(c.hint || '(無口訣)')}</div>
@@ -1299,6 +1316,25 @@ const Admin = {
     await Data.deleteChar(id);
     toast('已刪除');
     await this.render();
+  },
+
+  // 由字庫移除所有原子字（拆開只剩筆畫嘅字，冇練習價值）
+  async purgeAtomicChars() {
+    if (!confirm('確定移除字庫入面所有「原子字」？（拆開只剩筆畫嘅字，例如 水、口、人）')) return;
+    try {
+      const res = await fetch('/api/chars/atomic', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include'
+      });
+      const data = await res.json();
+      if (!res.ok) return toast('移除失敗: ' + (data.error || ''));
+      toast(`已移除 ${data.removed} 個原子字，剩 ${data.remaining} 字`);
+      await Data.init(true);
+      await this.render();
+    } catch (e) {
+      toast('移除失敗: ' + e.message);
+    }
   },
 
   async openPositionEditor(id) {
@@ -2025,7 +2061,10 @@ const AdminAssignments = {
 
   async _loadChars() {
     try {
-      this.chars = await AdminAPI.getChars();
+      // 只載入可以練習嘅字（排除原子字：拆開只剩筆畫）
+      const all = await AdminAPI.getChars();
+      const atomicSet = window.ChaiziAtomic ? new Set(window.ChaiziAtomic) : new Set();
+      this.chars = all.filter(c => !c.atomic && !atomicSet.has(c.char));
     } catch {
       this.chars = [];
     }
