@@ -260,3 +260,27 @@ node tools/build-ids.js --check      # 檢查有冇過時
 - 提示：含可再展開部件／含筆畫／含罕見字符
 
 撳「✅ 套用這個」即可套用（會寫入 components + layout + positions）。
+
+## 「字典原拆法 #N」嘅來源
+
+`字典原拆法 #1 / #2 / …` 全部嚟自 **`chaizi-data.js`**，
+即 **kfcd/chaizi** 開源拆字字典（CC BY 3.0）：
+https://github.com/kfcd/chaizi
+
+該字典對同一個字有時會列出**多種拆法**，#N 就係嗰個檔案入面嘅次序。
+
+例子：
+
+| 字 | 原拆法 |
+|----|--------|
+| 這 | #1 `辵 言`　#2 `辶 言` |
+| 泄 | #1 `水 世`　#2 `氵 世` |
+| 邊 | #1 `辵 自 穴 方`　#2 `辶 自 穴 方`　#3 `辵 臱`　#4 `辶 臱` |
+| 持 | #1 `手 寺`　#2 `扌 寺`　#3 `才 寺` |
+| 攀 | #1 `棥 大 手`　#2 `林 爻 大 手`　#3 `木 木 乂 乂 大 手` |
+
+`chaizi-data.js` 保持與上游一致（未經排序／轉換）。
+`chaizi-unique.js`（遊戲實際用）則由 `tools/dict-transform.js` 按 `tools/dict-rules.json`
+嘅基準算法（簡化 `辵→辶`／`糸→纟`、過濾空部件、取最散嗰種）生成。
+
+> 想核對：`node tools/dict-transform.js --check`
