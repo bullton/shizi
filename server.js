@@ -145,6 +145,28 @@ db.config = savedData.config || { aiToken: '' };
   }
 })();
 
+// ===== AI 呼叫防護（嚴禁批量／連續調用）=====
+// 本專案結構判斷已改用 Unicode IDS，唔使 AI。
+// AI 只用於單字「生成口訣」，所以限制：兩次之間最少 8 秒，每小時最多 30 次。
+const AI_COOLDOWN_MS = 8000;
+const AI_HOURLY_LIMIT = 30;
+let aiLastCallAt = 0;
+const aiCallLog = [];   // 記錄最近呼叫時間
+
+function aiGuard() {
+  const now = Date.now();
+  if (now - aiLastCallAt < AI_COOLDOWN_MS) {
+    return { ok: false, error: `請等 ${Math.ceil((AI_COOLDOWN_MS - (now - aiLastCallAt)) / 1000)} 秒後再試（AI 唔可以連續調用）` };
+  }
+  while (aiCallLog.length && now - aiCallLog[0] > 3600 * 1000) aiCallLog.shift();
+  if (aiCallLog.length >= AI_HOURLY_LIMIT) {
+    return { ok: false, error: `AI 每小時最多 ${AI_HOURLY_LIMIT} 次，請稍後再試` };
+  }
+  aiLastCallAt = now;
+  aiCallLog.push(now);
+  return { ok: true };
+}
+
 // ===== 任務輔助 =====
 function decorateAssignment(a, chars) {
   const done = a.done || {};
@@ -988,127 +1010,6 @@ async function handleAPI(req, res) {
     return;
   }
 
-  // ===== 批量 AI 分析 =====
-  // 一次過問 AI 多隻字嘅結構，用於批量導入時自動判斷
-  // ===== 批量 AI 分析 =====
-  // 一次過問 AI 多隻字嘅結構，用於批量導入時自動判斷
-  if (pathname === '/api/analyze-chars' && method === 'POST') {
-    const adminUser = requireAuth(req, res);
-    if (!adminUser) return jsonResponse(res, 401, { error: '請先登入' });
-    if (adminUser.role !== 'admin') return jsonResponse(res, 403, { error: '需要管理員權限' });
-    try {
-      const { chars } = await parseBody(req);
-      if (!Array.isArray(chars) || chars.length === 0) {
-        return jsonResponse(res, 400, { error: '缺少字符' });
-      }
-      if (!db.config.aiToken) {
-        return jsonResponse(res, 400, { error: '請先配置 AI Token' });
-      }
-      if (chars.length > 40) {
-        return jsonResponse(res, 400, { error: '一次最多分析 40 個字' });
-      }
-
-      // 每個字：拆法（用唯一字典）
-      const items = chars.map(ch => {
-        const comps = longestDecomp(ch);
-        return { char: ch, components: comps };
-      }).filter(x => x.components.length > 0);
-
-      if (items.length === 0) {
-        return jsonResponse(res, 400, { error: '字典搵唔到呢啲字' });
-      }
-
-      const itemStr = items.map((it, i) =>
-        `${i + 1}. 「${it.char}」= ${it.components.join(' + ')}`).join('\n');
-
-      // ⚠️ 重點：唔好直接叫 AI 揀 layout 標籤。
-      // AI 會套用「言字旁一定喺左」呢類先驗，導致「看」(手+目) 被判成左右。
-      // 改為叫 AI 講出每個部件實際喺邊個位置，再由代碼推導結構。
-      const prompt = `你是繁體中文字形結構專家。以下每個漢字已拆成部件。
-
-${itemStr}
-
-## 請判斷每個部件喺成個字裡面嘅書寫位置（相對其他部件）
-每個部件嘅位置用以下其中一個值：
-- top（最上面，獨立在上方）
-- bottom（最下面，獨立在下方）
-- left（最左邊，獨立在左邊）
-- right（最右邊，獨立在右邊）
-- top-left（左上角）
-- top-right（右上角）
-- bottom-left（左下角）
-- bottom-right（右下角）
-- center（中間，被其他部件包圍）
-
-## 重要：要根據部件喺真實字形中嘅位置判斷，唔可以靠部件「通常」出現喺邊度
-- 「看」= 手 + 目 → 手喺上面（top），目喺下面（bottom）
-- 「語」= 言 + 吾 → 言喺左邊（left），吾喺右邊（right）
-- 「收」= 丩 + 攴 → 丩喺左（left），攴喺右（right）
-- 「古」= 十 + 口 → 十喺上面（top），口喺下面（bottom）
-- 「雀」= 少 + 隹 → 少喺上面（top），隹喺下面（bottom）
-- 「握」= 手 + 屋 → 手喺左邊（left），屋喺右邊（right）
-- 「掌」= 尚 + 口 + 手 → 尚喺上面，口喺中間，手喺下面
-- 「森」= 木 + 木 + 木 → 一個喺上面，兩個喺下面（bottom-left, bottom-right）
-
-## 回覆格式（嚴格 JSON 陣列，無多餘文字）：
-[
-  {"index": 1, "parts": ["top", "bottom"]},
-  ...
-]`;
-
-      const aiRes = await fetch('https://api.minimax.cn/anthropic/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${db.config.aiToken}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          model: 'MiniMax-M3',
-          output_config: { effort: 'max' },
-          max_tokens: 8000,
-          messages: [{ role: 'user', content: prompt }]
-        })
-      });
-
-      if (!aiRes.ok) {
-        const err = await aiRes.text();
-        return jsonResponse(res, 502, { error: 'AI API 錯誤: ' + err });
-      }
-      const aiData = await aiRes.json();
-      const content = aiData.content?.[0]?.text || '';
-
-      let arr;
-      try {
-        const jsonMatch = content.match(/\[[\s\S]*\]/);
-        if (!jsonMatch) return jsonResponse(res, 500, { error: '無法解析 AI 回覆' });
-        arr = JSON.parse(jsonMatch[0]);
-      } catch (e) {
-        return jsonResponse(res, 500, { error: '解析 AI 回覆失敗' });
-      }
-
-      const results = [];
-      for (const r of arr) {
-        const idx = (r.index || 0) - 1;
-        const it = items[idx];
-        if (!it) continue;
-        const parts = Array.isArray(r.parts) ? r.parts : [];
-        if (parts.length !== it.components.length) continue;   // 數目唔啱就唔用
-        const layout = layoutFromParts(parts, it.components);
-        results.push({
-          char: it.char,
-          components: it.components,
-          parts,
-          layout,
-          positions: positionsFromParts(parts)
-        });
-      }
-
-      jsonResponse(res, 200, { results });
-    } catch (e) {
-      jsonResponse(res, 500, { error: '批量分析失敗: ' + e.message });
-    }
-    return;
-  }
 
   // 單字 AI 分析（同批量一致：問部件位置，由代碼推導結構）
   if (pathname === '/api/analyze-char' && method === 'POST') {
@@ -1121,6 +1022,9 @@ ${itemStr}
       if (!db.config.aiToken) {
         return jsonResponse(res, 400, { error: '請先配置 AI Token' });
       }
+      // ⛔ 禁止批量／連續調用
+      const guard = aiGuard();
+      if (!guard.ok) return jsonResponse(res, 429, { error: guard.error });
       // 用第一個（唯一字典嘅首選）拆法
       const comps = (decompositions && decompositions[0]) || longestDecomp(char);
       if (!comps || comps.length === 0) {

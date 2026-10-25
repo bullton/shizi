@@ -2494,15 +2494,15 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || '分析失敗');
-      // Fill form
-      document.getElementById('form-components').value = data.recommended ? allDecomps[data.recommended - 1].join(',') : allDecomps[0].join(',');
-      document.getElementById('form-layout').value = data.layout;
-      document.getElementById('form-hint').value = data.reason;
-      toast(`分析完成：${data.layout}`);
+      // 結構由 Unicode IDS 決定（唔用 AI）；AI 只負責寫口訣
+      const comps = allDecomps[0];
+      document.getElementById('form-layout').value = autoLayout(comps, char);
+      document.getElementById('form-hint').value = data.reason || '';
+      toast('已生成粵語口訣');
     } catch (e) {
       toast('分析失敗: ' + e.message);
     } finally {
-      btn.textContent = '🤖 AI 分析';
+      btn.textContent = '🤖 AI 生成口訣';
       btn.disabled = false;
     }
   });
@@ -2557,7 +2557,6 @@ document.addEventListener('DOMContentLoaded', () => {
             </select>
           </div>
           <div class="import-preview-hint">提示：${p.hint}</div>
-          <button class="btn btn-secondary btn-sm ai-analyze-btn" data-idx="${idx}">🤖 AI 分析</button>
         </div>
       </div>
     `).join('');
@@ -2592,39 +2591,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Bind AI analyze
-    document.querySelectorAll('.ai-analyze-btn').forEach(btn => {
-      btn.addEventListener('click', async (e) => {
-        const idx = parseInt(e.target.dataset.idx);
-        const p = importPreviewData[idx];
-        e.target.textContent = '分析中...';
-        e.target.disabled = true;
-        try {
-          const res = await fetch('/api/analyze-char', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ char: p.char, decompositions: p.decompositions })
-          });
-          const data = await res.json();
-          if (!res.ok) throw new Error(data.error || '分析失敗');
-          // Apply result with validation
-          const decompIdx = Math.max(0, Math.min((data.recommended || 1) - 1, p.decompositions.length - 1));
-          p.components = p.decompositions[decompIdx];
-          p.layout = data.layout;
-          p.positions = data.positions || null;
-          p.hint = `${p.components.join(' + ')}，${data.reason}`;
-          // Re-render
-          const posInfo = p.positions ? ` (含 ${p.positions.length} 個部件位置)` : '';
-          toast(`分析完成：${data.layout} - ${data.reason}${posInfo}`);
-          document.getElementById('import-btn').click(); // Re-render preview
-        } catch (err) {
-          toast(err.message);
-        } finally {
-          e.target.textContent = '🤖 AI 分析';
-          e.target.disabled = false;
-        }
-      });
-    });
-
     document.getElementById('import-preview').style.display = 'block';
   });
 
