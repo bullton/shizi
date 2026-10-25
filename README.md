@@ -364,3 +364,20 @@ iPad 上「拖過去有時放唔到」有三個成因，已逐一修好：
 4. `_checkComplete()` 改為只檢查 `#character-display .slot`（避免其他頁面殘留嘅槽干擾）
 
 驗證（模擬觸控事件）：正常拖 ✅ / pointercancel ✅ / 偏離 40px ✅
+
+### 版面／拖拽深度修正（第二輪）
+
+| 問題 | 真正原因 | 修正 |
+|------|---------|------|
+| 格子撐爆外框 | grid 項目 `min-height: auto` 會被字撐大 | 加 `min-height/min-width: 0` |
+| 行數固定（`130px 130px`）遇多/少部件會爆 | 改用 `grid-auto-rows: 1fr`，任何部件數都平均分配 |
+| 「比例不對」、底下一行空白 | `render()` 設定 display 的 CSS class 用**舊佈局**，而 slot 用修正後佈局 | class 亦改用 `fitLayout()` 結果 |
+| 自訂位置的字溢出 | 位置用**渲染時像素**計算，之後顯示區變小就爆 | 改用**百分比**，自動跟隨 |
+| 絕對定位佈局溢出 10px | `top:0/height:100%` 連 padding 都食埋 | surround / half-surround / custom 取消 padding |
+| 字級太早計 | 顯示區高度之後會變（部件架填滿） | 加 `ResizeObserver`，尺寸一變就重算 |
+| 拖放失敗 | iOS 原生 draggable 搶手勢 → pointercancel | 停用原生 draggable + 處理 pointercancel |
+| 掉落位置稍偏就冇反應 | 只認精確命中 | 加 120px 容差，並優先搵「部件啱」嘅槽 |
+| 舊 iPad 可能冇 PointerEvent | 只有 pointer 路徑 | 加 touchstart/move/end 後備 |
+
+驗證：15 種佈局 × 多個尺寸 = **全部無溢出、無需捲動**；
+拖放（正常／偏 45px／pointercancel）**全部成功**。

@@ -2422,14 +2422,43 @@ header { flex: 0 0 auto; }
   min-height: 0 !important;
 }
 
-/* 固定行高 → 比例行高 */
-#view-game .layout-top-bottom { grid-template-rows: 1fr 1fr !important; }
-#view-game .layout-top-bottom-bottom { grid-template-rows: 1.05fr 1fr !important; }
-#view-game .layout-vertical-3 { grid-template-rows: repeat(3, 1fr) !important; }
-#view-game .layout-top-bottom-bottom-bottom { grid-template-rows: repeat(4, 1fr) !important; }
-#view-game .layout-top-2-bottom { grid-template-rows: repeat(3, 1fr) !important; }
-#view-game .layout-complex-3-left { grid-template-rows: 1fr 1fr !important; }
-#view-game .layout-complex-4-left { grid-template-rows: repeat(3, 1fr) !important; }
+/* 所有 grid 佈局：唔指定固定行，用 grid-auto-rows: 1fr
+   → 無論部件數同佈局預期是否一致，都唔會撐爆外框 */
+#view-game .layout-top-bottom,
+#view-game .layout-top-bottom-bottom,
+#view-game .layout-vertical-3,
+#view-game .layout-top-bottom-bottom-bottom,
+#view-game .layout-top-2-bottom,
+#view-game .layout-complex-3-left,
+#view-game .layout-complex-4-left,
+#view-game .layout-left-right-right,
+#view-game .layout-bottom-top-top,
+#view-game .layout-left-right,
+#view-game .layout-left-middle-right,
+#view-game .layout-stack {
+  grid-template-rows: none !important;
+  grid-auto-rows: 1fr;
+  height: 100% !important;
+}
+
+/* 格子可以收縮（唔會被字撐大） */
+#view-game .character-display .slot {
+  min-height: 0 !important;
+  min-width: 0 !important;
+}
+
+/* complex-4-left 內槽唔好固定 95px */
+#view-game .layout-complex-4-left .slot-inner-top,
+#view-game .layout-complex-4-left .slot-inner-middle,
+#view-game .layout-complex-4-left .slot-inner-bottom {
+  height: auto !important;
+}
+#view-game .layout-complex-3-left .slot-inner-top,
+#view-game .layout-complex-3-left .slot-inner-bottom,
+#view-game .layout-left-right-right .slot-inner-top,
+#view-game .layout-left-right-right .slot-inner-bottom {
+  height: auto !important;
+}
 #view-game .layout-surround-3 { height: auto !important; }
 #view-game .layout-stack { min-height: 0 !important; height: auto !important; }
 #view-game .layout-custom { height: auto !important; }
@@ -2561,4 +2590,12 @@ header { flex: 0 0 auto; }
 #view-game .pieces-tray .word-chip {
   font-size: clamp(14px, 2.4vh, 22px);
   padding: 6px 14px;
+}
+
+/* 絕對定位嘅佈局（包圍／半包圍／自訂位置）：取消 padding，
+   否則 top:0/height:100% 會連 padding 都食埋，令槽超出外框 */
+#view-game .character-display.layout-surround,
+#view-game .character-display.layout-half-surround-left,
+#view-game .character-display.layout-custom {
+  padding: 0;
 }

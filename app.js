@@ -103,12 +103,18 @@ const LEFT_RADICAL_EXCEPTIONS = new Set([
 const FIXED_SLOT_LAYOUTS = {
   'surround': 2,
   'half-surround-left': 2,
+  'left-right': 2,
+  'top-bottom': 2,
   'surround-3': 3,
   'complex-3-left': 3,
   'left-right-right': 3,
-  'complex-4-left': 4,
   'left-middle-right': 3,
-  'bottom-top-top': 3
+  'bottom-top-top': 3,
+  'vertical-3': 3,
+  'top-bottom-bottom': 3,
+  'complex-4-left': 4,
+  'top-2-bottom': 4,
+  'top-bottom-bottom-bottom': 4
 };
 
 // 保險：佈局槽數同部件數對唔上就改用通用佈局
@@ -122,26 +128,45 @@ function fitLayout(layout, count) {
 }
 
 // ===== 練習畫面自適應（按每個槽實際大小設定字級）=====
-// 搵指標位置下面嘅槽（拖拽用）
-function slotAtPoint(x, y) {
-  const el = document.elementFromPoint(x, y);
-  if (!el) return null;
-  const direct = el.closest ? el.closest('.slot') : null;
-  if (direct) return direct;
-
-  // 掉喺空隙／有少少偏差都可以：搵最近嘅空槽（容差 70px）
+// 字形區尺寸一變就重算字級（避免太早計算、或版面後來變高變矮）
+let _dispResizeObs = null;
+function observeDisplaySize() {
   const disp = document.getElementById('character-display');
-  if (!disp || !disp.contains(el)) return null;
+  if (!disp || typeof ResizeObserver === 'undefined') return;
+  if (_dispResizeObs) _dispResizeObs.disconnect();
+  _dispResizeObs = new ResizeObserver(() => requestAnimationFrame(fitGameSizes));
+  _dispResizeObs.observe(disp);
+}
 
-  let best = null, bestD = 70;
+// 搵指標位置下面嘅槽（拖拽用）
+// component 有值時，優先搵「部件啱」嘅空槽（容差 120px，小朋友手指大）
+function slotAtPoint(x, y, component) {
+  const el = document.elementFromPoint(x, y);
+  const disp = document.getElementById('character-display');
+  const insideDisp = !!(disp && el && (disp === el || disp.contains(el)));
+
+  const direct = el && el.closest ? el.closest('.slot') : null;
+  if (direct && !direct.classList.contains('filled') &&
+      (!component || direct.dataset.expected === component)) {
+    return direct;
+  }
+  if (!insideDisp) return null;
+
+  let best = null, bestD = Infinity;      // 最近而 component 啱
+  let nearEmpty = null, nearD = Infinity; // 最近空槽（後備）
   disp.querySelectorAll('.slot:not(.filled)').forEach(s => {
     const r = s.getBoundingClientRect();
     const dx = Math.max(r.left - x, 0, x - r.right);
     const dy = Math.max(r.top - y, 0, y - r.bottom);
     const d = Math.hypot(dx, dy);
-    if (d < bestD) { bestD = d; best = s; }
+    if (d < nearD) { nearD = d; nearEmpty = s; }
+    if (component && s.dataset.expected === component && d < bestD) { bestD = d; best = s; }
   });
-  return best;
+
+  if (best && bestD <= 120) return best;
+  if (nearEmpty && nearD <= 60) return nearEmpty;
+  if (direct && !direct.classList.contains('filled')) return direct;  // 落錯槽 → 顯示錯誤
+  return null;
 }
 
 function fitGameSizes() {
@@ -957,6 +982,7 @@ const Game = {
     this._updateProgress();
     this.render();
     requestAnimationFrame(fitGameSizes);
+    observeDisplaySize();
     this._speak(this.current.char);
   },
 
@@ -984,10 +1010,11 @@ const Game = {
         slot.dataset.expected = comp;
         const p = this.current.positions[i] || {};
         if (normalized) {
-          slot.style.left = ((p.x || 0) * containerW) + 'px';
-          slot.style.top = ((p.y || 0) * containerH) + 'px';
-          slot.style.width = ((p.w || 0.3) * containerW) + 'px';
-          slot.style.height = ((p.h || 0.3) * containerH) + 'px';
+          // 用百分比（唔用 px）：顯示區之後變大變細都會自動跟隨，唔會溢出
+          slot.style.left = ((p.x || 0) * 100) + '%';
+          slot.style.top = ((p.y || 0) * 100) + '%';
+          slot.style.width = ((p.w || 0.3) * 100) + '%';
+          slot.style.height = ((p.h || 0.3) * 100) + '%';
         } else {
           slot.style.left = (p.x ?? 0) + 'px';
           slot.style.top = (p.y ?? 0) + 'px';
@@ -998,7 +1025,9 @@ const Game = {
         display.appendChild(slot);
       });
     } else {
-      display.className = 'character-display layout-' + this.current.layout;
+      // 用「修正後」嘅佈局做 class（同 _renderLayoutSlots 內部一致）
+      const fitted = fitLayout(this.current.layout, this.current.components.length);
+      display.className = 'character-display layout-' + fitted;
       this._renderLayoutSlots(display);
     }
 
@@ -1069,7 +1098,7 @@ const Game = {
     shuffled.forEach((comp, i) => {
       const piece = document.createElement('div');
       piece.className = 'piece';
-      piece.draggable = true;
+      piece.draggable = false;
       piece.textContent = comp;
       piece.dataset.component = comp;
       piece.dataset.id = 'p-' + i;
@@ -1215,35 +1244,19 @@ const Game = {
   },
 
   _setupPiece(piece) {
-    // ===== 桌面：HTML5 drag & drop =====
-    piece.addEventListener('dragstart', e => {
-      e.dataTransfer.setData('text/plain', piece.dataset.id);
-      e.dataTransfer.effectAllowed = 'move';
-      piece.classList.add('dragging');
-    });
-    piece.addEventListener('dragend', () => piece.classList.remove('dragging'));
+    let active = false, startX = 0, startY = 0, lastX = 0, lastY = 0;
+    let moved = false, ghost = null, dragW = 0, dragH = 0, lastWasDrag = false;
+    let pid = null, usedPointer = false;
 
-    // ===== 觸控／滑鼠：pointer 拖拽 =====
-    let pid = null, startX = 0, startY = 0, lastX = 0, lastY = 0;
-    let moved = false, ghost = null, dragW = 0, dragH = 0;
+    const begin = (x, y) => {
+      active = true; startX = x; startY = y; lastX = x; lastY = y; moved = false;
+    };
 
-    piece.addEventListener('pointerdown', (e) => {
-      if (e.pointerType === 'mouse' && e.button !== 0) return;
-      pid = e.pointerId;
-      startX = e.clientX; startY = e.clientY;
-      lastX = e.clientX; lastY = e.clientY;
-      moved = false;
-      // 觸控時停用原生 draggable：否則 iOS 會搶走手勢 → pointercancel → 放唔到
-      if (e.pointerType !== 'mouse') piece.draggable = false;
-      try { piece.setPointerCapture(pid); } catch (_) {}
-    });
-
-    piece.addEventListener('pointermove', (e) => {
-      if (pid === null || e.pointerId !== pid) return;
-      lastX = e.clientX; lastY = e.clientY;
-      const dx = e.clientX - startX, dy = e.clientY - startY;
+    const move = (x, y) => {
+      if (!active) return;
+      lastX = x; lastY = y;
       if (!moved) {
-        if (Math.hypot(dx, dy) < 8) return;   // 太細當輕觸
+        if (Math.hypot(x - startX, y - startY) < 8) return;   // 太細當輕觸
         moved = true;
         dragW = piece.offsetWidth; dragH = piece.offsetHeight;
         ghost = piece.cloneNode(true);
@@ -1254,42 +1267,77 @@ const Game = {
         document.body.appendChild(ghost);
         piece.classList.add('dragging');
       }
-      e.preventDefault();
-      ghost.style.left = (e.clientX - dragW / 2) + 'px';
-      ghost.style.top = (e.clientY - dragH / 2) + 'px';
-      const slot = slotAtPoint(e.clientX, e.clientY);
+      ghost.style.left = (x - dragW / 2) + 'px';
+      ghost.style.top = (y - dragH / 2) + 'px';
+      const slot = slotAtPoint(x, y, piece.dataset.component);
       document.querySelectorAll('#character-display .slot.drag-over')
         .forEach(s => { if (s !== slot) s.classList.remove('drag-over'); });
       if (slot && !slot.classList.contains('filled')) slot.classList.add('drag-over');
-    });
+    };
 
-    const endDrag = (e) => {
-      if (pid === null) return;
-      if (e && e.pointerId !== undefined && e.pointerId !== pid) return;
+    const finish = (x, y) => {
+      if (!active) return;
+      active = false;
       const wasMoved = moved;
-      const x = (e && typeof e.clientX === 'number' && e.clientX) || lastX;
-      const y = (e && typeof e.clientY === 'number' && e.clientY) || lastY;
-      pid = null; moved = false;
+      moved = false;
+      lastWasDrag = wasMoved;
       piece.classList.remove('dragging');
       if (ghost) { ghost.remove(); ghost = null; }
       document.querySelectorAll('#character-display .slot.drag-over')
         .forEach(s => s.classList.remove('drag-over'));
-
       if (wasMoved) {
-        const slot = slotAtPoint(x, y);
+        const slot = slotAtPoint(x, y, piece.dataset.component);
         if (slot) this._tryPlace(piece, slot);
-        piece.dataset.justDragged = '1';
-        setTimeout(() => { delete piece.dataset.justDragged; }, 350);
+        setTimeout(() => { lastWasDrag = false; }, 400);
       }
-      // 還原俾桌面 HTML5 拖拽用
-      if (piece.isConnected) piece.draggable = true;
     };
-    piece.addEventListener('pointerup', endDrag);
-    piece.addEventListener('pointercancel', endDrag);
 
-    // ===== 輕觸選取（點部件再點槽）=====
+    // ===== Pointer（現代瀏覽器，iPad 13+）=====
+    piece.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      usedPointer = true;
+      pid = e.pointerId;
+      begin(e.clientX, e.clientY);
+      try { piece.setPointerCapture(pid); } catch (_) {}
+    });
+    piece.addEventListener('pointermove', (e) => {
+      if (!active || (pid !== null && e.pointerId !== pid)) return;
+      move(e.clientX, e.clientY);
+      if (moved) e.preventDefault();
+    });
+    const pEnd = (e) => {
+      if (pid === null) return;
+      pid = null;
+      const x = (typeof e.clientX === 'number' && e.clientX) || lastX;
+      const y = (typeof e.clientY === 'number' && e.clientY) || lastY;
+      finish(x, y);
+    };
+    piece.addEventListener('pointerup', pEnd);
+    piece.addEventListener('pointercancel', pEnd);
+
+    // ===== Touch 後備（舊 iPad 冇 PointerEvent）=====
+    piece.addEventListener('touchstart', (e) => {
+      if (usedPointer) return;
+      const t = e.touches[0]; if (!t) return;
+      begin(t.clientX, t.clientY);
+    }, { passive: true });
+    piece.addEventListener('touchmove', (e) => {
+      if (usedPointer || !active) return;
+      const t = e.touches[0]; if (!t) return;
+      move(t.clientX, t.clientY);
+      if (moved) e.preventDefault();
+    }, { passive: false });
+    const tEnd = (e) => {
+      if (usedPointer || !active) return;
+      const t = (e.changedTouches && e.changedTouches[0]) || null;
+      finish(t ? t.clientX : lastX, t ? t.clientY : lastY);
+    };
+    piece.addEventListener('touchend', tEnd);
+    piece.addEventListener('touchcancel', tEnd);
+
+    // ===== 輕觸選取 =====
     piece.addEventListener('click', () => {
-      if (piece.dataset.justDragged) return;
+      if (lastWasDrag) return;
       document.querySelectorAll('.piece.selected').forEach(p => p.classList.remove('selected'));
       piece.classList.add('selected');
     });
