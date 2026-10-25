@@ -2599,3 +2599,23 @@ header { flex: 0 0 auto; }
 #view-game .character-display.layout-custom {
   padding: 0;
 }
+
+
+/* ===== 答對彈窗：顯示正確字 ===== */
+.celebration { pointer-events: none; background: rgba(0,0,0,0.35); }
+.celebration-char {
+  font-size: clamp(90px, 26vh, 220px);
+  font-weight: bold;
+  color: #6a5acd;
+  line-height: 1.05;
+  text-shadow: 4px 4px 0 rgba(255,255,255,0.9), 0 0 30px rgba(106,90,205,0.35);
+  animation: char-pop-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.celebration-char:empty { display: none; }
+.celebration-content { padding: 34px 56px; }
+.celebration-text { font-size: 30px; margin-top: 8px; }
+@media (max-height: 700px) {
+  .celebration-char { font-size: clamp(70px, 30vh, 150px); }
+  .celebration-content { padding: 22px 40px; }
+  .celebration-text { font-size: 22px; }
+}

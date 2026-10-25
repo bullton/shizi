@@ -1402,10 +1402,13 @@ const Game = {
     this._playSuccess();
     this._setTimer(() => this._speak(char), 200);
 
+    // 彈出正確結果（大字）——方框會保留喺下面，彈窗唔影響版面
     const cel = document.getElementById('celebration');
+    const celChar = document.getElementById('celebration-char');
+    if (celChar) celChar.textContent = char;
     this._setTimer(() => {
       cel.classList.remove('hidden');
-      this._setTimer(() => cel.classList.add('hidden'), 1600);
+      this._setTimer(() => cel.classList.add('hidden'), 1700);
     }, 250);
 
     document.getElementById('next-btn').classList.remove('hidden');
