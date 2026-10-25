@@ -1285,14 +1285,12 @@ const Admin = {
         <div class="char-actions">
           <button class="btn-edit" data-id="${c.id}">✏️ 編輯</button>
           <button class="btn-position" data-id="${c.id}">📐 調整結構</button>
-          <button class="btn-decomp" data-id="${c.id}">🔍 深拆／換方案</button>
           <button class="btn-delete" data-id="${c.id}">🗑️ 刪除</button>
         </div>
       `;
       item.querySelector('.btn-edit').onclick = () => this.edit(c.id);
       item.querySelector('.btn-delete').onclick = () => this.deleteChar(c.id);
       item.querySelector('.btn-position').onclick = () => this.openPositionEditor(c.id);
-      item.querySelector('.btn-decomp').onclick = () => this.openDecompPanel(c.id);
       container.appendChild(item);
     });
   },
@@ -1308,6 +1306,9 @@ const Admin = {
     document.getElementById('form-layout').value = c.layout;
     document.getElementById('form-words').value = (c.words || []).join(', ');
     document.getElementById('save-btn').textContent = '💾 更新';
+    const dbtn = document.getElementById('form-decomp-btn');
+    dbtn.classList.remove('hidden');
+    dbtn.onclick = () => this.openDecompPanel(id);
   },
 
   cancel() {
@@ -1317,6 +1318,7 @@ const Admin = {
     document.getElementById('form-components').value = '';
     document.getElementById('form-layout').value = 'left-right';
     document.getElementById('form-words').value = '';
+    document.getElementById('form-decomp-btn').classList.add('hidden');
     document.getElementById('save-btn').textContent = '💾 保存';
   },
 
@@ -1494,6 +1496,11 @@ const Admin = {
       toast(`已套用：${cand.components.join(' + ')}（${layout}）`);
       await Data.init(true);
       document.getElementById('decomp-modal').classList.add('hidden');
+      // 如果正喺編輯呢個字，同步更新表單
+      if (this.editingId === c.id) {
+        document.getElementById('form-components').value = cand.components.join(',');
+        document.getElementById('form-layout').value = layout;
+      }
       await this.render();
     } catch (e) {
       toast('套用失敗: ' + e.message);

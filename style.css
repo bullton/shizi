@@ -2260,3 +2260,13 @@ nav {
   font-weight: 600;
 }
 .btn-decomp:hover { background: #8c7ae6; }
+
+.form-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.form-head h2 { margin: 0; }
+.form-head .btn-decomp.hidden { display: none; }
