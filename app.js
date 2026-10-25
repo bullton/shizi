@@ -139,34 +139,28 @@ function observeDisplaySize() {
 }
 
 // 搵指標位置下面嘅槽（拖拽用）
-// component 有值時，優先搵「部件啱」嘅空槽（容差 120px，小朋友手指大）
-function slotAtPoint(x, y, component) {
+// 只做「就近吸附」（60px），唔會自動幫你揀正確嘅槽 →
+// 放錯都可以，由 _tryPlace 判斷對錯並提示
+function slotAtPoint(x, y) {
   const el = document.elementFromPoint(x, y);
   const disp = document.getElementById('character-display');
-  const insideDisp = !!(disp && el && (disp === el || disp.contains(el)));
 
   const direct = el && el.closest ? el.closest('.slot') : null;
-  if (direct && !direct.classList.contains('filled') &&
-      (!component || direct.dataset.expected === component)) {
-    return direct;
-  }
-  if (!insideDisp) return null;
+  if (direct && !direct.classList.contains('filled')) return direct;
+  if (direct) return null;   // 已填滿
 
-  let best = null, bestD = Infinity;      // 最近而 component 啱
-  let nearEmpty = null, nearD = Infinity; // 最近空槽（後備）
+  if (!disp || !el || !(disp === el || disp.contains(el))) return null;
+
+  // 掉喺空隙／槽邊：搵最近嘅空槽（60px 內）
+  let best = null, bestD = 60;
   disp.querySelectorAll('.slot:not(.filled)').forEach(s => {
     const r = s.getBoundingClientRect();
     const dx = Math.max(r.left - x, 0, x - r.right);
     const dy = Math.max(r.top - y, 0, y - r.bottom);
     const d = Math.hypot(dx, dy);
-    if (d < nearD) { nearD = d; nearEmpty = s; }
-    if (component && s.dataset.expected === component && d < bestD) { bestD = d; best = s; }
+    if (d < bestD) { bestD = d; best = s; }
   });
-
-  if (best && bestD <= 120) return best;
-  if (nearEmpty && nearD <= 60) return nearEmpty;
-  if (direct && !direct.classList.contains('filled')) return direct;  // 落錯槽 → 顯示錯誤
-  return null;
+  return best;
 }
 
 function fitGameSizes() {
@@ -892,6 +886,7 @@ const Game = {
       return;
     }
     this.chars = this._shuffle(all);
+    this.currentErrors = 0;
     this.score = 0;
     this.index = 0;
     this._updateScore();
@@ -931,6 +926,7 @@ const Game = {
     this.taskRounds = rounds;
     this.taskRoundSize = base.length;
     this.taskUniqueCount = base.length;
+    this.currentErrors = 0;
     this.taskId = task.id;
     this.taskName = task.name;
     this.taskDone = new Set();
@@ -972,6 +968,7 @@ const Game = {
     display.classList.remove('has-words');
     document.getElementById('celebration').classList.add('hidden');
     this.current = this.chars[this.index];
+    this.currentErrors = 0;
     this.startTime = Date.now();
     // 任務模式：顯示第幾輪
     if (this.taskId && this.taskRoundSize) {
@@ -1282,7 +1279,7 @@ const Game = {
       }
       drag.ghost.style.left = (x - drag.w / 2) + 'px';
       drag.ghost.style.top = (y - drag.h / 2) + 'px';
-      const slot = slotAtPoint(x, y, piece.dataset.component);
+      const slot = slotAtPoint(x, y);
       document.querySelectorAll('#character-display .slot.drag-over')
         .forEach(s => { if (s !== slot) s.classList.remove('drag-over'); });
       if (slot && !slot.classList.contains('filled')) slot.classList.add('drag-over');
@@ -1299,7 +1296,7 @@ const Game = {
         lastWasDrag = true;
         setTimeout(() => { lastWasDrag = false; }, 400);
         if (place) {
-          const slot = slotAtPoint(x, y, piece.dataset.component);
+          const slot = slotAtPoint(x, y);
           if (slot) this._tryPlace(piece, slot);
         }
       }
@@ -1410,10 +1407,36 @@ const Game = {
       this._playSuccess();
       this._checkComplete();
     } else {
-      slot.classList.add('wrong');
+      // 容許放入錯誤部件：先顯示出嚟，提示錯誤，之後復原
+      this.currentErrors = (this.currentErrors || 0) + 1;
+      slot.textContent = actual;
+      slot.classList.add('wrong', 'wrong-filled');
       this._playError();
-      setTimeout(() => slot.classList.remove('wrong'), 400);
+      toast(`「${actual}」唔啱呢個位，再試一次`);
+      this._setTimer(() => {
+        // 如果呢段時間內已經放啱（locked），就唔好清
+        if (slot.dataset.locked !== 'true') {
+          slot.textContent = '';
+          slot.classList.remove('wrong', 'wrong-filled');
+        }
+      }, 900);
     }
+  },
+
+  // 喺後面（唔係緊接）加多幾次呢個字，鞏固練習
+  _addRepeatLater(charObj, times) {
+    if (!charObj || times <= 0) return;
+    for (let t = 0; t < times; t++) {
+      const start = this.index + 2;          // 隔最少一個其他字
+      if (start > this.chars.length) {
+        // 已經係最後一個：放喺下一個位（冇其他字可以隔）
+        this.chars.splice(this.index + 1, 0, charObj);
+      } else {
+        const pos = start + Math.floor(Math.random() * (this.chars.length - start + 1));
+        this.chars.splice(pos, 0, charObj);
+      }
+    }
+    this._updateProgress();
   },
 
   _checkComplete() {
@@ -1433,6 +1456,10 @@ const Game = {
     const responseTime = Date.now() - this.startTime;
     User.recordProgress(char, this.current.id, responseTime, true);
     this._markTaskDone();
+
+    // 錯過嘅字：喺後面（唔連續）重複多 1-2 次
+    const errs = this.currentErrors || 0;
+    if (errs > 0) this._addRepeatLater(this.current, Math.min(errs, 2));
 
     // ⚠️ 保留方框（唔好清走）——只加完成樣式
     display.classList.add('solved');

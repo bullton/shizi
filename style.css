@@ -2619,3 +2619,22 @@ header { flex: 0 0 auto; }
   .celebration-content { padding: 22px 40px; }
   .celebration-text { font-size: 22px; }
 }
+
+
+/* ===== 錯誤部件（放入咗但唔啱）===== */
+#view-game .slot.wrong-filled {
+  background: #ffe6e6;
+  border-color: #e74c3c;
+  border-style: solid;
+  color: #c0392b;
+  animation: shake 0.4s;
+}
+#view-game .slot.wrong-filled::after {
+  content: '✕';
+  position: absolute;
+  top: 4px;
+  right: 8px;
+  font-size: 16px;
+  color: #e74c3c;
+  font-weight: bold;
+}
