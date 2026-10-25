@@ -126,7 +126,22 @@ function fitLayout(layout, count) {
 function slotAtPoint(x, y) {
   const el = document.elementFromPoint(x, y);
   if (!el) return null;
-  return el.closest ? el.closest('.slot') : null;
+  const direct = el.closest ? el.closest('.slot') : null;
+  if (direct) return direct;
+
+  // 掉喺空隙／有少少偏差都可以：搵最近嘅空槽（容差 70px）
+  const disp = document.getElementById('character-display');
+  if (!disp || !disp.contains(el)) return null;
+
+  let best = null, bestD = 70;
+  disp.querySelectorAll('.slot:not(.filled)').forEach(s => {
+    const r = s.getBoundingClientRect();
+    const dx = Math.max(r.left - x, 0, x - r.right);
+    const dy = Math.max(r.top - y, 0, y - r.bottom);
+    const d = Math.hypot(dx, dy);
+    if (d < bestD) { bestD = d; best = s; }
+  });
+  return best;
 }
 
 function fitGameSizes() {
@@ -1208,19 +1223,24 @@ const Game = {
     });
     piece.addEventListener('dragend', () => piece.classList.remove('dragging'));
 
-    // ===== 觸控／滑鼠：pointer 拖拽（iPad 需要）=====
-    let pid = null, startX = 0, startY = 0, moved = false, ghost = null, dragW = 0, dragH = 0;
+    // ===== 觸控／滑鼠：pointer 拖拽 =====
+    let pid = null, startX = 0, startY = 0, lastX = 0, lastY = 0;
+    let moved = false, ghost = null, dragW = 0, dragH = 0;
 
     piece.addEventListener('pointerdown', (e) => {
       if (e.pointerType === 'mouse' && e.button !== 0) return;
       pid = e.pointerId;
       startX = e.clientX; startY = e.clientY;
+      lastX = e.clientX; lastY = e.clientY;
       moved = false;
+      // 觸控時停用原生 draggable：否則 iOS 會搶走手勢 → pointercancel → 放唔到
+      if (e.pointerType !== 'mouse') piece.draggable = false;
       try { piece.setPointerCapture(pid); } catch (_) {}
     });
 
     piece.addEventListener('pointermove', (e) => {
       if (pid === null || e.pointerId !== pid) return;
+      lastX = e.clientX; lastY = e.clientY;
       const dx = e.clientX - startX, dy = e.clientY - startY;
       if (!moved) {
         if (Math.hypot(dx, dy) < 8) return;   // 太細當輕觸
@@ -1244,22 +1264,25 @@ const Game = {
     });
 
     const endDrag = (e) => {
-      if (pid === null || (e.pointerId !== undefined && e.pointerId !== pid)) return;
+      if (pid === null) return;
+      if (e && e.pointerId !== undefined && e.pointerId !== pid) return;
       const wasMoved = moved;
+      const x = (e && typeof e.clientX === 'number' && e.clientX) || lastX;
+      const y = (e && typeof e.clientY === 'number' && e.clientY) || lastY;
       pid = null; moved = false;
       piece.classList.remove('dragging');
       if (ghost) { ghost.remove(); ghost = null; }
       document.querySelectorAll('#character-display .slot.drag-over')
         .forEach(s => s.classList.remove('drag-over'));
+
       if (wasMoved) {
-        const slot = slotAtPoint(e.clientX, e.clientY);
-        if (slot) {
-          this._tryPlace(piece, slot);
-        }
-        // 拖完唔好再觸發 click 選取
+        const slot = slotAtPoint(x, y);
+        if (slot) this._tryPlace(piece, slot);
         piece.dataset.justDragged = '1';
         setTimeout(() => { delete piece.dataset.justDragged; }, 350);
       }
+      // 還原俾桌面 HTML5 拖拽用
+      if (piece.isConnected) piece.draggable = true;
     };
     piece.addEventListener('pointerup', endDrag);
     piece.addEventListener('pointercancel', endDrag);
@@ -1293,7 +1316,7 @@ const Game = {
   },
 
   _checkComplete() {
-    const slots = document.querySelectorAll('.slot');
+    const slots = document.querySelectorAll('#character-display .slot');
     const allFilled = Array.from(slots).every(s => s.dataset.locked === 'true');
     if (allFilled) this._celebrate();
   },

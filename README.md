@@ -351,3 +351,16 @@ node tools/build-ids.js --check      # 檢查有冇過時
 - `-webkit-touch-callout: none`、`user-select: none`（避免長按彈出選單）
 
 咁樣用手拖部件時，畫面唔會再被放大／縮細，結構框大細保持固定並跟視窗自適應。
+
+### 拖拽可靠性修正
+
+iPad 上「拖過去有時放唔到」有三個成因，已逐一修好：
+
+1. **iOS 搶走手勢** → 觸控 `pointerdown` 時暫時關閉原生 `draggable`
+   （否則 iOS 會開始原生拖拽並發出 `pointercancel`）
+2. **`pointercancel` 冇處理** → 已記錄最後指標位置，`cancel` 都照放
+3. **掉落點少少偏離就冇反應** → `slotAtPoint()` 加 70px 容差，
+   掉喺空隙／槽邊都會自動揀最近嘅空槽
+4. `_checkComplete()` 改為只檢查 `#character-display .slot`（避免其他頁面殘留嘅槽干擾）
+
+驗證（模擬觸控事件）：正常拖 ✅ / pointercancel ✅ / 偏離 40px ✅
