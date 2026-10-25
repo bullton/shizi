@@ -175,3 +175,43 @@ node tools/dict-atomic.js --check  # 檢查有冇過時
 - 但用 `groupId` 綁埋一組，管理端會合併顯示成一個任務卡片，附「👥 N 個小孩」標記
 - 「🔄 重設進度」同「🗑 刪除」作用於**整組**
 - 每個小孩喺自己嘅「📋 我的任務」只會見到自己嗰份
+
+## 結構判斷：Unicode IDS（主要）＋ 偏旁表（回退）
+
+**結構由 Unicode 官方 IDS（表意文字描述序列）決定，唔使 AI、唔使錢、離線可用。**
+
+```
+看 = ⿱龵目  （⿱ = 上下）  → top-bottom
+語 = ⿰言吾  （⿰ = 左右）  → left-right
+這 = ⿺辶言  （⿺ = 左下包圍）→ half-surround-left
+威 = ⿵戌女  （⿵ = 上包圍）  → surround-3
+```
+
+### 生成／驗證
+
+```bash
+node tools/build-ids.js --download   # 下載 ids.txt 並生成 chaizi-ids.js
+node tools/build-ids.js              # 用本機 tools/ids.txt 重新生成
+node tools/build-ids.js --check      # 檢查有冇過時
+```
+
+- 覆蓋率：**17,366 / 17,936 字（96.8%）**，其餘 570 字回退到偏旁表
+- 操作符映射：
+  - `⿰` → left-right（3 部件 → left-right-right）
+  - `⿱` → top-bottom（下半左右並排 → top-bottom-bottom；3 疊 → vertical-3；4 → top-2-bottom）
+  - `⿴⿵⿶⿷` → surround / surround-3
+  - `⿸⿹`（厂/广/尸 等角落包圍）→ top-bottom / vertical-3
+  - `⿺`（辶/廴）→ half-surround-left / complex-3-left / complex-4-left
+- 罕見字會**遞歸展開**（森 = ⿱木林，林 = ⿰木木 → 品字）
+
+### 為咩唔用 AI 判斷結構
+- AI 會套用「言字旁一定喺左」呢類先驗，把 `看 = 手+目` 判成左右（實際上下）
+- 要花錢、有額度限制、會失敗
+- IDS 係 Unicode 官方資料，權威且免費
+
+### 保險機制
+`fitLayout()` 會檢查佈局固定槽數同部件數是否一致，唔一致就自動改用通用佈局，
+避免出現「有部件但冇槽放」嘅無解題目。
+
+### 字庫修正
+管理字庫 → 「🤖 重新分析結構」會用 IDS 重算所有字嘅結構（免費、即時）。

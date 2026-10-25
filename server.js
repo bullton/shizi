@@ -13,9 +13,21 @@ globalThis.window = globalThis;
 require(path.join(BASE_DIR, 'chaizi-data.js'));
 require(path.join(BASE_DIR, 'chaizi-unique.js'));
 require(path.join(BASE_DIR, 'chaizi-atomic.js'));
+require(path.join(BASE_DIR, 'chaizi-ids.js'));
 const ChaiziDict = globalThis.ChaiziDict;          // 原始字典（保留）
 const ChaiziDictUnique = globalThis.ChaiziDictUnique;  // 每字唯一拆法
 const ChaiziAtomic = new Set(globalThis.ChaiziAtomic || []);  // 原子字庫
+const ChaiziIds = globalThis.ChaiziIds || {};  // Unicode IDS 結構表
+
+// 用 Unicode IDS 判斷結構（免費、離線、準確）；冇 IDS 就回退去規則
+function idsLayoutFor(char, components) {
+  const layout = ChaiziIds[char];
+  if (!layout) return null;
+  const dictComps = ChaiziDictUnique?.[char];
+  if (Array.isArray(dictComps) && Array.isArray(components) &&
+      dictComps.length !== components.length) return null;
+  return layout;
+}
 
 // 原子字：拆開只剩筆畫，冇練習價值
 function isAtomicChar(char) {
@@ -939,12 +951,11 @@ async function handleAPI(req, res) {
   }
 
   // AI analyze char (admin only)
-  // ===== 重新分析字庫結構（修正已導入但結構錯亂嘅字）=====
+  // ===== 重新分析字庫結構（用 Unicode IDS，免費離線，唔使 AI）=====
   if (pathname === '/api/admin/reanalyze-layouts' && method === 'POST') {
     const adminUser = requireAuth(req, res);
     if (!adminUser) return jsonResponse(res, 401, { error: '請先登入' });
     if (adminUser.role !== 'admin') return jsonResponse(res, 403, { error: '需要管理員權限' });
-    if (!db.config.aiToken) return jsonResponse(res, 400, { error: '請先配置 AI Token' });
     try {
       const { ids } = await parseBody(req);
       let targets = db.chars.filter(c => !isAtomicChar(c.char));
@@ -955,52 +966,21 @@ async function handleAPI(req, res) {
       if (targets.length === 0) return jsonResponse(res, 400, { error: '冇字可以分析' });
 
       const results = [];
-      const errors = [];
-      for (let i = 0; i < targets.length; i += 40) {
-        const batch = targets.slice(i, i + 40);
-        const itemStr = batch.map((x, k) => `${k + 1}. 「${x.char}」= ${(x.components || []).join(' + ')}`).join('\n');
-        const prompt = `你是繁體中文字形結構專家。以下每個漢字已拆成部件。\n\n${itemStr}\n\n## 請判斷每個部件喺成個字裡面嘅書寫位置\n可用值：top、bottom、left、right、top-left、top-right、bottom-left、bottom-right、center\n\n## 重要：要根據部件喺真實字形中嘅位置判斷，唔可以靠部件「通常」出現喺邊度\n- 「看」= 手 + 目 → 手喺上面（top），目喺下面（bottom）\n- 「語」= 言 + 吾 → 言喺左（left），吾喺右（right）\n- 「收」= 丩 + 攴 → 丩喺左（left），攴喺右（right）\n- 「古」= 十 + 口 → 十喺上（top），口喺下（bottom）\n\n## 回覆格式（嚴格 JSON 陣列）：\n[{"index": 1, "parts": ["top", "bottom"]}]`;
-
-        const aiRes = await fetch('https://api.minimax.cn/anthropic/v1/messages', {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${db.config.aiToken}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ model: 'MiniMax-M3', output_config: { effort: 'max' }, max_tokens: 8000, messages: [{ role: 'user', content: prompt }] })
-        });
-        if (!aiRes.ok) {
-          const err = await aiRes.text();
-          errors.push('AI API 錯誤: ' + err.slice(0, 200));
-          break;
-        }
-        const aiData = await aiRes.json();
-        const content = aiData.content?.[0]?.text || '';
-        let arr;
-        try {
-          const m = content.match(/\[[\s\S]*\]/);
-          if (!m) { errors.push('無法解析 AI 回覆'); continue; }
-          arr = JSON.parse(m[0]);
-        } catch (e) { errors.push('解析失敗'); continue; }
-
-        for (const r of arr) {
-          const idx = (r.index || 0) - 1;
-          const target = batch[idx];
-          if (!target) continue;
-          const parts = Array.isArray(r.parts) ? r.parts : [];
-          if (parts.length !== (target.components || []).length) continue;
-          const newLayout = layoutFromParts(parts, target.components);
-          const newPositions = positionsFromParts(parts);
-          const changed = target.layout !== newLayout;
-          target.layout = newLayout;
-          target.positions = newPositions;
-          target.updatedAt = new Date().toISOString();
-          results.push({ char: target.char, layout: newLayout, changed, parts });
-        }
+      const skipped = [];
+      for (const t of targets) {
+        const layout = idsLayoutFor(t.char, t.components);
+        if (!layout) { skipped.push(t.char); continue; }
+        const changed = t.layout !== layout;
+        t.layout = layout;
+        t.updatedAt = new Date().toISOString();
+        results.push({ char: t.char, layout, changed });
       }
       await saveData(db);
       jsonResponse(res, 200, {
         analyzed: results.length,
         changed: results.filter(r => r.changed).length,
-        results,
-        errors
+        skipped,
+        results
       });
     } catch (e) {
       jsonResponse(res, 500, { error: '重新分析失敗: ' + e.message });

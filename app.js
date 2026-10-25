@@ -99,9 +99,39 @@ const LEFT_RADICAL_EXCEPTIONS = new Set([
     '基',
 ]);
 
+// 固定槽數嘅佈局：如果部件數唔啱，題目會無解（有部件冇槽可放）
+const FIXED_SLOT_LAYOUTS = {
+  'surround': 2,
+  'half-surround-left': 2,
+  'surround-3': 3,
+  'complex-3-left': 3,
+  'left-right-right': 3,
+  'complex-4-left': 4
+};
+
+// 保險：佈局槽數同部件數對唔上就改用通用佈局
+function fitLayout(layout, count) {
+  const need = FIXED_SLOT_LAYOUTS[layout];
+  if (need === undefined || need === count) return layout;
+  if (count === 2) return 'top-bottom';
+  if (count === 3) return 'vertical-3';
+  if (count === 4) return 'top-2-bottom';
+  return 'stack';
+}
+
 function autoLayout(components, char) {
   if (!components || components.length === 0) return 'top-bottom';
   if (components.length === 1) return 'top-bottom';
+
+  // ① Unicode IDS 最準（官方字形結構，離線免費）
+  //    只喺部件數同字典一致時採用，避免管理員改咗拆法後對唔上
+  if (char && window.ChaiziIds && window.ChaiziIds[char]) {
+    const dictComps = window.ChaiziDictUnique?.[char];
+    const dictCount = Array.isArray(dictComps) ? dictComps.length : null;
+    if (dictCount === null || dictCount === components.length) {
+      return window.ChaiziIds[char];
+    }
+  }
 
   const first = components[0];
 
@@ -726,8 +756,8 @@ const Game = {
   },
 
   _renderLayoutSlots(display) {
-    const layout = this.current.layout;
     const comps = this.current.components;
+    const layout = fitLayout(this.current.layout, comps.length);
     const setup = (slot, i) => {
       slot.dataset.index = i;
       slot.dataset.expected = comps[i];
@@ -1128,31 +1158,16 @@ const WordImport = {
       charWords[ch].push(w);
     }));
 
-    // 用 AI 分析新字嘅結構（準確過規則猜測）
-    this.aiLayouts = new Map();
-    const toAnalyze = newChars.map(n => n.char);
-    if (toAnalyze.length > 0) {
-      const status = document.getElementById('import-words-status');
-      if (status) status.textContent = `🤖 AI 正在分析 ${toAnalyze.length} 個新字嘅結構…`;
-      await this._analyzeLayouts(toAnalyze);
-      // 用 AI 結果更新 layout + positions
-      let aiCount = 0;
-      for (const n of newChars) {
-        const ai = this.aiLayouts.get(n.char);
-        if (ai && ai.layout) {
-          n.layout = ai.layout;
-          n.positions = ai.positions || null;
-          aiCount++;
-        }
-      }
-      if (status) {
-        if (this._aiError) {
-          status.textContent = `⚠️ AI 分析失敗（${this._aiError}），已用規則推測——請逐個核對結構`;
-          status.classList.add('error');
-        } else {
-          status.textContent = aiCount > 0 ? `✅ AI 已分析 ${aiCount} 個新字結構` : '';
-          status.classList.remove('error');
-        }
+    // 結構由 Unicode IDS 決定（免費離線，準確）；冇 IDS 嘅字才用規則推測
+    const status = document.getElementById('import-words-status');
+    if (status) {
+      const noIds = newChars.filter(n => !(window.ChaiziIds && window.ChaiziIds[n.char]));
+      if (noIds.length) {
+        status.textContent = `⚠️ ${noIds.length} 個字冇 Unicode 結構資料，已用規則推測：${noIds.map(n => n.char).join('')}`;
+        status.classList.add('error');
+      } else {
+        status.textContent = newChars.length ? `✅ 已用 Unicode 結構資料判斷 ${newChars.length} 個新字` : '';
+        status.classList.remove('error');
       }
     }
 
@@ -1190,35 +1205,6 @@ const WordImport = {
         `).join('')}</div>` : ''}
     `;
     document.getElementById('import-words-preview').scrollIntoView({ behavior: 'smooth' });
-  },
-
-  // 叫 AI 批量分析結構（每次最多 40 個）
-  async _analyzeLayouts(chars) {
-    const list = [...chars];
-    this._aiError = null;
-    for (let i = 0; i < list.length; i += 40) {
-      const batch = list.slice(i, i + 40);
-      try {
-        const res = await fetch('/api/analyze-chars', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ chars: batch })
-        });
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          this._aiError = data.error || ('HTTP ' + res.status);
-          continue;
-        }
-        const data = await res.json();
-        for (const r of (data.results || [])) {
-          this.aiLayouts.set(r.char, r);
-        }
-      } catch (e) {
-        this._aiError = e.message;
-        console.warn('AI 分析失敗:', e.message);
-      }
-    }
   },
 
   async confirm() {
@@ -1380,7 +1366,7 @@ const Admin = {
 
   // 用 AI 重新分析全部字嘅結構（修正錯亂嘅上下／左右）
   async reanalyzeLayouts() {
-    if (!confirm('用 AI 重新分析字庫所有字嘅結構？\n（會覆寫現有 layout 同部件位置；AI 額度不足會失敗）')) return;
+    if (!confirm('用 Unicode 結構資料重新分析字庫所有字嘅結構？\n（免費離線，唔使 AI；會覆寫現有 layout）')) return;
     const btn = document.getElementById('reanalyze-btn');
     btn.disabled = true;
     btn.textContent = '⏳ 分析中…';
@@ -1394,10 +1380,10 @@ const Admin = {
       const data = await res.json();
       if (!res.ok) {
         toast('分析失敗: ' + (data.error || ''));
-      } else if (data.errors && data.errors.length) {
-        toast('分析中斷：' + data.errors[0]);
       } else {
-        toast(`已分析 ${data.analyzed} 字，修正 ${data.changed} 字結構`);
+        let msg = `已分析 ${data.analyzed} 字，修正 ${data.changed} 字結構`;
+        if (data.skipped && data.skipped.length) msg += `（${data.skipped.length} 字冇結構資料：${data.skipped.join('')}）`;
+        toast(msg);
       }
       await Data.init(true);
       await this.render();
@@ -2539,29 +2525,7 @@ document.addEventListener('DOMContentLoaded', () => {
       toast('沒有找到可導入的字符（確保字符在字典中存在）');
       return;
     }
-    // 用 AI 分析結構（準確過規則猜測）
-    const aiMap = new Map();
-    for (let i = 0; i < importPreviewData.length; i += 40) {
-      const batch = importPreviewData.slice(i, i + 40).map(p => p.char);
-      try {
-        const res = await fetch('/api/analyze-chars', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ chars: batch })
-        });
-        if (res.ok) {
-          const data = await res.json();
-          for (const r of (data.results || [])) aiMap.set(r.char, r);
-        }
-      } catch (e) {
-        console.warn('AI 分析失敗:', e.message);
-      }
-    }
-    for (const p of importPreviewData) {
-      const ai = aiMap.get(p.char);
-      if (ai && ai.layout) { p.layout = ai.layout; p.positions = ai.positions; }
-    }
+    // 結構已由 processCharForImport → autoLayout（Unicode IDS）決定，唔使叫 AI
     document.getElementById('import-preview-list').innerHTML = importPreviewData.map((p, idx) => `
       <div class="import-preview-item" data-idx="${idx}">
         <span class="import-preview-char">${p.char}</span>
