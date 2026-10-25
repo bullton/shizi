@@ -31,7 +31,9 @@ const CHECK_ONLY = process.argv.includes('--check');
 const DOWNLOAD = process.argv.includes('--download');
 
 // IDS 操作符
-const OPS = new Set(['⿰','⿱','⿴','⿵','⿶','⿷','⿸','⿹','⿺','⿻','⿼','⿽','⿾','⿿']);
+const OPS = new Set(['⿰','⿱','⿲','⿳','⿴','⿵','⿶','⿷','⿸','⿹','⿺','⿻','⿼','⿽','⿾','⿿']);
+// 三元操作符（左中右 / 上中下）
+const TERNARY = new Set(['⿲','⿳']);
 
 // 剝走地區標籤，例如 萈[G] → 萈、𢌿[JK] → 𢌿
 function stripTag(s) {
@@ -45,7 +47,7 @@ function parseIds(str) {
     const ch = str[i];
     if (OPS.has(ch)) {
       i++;
-      const n = (ch === '⿻' || ch === '⿼' || ch === '⿽') ? 2 : 2;
+      const n = TERNARY.has(ch) ? 3 : 2;
       const kids = [];
       // 二元操作符；⿾⿿ 亦係二元
       for (let k = 0; k < n; k++) {
@@ -107,6 +109,20 @@ function layoutFromIds(root, compCount, idsMap) {
       return 'vertical-3';
     }
     if (n === 4) return 'top-2-bottom';
+    return 'stack';
+  }
+  // 真正嘅包圍框（囗/冂/凵/匚/冖）
+  // 上中下（三分垂直）
+  if (op === '⿳') {
+    if (n === 2) return 'top-bottom';
+    if (n === 3) return 'vertical-3';
+    if (n === 4) return 'top-2-bottom';
+    return 'stack';
+  }
+  // 左中右（三分水平）
+  if (op === '⿲') {
+    if (n === 2) return 'left-right';
+    if (n === 3) return 'left-middle-right';
     return 'stack';
   }
   // 真正嘅包圍框（囗/冂/凵/匚/冖）

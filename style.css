@@ -183,6 +183,17 @@ nav {
   font-size: clamp(50px, 7vw, 100px);
 }
 
+.layout-left-middle-right {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 10px;
+  height: 280px;
+}
+
+.layout-left-middle-right > .slot {
+  font-size: clamp(40px, 5.5vw, 80px);
+}
+
 .layout-top-bottom {
   display: grid;
   grid-template-rows: 130px 130px;

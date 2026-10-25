@@ -106,7 +106,8 @@ const FIXED_SLOT_LAYOUTS = {
   'surround-3': 3,
   'complex-3-left': 3,
   'left-right-right': 3,
-  'complex-4-left': 4
+  'complex-4-left': 4,
+  'left-middle-right': 3
 };
 
 // 保險：佈局槽數同部件數對唔上就改用通用佈局
@@ -783,6 +784,12 @@ const Game = {
       const a = document.createElement('div'); a.className = 'slot slot-outer'; setup(a, 0);
       const b = document.createElement('div'); b.className = 'slot slot-inner-top'; setup(b, 1);
       const c = document.createElement('div'); c.className = 'slot slot-inner-bottom'; setup(c, 2);
+    } else if (layout === 'left-middle-right') {
+      comps.slice(0, 3).forEach((_, i) => {
+        const s = document.createElement('div');
+        s.className = 'slot slot-lmr';
+        setup(s, i);
+      });
     } else if (layout === 'left-right-right') {
       const a = document.createElement('div'); a.className = 'slot slot-outer'; setup(a, 0);
       const b = document.createElement('div'); b.className = 'slot slot-inner-top'; setup(b, 1);
@@ -1510,6 +1517,7 @@ const Admin = {
     const gap = 0.03;
     let cols = 1, rows = 1;
     if (layout === 'left-right') { cols = count; rows = 1; }
+    else if (layout === 'left-middle-right') { cols = 3; rows = 1; }
     else if (layout === 'top-bottom') { cols = 1; rows = count; }
     else if (layout === 'vertical-3' || layout === 'top-bottom-bottom') { cols = 1; rows = count; }
     else if (layout === 'bottom-top-top') { cols = 2; rows = 2; }
@@ -2553,6 +2561,7 @@ document.addEventListener('DOMContentLoaded', () => {
               <option value="complex-4-left" ${p.layout === 'complex-4-left' ? 'selected' : ''}>四方結構</option>
               <option value="surround-3" ${p.layout === 'surround-3' ? 'selected' : ''}>包圍-3</option>
               <option value="left-right-right" ${p.layout === 'left-right-right' ? 'selected' : ''}>左中右結構</option>
+              <option value="left-middle-right" ${p.layout === 'left-middle-right' ? 'selected' : ''}>左中右結構（三分）</option>
               <option value="stack" ${p.layout === 'stack' ? 'selected' : ''}>通用堆疊（5+部件）</option>
             </select>
           </div>
