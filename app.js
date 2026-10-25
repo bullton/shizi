@@ -122,6 +122,13 @@ function fitLayout(layout, count) {
 }
 
 // ===== 練習畫面自適應（按每個槽實際大小設定字級）=====
+// 搵指標位置下面嘅槽（拖拽用）
+function slotAtPoint(x, y) {
+  const el = document.elementFromPoint(x, y);
+  if (!el) return null;
+  return el.closest ? el.closest('.slot') : null;
+}
+
 function fitGameSizes() {
   const display = document.getElementById('character-display');
   if (!display) return;
@@ -1190,13 +1197,73 @@ const Game = {
   },
 
   _setupPiece(piece) {
+    // ===== 桌面：HTML5 drag & drop =====
     piece.addEventListener('dragstart', e => {
       e.dataTransfer.setData('text/plain', piece.dataset.id);
       e.dataTransfer.effectAllowed = 'move';
       piece.classList.add('dragging');
     });
     piece.addEventListener('dragend', () => piece.classList.remove('dragging'));
+
+    // ===== 觸控／滑鼠：pointer 拖拽（iPad 需要）=====
+    let pid = null, startX = 0, startY = 0, moved = false, ghost = null, dragW = 0, dragH = 0;
+
+    piece.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      pid = e.pointerId;
+      startX = e.clientX; startY = e.clientY;
+      moved = false;
+      try { piece.setPointerCapture(pid); } catch (_) {}
+    });
+
+    piece.addEventListener('pointermove', (e) => {
+      if (pid === null || e.pointerId !== pid) return;
+      const dx = e.clientX - startX, dy = e.clientY - startY;
+      if (!moved) {
+        if (Math.hypot(dx, dy) < 8) return;   // 太細當輕觸
+        moved = true;
+        dragW = piece.offsetWidth; dragH = piece.offsetHeight;
+        ghost = piece.cloneNode(true);
+        ghost.className = 'drag-ghost';
+        ghost.style.width = dragW + 'px';
+        ghost.style.height = dragH + 'px';
+        ghost.style.fontSize = getComputedStyle(piece).fontSize;
+        document.body.appendChild(ghost);
+        piece.classList.add('dragging');
+      }
+      e.preventDefault();
+      ghost.style.left = (e.clientX - dragW / 2) + 'px';
+      ghost.style.top = (e.clientY - dragH / 2) + 'px';
+      const slot = slotAtPoint(e.clientX, e.clientY);
+      document.querySelectorAll('#character-display .slot.drag-over')
+        .forEach(s => { if (s !== slot) s.classList.remove('drag-over'); });
+      if (slot && !slot.classList.contains('filled')) slot.classList.add('drag-over');
+    });
+
+    const endDrag = (e) => {
+      if (pid === null || (e.pointerId !== undefined && e.pointerId !== pid)) return;
+      const wasMoved = moved;
+      pid = null; moved = false;
+      piece.classList.remove('dragging');
+      if (ghost) { ghost.remove(); ghost = null; }
+      document.querySelectorAll('#character-display .slot.drag-over')
+        .forEach(s => s.classList.remove('drag-over'));
+      if (wasMoved) {
+        const slot = slotAtPoint(e.clientX, e.clientY);
+        if (slot) {
+          this._tryPlace(piece, slot);
+        }
+        // 拖完唔好再觸發 click 選取
+        piece.dataset.justDragged = '1';
+        setTimeout(() => { delete piece.dataset.justDragged; }, 350);
+      }
+    };
+    piece.addEventListener('pointerup', endDrag);
+    piece.addEventListener('pointercancel', endDrag);
+
+    // ===== 輕觸選取（點部件再點槽）=====
     piece.addEventListener('click', () => {
+      if (piece.dataset.justDragged) return;
       document.querySelectorAll('.piece.selected').forEach(p => p.classList.remove('selected'));
       piece.classList.add('selected');
     });

@@ -332,3 +332,22 @@ node tools/build-ids.js --check      # 檢查有冇過時
 | 500×757（手機） | 243px | 90px | ❌ 唔使 |
 | 1440×813（桌面） | 287px | 108px | ❌ 唔使 |
 | 1280×526（矮視窗） | 89px | 25px | ❌ 唔使 |
+
+## 觸控（iPad／平板）
+
+### 拖拽
+原本只用 HTML5 drag & drop，**iPad 唔支援**。現在改用 **Pointer Events**：
+
+- `pointerdown` → 開始
+- `pointermove`（超過 8px 才算拖拽）→ 出現跟手指嘅「幽靈」部件，目標槽會高亮
+- `pointerup` → 放開位置下面有槽就放入
+- 仍然保留「輕觸選部件 → 輕觸槽」嘅點選玩法
+- 拖拽完唔會誤觸發選取（`justDragged` 標記）
+
+### 防止畫面被縮放
+- `<meta viewport ... maximum-scale=1.0, user-scalable=no, viewport-fit=cover>`
+- `#view-game.active { touch-action: none }`（連同 piece/slot）
+- 觸控裝置停用 hover 放大效果
+- `-webkit-touch-callout: none`、`user-select: none`（避免長按彈出選單）
+
+咁樣用手拖部件時，畫面唔會再被放大／縮細，結構框大細保持固定並跟視窗自適應。

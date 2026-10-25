@@ -2508,3 +2508,41 @@ header { flex: 0 0 auto; }
   #view-game .btn-speak { padding: 4px 14px; font-size: 13px; }
   #view-game > .game-actions .btn { padding: 7px 16px; font-size: 15px; }
 }
+
+
+/* ===== 觸控拖拽 ===== */
+/* 練習區禁止捲動／縮放，避免手拖時畫面被放大縮細 */
+#view-game.active {
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+#view-game .piece,
+#view-game .slot {
+  touch-action: none;
+  -webkit-user-drag: none;
+}
+/* 觸控時唔好有 hover 放大（避免殘留） */
+@media (hover: none) {
+  #view-game .piece:hover { transform: none; box-shadow: 0 6px 12px rgba(9,132,227,0.4); }
+}
+
+/* 拖拽時跟手指移動嘅「幽靈」 */
+.drag-ghost {
+  position: fixed;
+  z-index: 9999;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  color: #fff;
+  background: linear-gradient(135deg, #74b9ff 0%, #0984e3 100%);
+  border: 4px solid #0984e3;
+  border-radius: 12px;
+  box-shadow: 0 10px 24px rgba(9,132,227,0.45);
+  opacity: 0.92;
+  transform: scale(1.06);
+  transition: none;
+}
