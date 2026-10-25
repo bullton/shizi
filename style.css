@@ -2078,3 +2078,64 @@ nav {
   margin: 4px 0;
 }
 .wc.atomic { background: #f8f9fa; border-color: #b2bec3; color: #95a5a6; text-decoration: line-through; }
+
+/* ===== 小孩多選 ===== */
+.user-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px;
+  background: #f8f9fa;
+  border-radius: 12px;
+  min-height: 44px;
+}
+.user-chip {
+  padding: 7px 14px;
+  border-radius: 18px;
+  border: 2px solid #dfe6e9;
+  background: #fff;
+  color: #2d3436;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.user-chip:hover { border-color: #f39c12; }
+.user-chip.selected {
+  background: #f39c12;
+  border-color: #f39c12;
+  color: #fff;
+}
+.user-chip.select-all {
+  border-style: dashed;
+  color: #636e72;
+  font-size: 13px;
+  padding: 6px 10px;
+}
+.assignment-badge.multi {
+  background: #d6eaf8;
+  color: #1b4f72;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 12px;
+  margin-left: 6px;
+}
+.assignment-kid {
+  border-left: 3px solid #f39c12;
+  padding: 8px 0 8px 10px;
+  margin: 4px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.assignment-kid-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.assignment-kid-count {
+  margin-left: auto;
+  font-size: 13px;
+  color: #636e72;
+}

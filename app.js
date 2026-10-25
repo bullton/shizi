@@ -2036,6 +2036,7 @@ async function loadAdminPanel() {
 // ===== 布置任務（管理員）=====
 const AdminAssignments = {
   selected: new Set(),
+  selectedUsers: new Set(),
   chars: [],
   users: [],
 
@@ -2050,13 +2051,50 @@ const AdminAssignments = {
     try {
       const users = await AdminAPI.getUsers();
       this.users = users.filter(u => u.role !== 'admin');
-      const sel = document.getElementById('assign-user');
-      sel.innerHTML = this.users.map(u =>
-        `<option value="${u.id}">${escapeHtml(u.nickname || u.username)}</option>`
-      ).join('') || '<option value="">（冇小孩帳號）</option>';
+      this.renderUserPicker();
     } catch (e) {
       console.warn('載入用戶失敗:', e.message);
     }
+  },
+
+  // 小孩多選（chip 式）
+  renderUserPicker() {
+    const el = document.getElementById('assign-user-picker');
+    if (!el) return;
+    if (this.users.length === 0) {
+      el.innerHTML = '<span style="color:#b2bec3;font-size:13px">（冇小孩帳號，先去用戶管理開個）</span>';
+      this._updateUserHint();
+      return;
+    }
+    el.innerHTML = this.users.map(u => `
+      <button class="user-chip ${this.selectedUsers.has(u.id) ? 'selected' : ''}" data-user-id="${u.id}">
+        ${escapeHtml(u.nickname || u.username)}
+      </button>
+    `).join('') + `<button class="user-chip select-all" id="assign-select-all">全選</button>`;
+    el.querySelectorAll('.user-chip[data-user-id]').forEach(btn => {
+      btn.onclick = () => {
+        const id = parseInt(btn.dataset.userId);
+        if (this.selectedUsers.has(id)) this.selectedUsers.delete(id);
+        else this.selectedUsers.add(id);
+        btn.classList.toggle('selected');
+        this._updateUserHint();
+      };
+    });
+    const all = document.getElementById('assign-select-all');
+    if (all) all.onclick = () => {
+      if (this.selectedUsers.size === this.users.length) this.selectedUsers.clear();
+      else this.users.forEach(u => this.selectedUsers.add(u.id));
+      this.renderUserPicker();
+      this._updateUserHint();
+    };
+    this._updateUserHint();
+  },
+
+  _updateUserHint() {
+    const hint = document.getElementById('assign-user-hint');
+    if (!hint) return;
+    const n = this.selectedUsers.size;
+    hint.textContent = n === 0 ? '未揀任何小孩' : `已揀 ${n} 個小孩`;
   },
 
   async _loadChars() {
@@ -2140,24 +2178,25 @@ const AdminAssignments = {
   },
 
   async create() {
-    const userId = document.getElementById('assign-user').value;
     const name = document.getElementById('assign-name').value.trim();
     const note = document.getElementById('assign-note').value.trim();
-    if (!userId) return toast('請先選擇小孩');
+    if (this.selectedUsers.size === 0) return toast('請先揀至少一個小孩');
     if (this.selected.size === 0) return toast('請至少揀一個字');
 
     try {
-      await AdminAPI.createAssignment({
-        userId: parseInt(userId),
+      const res = await AdminAPI.createAssignment({
+        userIds: [...this.selectedUsers],
         name,
         note,
         charIds: [...this.selected]
       });
-      toast('✅ 任務已建立');
+      toast(`✅ 任務已建立（${res.created} 個小孩）`);
       document.getElementById('assign-name').value = '';
       document.getElementById('assign-note').value = '';
       this.selected.clear();
+      this.selectedUsers.clear();
       this.renderCharPicker();
+      this.renderUserPicker();
       await this.renderList();
     } catch (e) {
       toast('建立失敗: ' + e.message);
@@ -2178,38 +2217,59 @@ const AdminAssignments = {
       el.innerHTML = '<p style="color:#636e72">仲未有任務</p>';
       return;
     }
-    el.innerHTML = list.map(a => {
-      const pct = a.total ? Math.round((a.completedCount / a.total) * 100) : 0;
-      const date = new Date(a.createdAt).toLocaleDateString('zh-HK');
-      const lastAt = a.lastPracticed ? new Date(a.lastPracticed).toLocaleString('zh-HK') : '';
-      const chips = (a.charDetails || []).map(d => `
-        <span class="char-status ${d.done ? 'done' : ''}" title="${d.done
-          ? `做咗 ${d.attempts} 次，答啱 ${d.correctCount} 次`
-          : '未做'}${d.lastAt ? ` · ${new Date(d.lastAt).toLocaleString('zh-HK')}` : ''}">
-          ${d.char}<sub>${d.done ? d.correctCount + '/' + d.attempts : '—'}</sub>
-        </span>`).join('');
-      return `<div class="assignment-item ${a.allDone ? 'done' : ''}">
-        <div class="assignment-head">
-          <div>
-            <span class="assignment-name">${escapeHtml(a.name)}</span>
+    // 同一組任務（一個任務派畀多個小孩）合併顯示
+    const groups = new Map();
+    for (const a of list) {
+      const gid = a.groupId || a.id;
+      if (!groups.has(gid)) groups.set(gid, []);
+      groups.get(gid).push(a);
+    }
+
+    el.innerHTML = [...groups.values()].map(items => {
+      const first = items[0];
+      const date = new Date(first.createdAt).toLocaleDateString('zh-HK');
+      const multi = items.length > 1;
+
+      // 每個小孩一行進度
+      const kidRows = items.map(a => {
+        const pct = a.total ? Math.round((a.completedCount / a.total) * 100) : 0;
+        const lastAt = a.lastPracticed ? new Date(a.lastPracticed).toLocaleString('zh-HK') : '';
+        const chips = (a.charDetails || []).map(d => `
+          <span class="char-status ${d.done ? 'done' : ''}" title="${d.done
+            ? `做咗 ${d.attempts} 次，答啱 ${d.correctCount} 次`
+            : '未做'}${d.lastAt ? ` · ${new Date(d.lastAt).toLocaleString('zh-HK')}` : ''}">
+            ${d.char}<sub>${d.done ? d.correctCount + '/' + d.attempts : '—'}</sub>
+          </span>`).join('');
+        return `<div class="assignment-kid">
+          <div class="assignment-kid-head">
             <span class="assignment-user">👦 ${escapeHtml(a.username)}</span>
             ${a.allDone ? '<span class="assignment-badge">✅ 已完成</span>' : ''}
+            <span class="assignment-kid-count">${a.completedCount} / ${a.total} 字</span>
+          </div>
+          <div class="assignment-progress">
+            <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+          </div>
+          <div class="assignment-chars-detail">${chips || '<span class="muted">（冇字）</span>'}</div>
+          <div class="assignment-meta">
+            嘗試 ${a.attemptsTotal} 次 · 答啱 ${a.correctTotal} 次
+            ${lastAt ? ` · 最後練習 ${lastAt}` : ''}
+          </div>
+        </div>`;
+      }).join('');
+
+      return `<div class="assignment-item ${items.every(a => a.allDone) ? 'done' : ''}">
+        <div class="assignment-head">
+          <div>
+            <span class="assignment-name">${escapeHtml(first.name)}</span>
+            ${multi ? `<span class="assignment-badge multi">👥 ${items.length} 個小孩</span>` : ''}
           </div>
           <div class="assignment-date">${date}</div>
         </div>
-        ${a.note ? `<div class="assignment-note">${escapeHtml(a.note)}</div>` : ''}
-        <div class="assignment-progress">
-          <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
-          <span>${a.completedCount} / ${a.total} 字</span>
-        </div>
-        <div class="assignment-chars-detail">${chips || '<span class="muted">（冇字）</span>'}</div>
-        <div class="assignment-meta">
-          總嘗試 ${a.attemptsTotal} 次 · 答啱 ${a.correctTotal} 次
-          ${lastAt ? ` · 最後練習 ${lastAt}` : ''}
-        </div>
+        ${first.note ? `<div class="assignment-note">${escapeHtml(first.note)}</div>` : ''}
+        ${kidRows}
         <div class="assignment-actions">
-          <button class="btn-small btn-reset" data-id="${a.id}">🔄 重設進度</button>
-          <button class="btn-small btn-danger btn-del-assign" data-id="${a.id}">🗑 刪除</button>
+          <button class="btn-small btn-reset" data-id="${first.id}">🔄 重設進度${multi ? '（全部）' : ''}</button>
+          <button class="btn-small btn-danger btn-del-assign" data-id="${first.id}">🗑 刪除${multi ? '（全部）' : ''}</button>
         </div>
       </div>`;
     }).join('');

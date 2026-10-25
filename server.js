@@ -158,6 +158,7 @@ function decorateAssignment(a, chars) {
   });
   return {
     id: a.id,
+    groupId: a.groupId || a.id,
     userId: a.userId,
     name: a.name,
     note: a.note || '',
@@ -1154,11 +1155,14 @@ ${decompsStr}
     return;
   }
 
-  // 管理員：建立任務
+  // 管理員：建立任務（可以一次過派畀多個小孩）
   if (pathname === '/api/admin/assignments' && method === 'POST') {
     try {
-      const { userId, name, charIds, note } = await parseBody(req);
-      if (!userId) return jsonResponse(res, 400, { error: '請選擇小孩' });
+      const { userId, userIds, name, charIds, note } = await parseBody(req);
+      // 支援 userIds（多選）同 userId（單選，向後兼容）
+      let targets = Array.isArray(userIds) ? userIds : (userId ? [userId] : []);
+      targets = [...new Set(targets.map(x => parseInt(x)).filter(x => !isNaN(x)))];
+      if (targets.length === 0) return jsonResponse(res, 400, { error: '請至少選擇一個小孩' });
       if (!Array.isArray(charIds) || charIds.length === 0) {
         return jsonResponse(res, 400, { error: '請至少選一個字' });
       }
@@ -1166,57 +1170,80 @@ ${decompsStr}
       const cleanIds = charIds.filter(id => validIds.has(id));
       if (cleanIds.length === 0) return jsonResponse(res, 400, { error: '選中的字不存在或屬原子字（唔可練習）' });
 
-      const assignment = {
-        id: generateId(new Set(db.assignments.map(a => a.id))),
-        userId: parseInt(userId),
-        name: (name && name.trim()) || `${new Date().toISOString().slice(0, 10)} 的功課`,
-        charIds: cleanIds,
-        note: (note && note.trim()) || '',
-        done: {},
-        createdAt: new Date().toISOString()
-      };
-      db.assignments.push(assignment);
+      // 每個小孩一個任務記錄（各自有獨立進度），但用 groupId 綁埋一組
+      const groupId = generateId(new Set(db.assignments.map(a => a.id)));
+      const taskName = (name && name.trim()) || `${new Date().toISOString().slice(0, 10)} 的功課`;
+      const created = [];
+      for (const uid of targets) {
+        const assignment = {
+          id: generateId(new Set(db.assignments.map(a => a.id))),
+          groupId,
+          userId: uid,
+          name: taskName,
+          charIds: cleanIds,
+          note: (note && note.trim()) || '',
+          done: {},
+          createdAt: new Date().toISOString()
+        };
+        db.assignments.push(assignment);
+        created.push(assignment);
+      }
       await saveData(db);
-      jsonResponse(res, 200, decorateAssignment(assignment, db.chars));
+      jsonResponse(res, 200, {
+        groupId,
+        created: created.length,
+        assignments: created.map(a => decorateAssignment(a, db.chars))
+      });
     } catch (e) {
       jsonResponse(res, 400, { error: '請求失敗' });
     }
     return;
   }
 
-  // 管理員：更新任務
+  // 管理員：更新任務（同一組全部一齊更新）
   if (pathname.startsWith('/api/admin/assignments/') && method === 'PUT') {
     const id = parseInt(pathname.split('/').pop());
     const a = db.assignments.find(x => x.id === id);
     if (!a) return jsonResponse(res, 404, { error: '任務不存在' });
     try {
       const { name, charIds, note, resetDone, userId } = await parseBody(req);
-      if (name !== undefined) a.name = name.trim() || a.name;
-      if (note !== undefined) a.note = note.trim();
-      if (userId !== undefined) a.userId = parseInt(userId);
-      if (Array.isArray(charIds)) {
-        const validIds = new Set(db.chars.filter(c => !isAtomicChar(c.char)).map(c => c.id));
-        const cleanIds = charIds.filter(x => validIds.has(x));
-        if (cleanIds.length > 0) a.charIds = cleanIds;
+      // 同一組（groupId）嘅任務一齊處理
+      const group = a.groupId ? db.assignments.filter(x => x.groupId === a.groupId) : [a];
+      const targets = group.length ? group : [a];
+      for (const t of targets) {
+        if (name !== undefined) t.name = name.trim() || t.name;
+        if (note !== undefined) t.note = note.trim();
+        if (userId !== undefined) t.userId = parseInt(userId);
+        if (Array.isArray(charIds)) {
+          const validIds = new Set(db.chars.filter(c => !isAtomicChar(c.char)).map(c => c.id));
+          const cleanIds = charIds.filter(x => validIds.has(x));
+          if (cleanIds.length > 0) t.charIds = cleanIds;
+        }
+        if (resetDone) t.done = {};
+        t.updatedAt = new Date().toISOString();
       }
-      if (resetDone) a.done = {};
-      a.updatedAt = new Date().toISOString();
       await saveData(db);
-      jsonResponse(res, 200, decorateAssignment(a, db.chars));
+      jsonResponse(res, 200, {
+        success: true,
+        updated: targets.length,
+        assignments: targets.map(t => decorateAssignment(t, db.chars))
+      });
     } catch (e) {
       jsonResponse(res, 400, { error: '請求失敗' });
     }
     return;
   }
 
-  // 管理員：刪除任務
+  // 管理員：刪除任務（同一組全部一齊刪）
   if (pathname.startsWith('/api/admin/assignments/') && method === 'DELETE') {
     const id = parseInt(pathname.split('/').pop());
-    const idx = db.assignments.findIndex(x => x.id === id);
-    if (idx < 0) return jsonResponse(res, 404, { error: '任務不存在' });
-    db.assignments.splice(idx, 1);
+    const a = db.assignments.find(x => x.id === id);
+    if (!a) return jsonResponse(res, 404, { error: '任務不存在' });
+    const group = a.groupId ? db.assignments.filter(x => x.groupId === a.groupId) : [a];
+    const ids = new Set(group.map(x => x.id));
+    db.assignments = db.assignments.filter(x => !ids.has(x.id));
     await saveData(db);
-    jsonResponse(res, 200, { ok: true });
+    jsonResponse(res, 200, { ok: true, removed: ids.size });
     return;
   }
 
