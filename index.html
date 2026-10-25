@@ -81,6 +81,9 @@
     <div class="card">
       <h2 class="instruction">把部件拖到正確位置組成字</h2>
       <div class="character-display" id="character-display"></div>
+      <div class="speak-row">
+        <button class="btn btn-speak" id="speak-btn">🔊 再聽一次</button>
+      </div>
     </div>
 
     <div class="card pieces-card">
@@ -371,6 +374,30 @@
       </div>
     </div>
   </section>
+</div>
+
+<!-- 默書模式 -->
+<div id="dictation-modal" class="modal hidden">
+  <div class="modal-box dictation-box">
+    <div class="modal-head">
+      <h3 id="dictation-title">📝 默書模式</h3>
+      <button class="modal-close" id="dictation-close">✕</button>
+    </div>
+    <div class="modal-body dictation-body">
+      <div class="dictation-counter" id="dictation-counter">1 / 1</div>
+      <div class="dictation-answer hidden" id="dictation-answer"></div>
+      <button class="btn-play-big" id="dictation-play">🔊 播放詞語</button>
+      <div class="dictation-hint" id="dictation-hint">聽唔清可以再撳「播放詞語」</div>
+      <label class="dictation-toggle">
+        <input type="checkbox" id="dictation-autoplay"> 每題自動播放
+      </label>
+    </div>
+    <div class="modal-foot dictation-foot">
+      <button class="btn btn-secondary" id="dictation-reveal">👁 顯示答案</button>
+      <button class="btn btn-secondary" id="dictation-prev">← 上一個</button>
+      <button class="btn btn-primary" id="dictation-next">下一個 →</button>
+    </div>
+  </div>
 </div>
 
 <!-- 深拆方案面板 -->

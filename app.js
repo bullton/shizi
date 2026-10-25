@@ -265,6 +265,116 @@ const User = {
   }
 };
 
+// ===== 默書模式 =====
+// 由用戶控制：手動播放詞語、手動去下一個
+const Dictation = {
+  items: [],      // [{ word, char }]
+  index: 0,
+  revealed: false,
+  taskName: '',
+
+  _speak(text, rate = 0.75) {
+    if (!('speechSynthesis' in window)) return;
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'zh-HK';
+    u.rate = rate;
+    u.pitch = 1.05;
+    speechSynthesis.speak(u);
+  },
+
+  async start(task) {
+    // 由任務嘅字抽詞語；冇詞語就用返個字
+    const all = await Data.getPractice();
+    const byId = new Map(all.map(c => [c.id, c]));
+    const seen = new Set();
+    const items = [];
+    for (const id of task.charIds) {
+      const c = byId.get(id);
+      if (!c) continue;
+      const words = (c.words && c.words.length) ? c.words : [c.char];
+      for (const w of words) {
+        if (seen.has(w)) continue;
+        seen.add(w);
+        items.push({ word: w, char: c.char });
+      }
+    }
+    if (!items.length) {
+      toast('呢個任務冇詞語可以默書');
+      return;
+    }
+    // 打亂，避免死記次序
+    for (let i = items.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [items[i], items[j]] = [items[j], items[i]];
+    }
+    this.items = items;
+    this.index = 0;
+    this.revealed = false;
+    this.taskName = task.name;
+    document.getElementById('dictation-title').textContent = `📝 默書：${task.name}`;
+    document.getElementById('dictation-modal').classList.remove('hidden');
+    this.render();
+  },
+
+  render() {
+    const it = this.items[this.index];
+    if (!it) return;
+    document.getElementById('dictation-counter').textContent =
+      `${this.index + 1} / ${this.items.length}`;
+    const ans = document.getElementById('dictation-answer');
+    if (this.revealed) {
+      ans.textContent = it.word;
+      ans.classList.remove('hidden');
+    } else {
+      ans.textContent = '';
+      ans.classList.add('hidden');
+    }
+    document.getElementById('dictation-reveal').textContent = this.revealed ? '🙈 收起答案' : '👁 顯示答案';
+    document.getElementById('dictation-prev').disabled = this.index === 0;
+    const nextBtn = document.getElementById('dictation-next');
+    nextBtn.textContent = this.index === this.items.length - 1 ? '完成 ✓' : '下一個 →';
+
+    // 自動播放（可選）
+    if (document.getElementById('dictation-autoplay').checked) {
+      this._speak(it.word);
+    }
+  },
+
+  play() {
+    const it = this.items[this.index];
+    if (it) this._speak(it.word);
+  },
+
+  next() {
+    if (this.index >= this.items.length - 1) {
+      this.close();
+      toast('默書完成！');
+      return;
+    }
+    this.index++;
+    this.revealed = false;
+    this.render();
+  },
+
+  prev() {
+    if (this.index <= 0) return;
+    this.index--;
+    this.revealed = false;
+    this.render();
+  },
+
+  toggleReveal() {
+    this.revealed = !this.revealed;
+    this.render();
+  },
+
+  close() {
+    if ('speechSynthesis' in window) speechSynthesis.cancel();
+    document.getElementById('dictation-modal').classList.add('hidden');
+  }
+};
+
 // ===== 我的任務 =====
 const Tasks = {
   list: [],
@@ -310,6 +420,12 @@ const Tasks = {
         showView('game');
       };
     });
+    el.querySelectorAll('[data-dictation]').forEach(btn => {
+      btn.onclick = () => {
+        const t = this.list.find(x => x.id == btn.dataset.dictation);
+        if (t) Dictation.start(t);
+      };
+    });
   },
 
   _card(t) {
@@ -325,7 +441,10 @@ const Tasks = {
         <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
         <span>${t.completedCount} / ${t.total}</span>
       </div>
-      <button class="btn btn-primary" data-start-task="${t.id}">${t.allDone ? '🔁 再做一次' : (resume ? '▶️ 繼續做' : '▶️ 開始做')}</button>
+      <div class="task-card-actions">
+        <button class="btn btn-primary" data-start-task="${t.id}">${t.allDone ? '🔁 再做一次' : (resume ? '▶️ 繼續做' : '▶️ 開始做')}</button>
+        <button class="btn btn-secondary" data-dictation="${t.id}">📝 默書模式</button>
+      </div>
     </div>`;
   }
 };
@@ -646,19 +765,38 @@ const Game = {
     this.next();
   },
 
-  // 開始任務：只做指定的字，已完成的字排後面（斷點續做）
+  // 開始任務：打亂順序 + 重複練習（鞏固記憶）
   async startTask(task) {
     const token = ++this._startToken;
     const all = await Data.getPractice();
     if (token !== this._startToken) return;
     const byId = new Map(all.map(c => [c.id, c]));
-    let ids = task.charIds.filter(id => byId.has(id));
+    const ids = task.charIds.filter(id => byId.has(id));
+    const doneSet = new Set(task.completedCharIds || []);
 
-    // 斷點續做：未完成的排前面
-    ids.sort((a, b) => (task.completedCharIds.includes(byId.get(a).char) ? 1 : 0)
-                      - (task.completedCharIds.includes(byId.get(b).char) ? 1 : 0));
+    // 斷點續做：只重複「未完成」嘅字；如果全部做完，就全部再嚟一次
+    const undone = ids.filter(id => !doneSet.has(byId.get(id).char));
+    const base = undone.length ? undone : ids;
 
-    this.chars = ids.map(id => byId.get(id));
+    // 重複次數：字少就重複多啲（≤5 個字 → 3 輪；否則 2 輪）
+    const rounds = base.length <= 5 ? 3 : 2;
+    const queue = [];
+    for (let r = 0; r < rounds; r++) {
+      let round = this._shuffle(base);
+      // 避免兩輪交界出現同一個字
+      const prev = queue[queue.length - 1];
+      if (prev !== undefined && round[0] === prev && round.length > 1) {
+        [round[0], round[1]] = [round[1], round[0]];
+      }
+      // 同一輪入面避免相鄰重複
+      round = this._avoidAdjacent(round);
+      queue.push(...round);
+    }
+
+    this.chars = queue.map(id => byId.get(id));
+    this.taskRounds = rounds;
+    this.taskRoundSize = base.length;
+    this.taskUniqueCount = base.length;
     this.taskId = task.id;
     this.taskName = task.name;
     this.taskDone = new Set();
@@ -701,6 +839,12 @@ const Game = {
     document.getElementById('celebration').classList.add('hidden');
     this.current = this.chars[this.index];
     this.startTime = Date.now();
+    // 任務模式：顯示第幾輪
+    if (this.taskId && this.taskRoundSize) {
+      const round = Math.floor(this.index / this.taskRoundSize) + 1;
+      document.getElementById('task-banner-name').textContent =
+        `${this.taskName}　第 ${round}/${this.taskRounds} 輪`;
+    }
     this._updateProgress();
     this.render();
     this._speak(this.current.char);
@@ -836,10 +980,12 @@ const Game = {
   _gameOver() {
     const display = document.getElementById('character-display');
     const isTask = !!this.taskId;
-    const allDone = isTask && this.taskDone.size >= this.chars.length;
+    const uniqueCount = this.taskUniqueCount || this.chars.length;
+    const allDone = isTask && this.taskDone.size >= uniqueCount;
     const title = allDone ? '🏆 任務完成！' : (isTask ? '🎉 做完晒！' : '🎉 自由練習完成！');
+    const roundsText = isTask && this.taskRounds > 1 ? `（重複練習 ${this.taskRounds} 輪）` : '';
     const body = allDone
-      ? `<p>你做完咗「${escapeHtml(this.taskName)}」全部 ${this.chars.length} 個字，真棒！</p>`
+      ? `<p>你做完咗「${escapeHtml(this.taskName)}」全部 ${uniqueCount} 個字${roundsText}，真棒！</p>`
       : `<p>你一共拎到 <strong>${this.score}</strong> 分${isTask ? '' : `，練咗 ${this.chars.length} 個字`}！</p>`;
 
     const btns = isTask
@@ -916,6 +1062,22 @@ const Game = {
     for (let i = a.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  },
+
+  // 避免相鄰兩個位係同一個字（有重複時用）
+  _avoidAdjacent(arr) {
+    const a = [...arr];
+    for (let i = 1; i < a.length; i++) {
+      if (a[i] === a[i - 1]) {
+        for (let j = i + 1; j < a.length; j++) {
+          if (a[j] !== a[i - 1]) {
+            [a[i], a[j]] = [a[j], a[i]];
+            break;
+          }
+        }
+      }
     }
     return a;
   },
@@ -1242,6 +1404,16 @@ const Admin = {
       if (e.target.id === 'decomp-modal') e.target.classList.add('hidden');
     });
     document.getElementById('decomp-ai-btn')?.addEventListener('click', () => this.aiSuggestDecomp());
+
+    // 默書模式
+    document.getElementById('dictation-play')?.addEventListener('click', () => Dictation.play());
+    document.getElementById('dictation-next')?.addEventListener('click', () => Dictation.next());
+    document.getElementById('dictation-prev')?.addEventListener('click', () => Dictation.prev());
+    document.getElementById('dictation-reveal')?.addEventListener('click', () => Dictation.toggleReveal());
+    document.getElementById('dictation-close')?.addEventListener('click', () => Dictation.close());
+    document.getElementById('dictation-modal')?.addEventListener('click', (e) => {
+      if (e.target.id === 'dictation-modal') Dictation.close();
+    });
     document.getElementById('clear-positions-btn')?.addEventListener('click', () => this.clearAllPositions());
 
     document.getElementById('form-char').addEventListener('input', (e) => {
@@ -1906,6 +2078,11 @@ async function init() {
   document.getElementById('task-back-btn').onclick = () => {
     Game._clearTimers();
     showView('tasks');
+  };
+
+  // 手動再讀一次（聽唔清可以重播）
+  document.getElementById('speak-btn').onclick = () => {
+    if (Game.current) Game._speak(Game.current.char);
   };
 
   // 自由練習：換一批字

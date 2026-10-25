@@ -2270,3 +2270,72 @@ nav {
 }
 .form-head h2 { margin: 0; }
 .form-head .btn-decomp.hidden { display: none; }
+
+/* ===== 重播讀音 ===== */
+.speak-row {
+  display: flex;
+  justify-content: center;
+  margin-top: 10px;
+}
+.btn-speak {
+  background: #eaf2ff;
+  color: #1b4f72;
+  border: 2px solid #aed6f1;
+  padding: 9px 22px;
+  border-radius: 22px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn-speak:hover { background: #d6eaf8; }
+.btn-speak:active { transform: scale(0.96); }
+
+/* ===== 默書模式 ===== */
+.task-card-actions { display: flex; gap: 8px; }
+.task-card-actions .btn { flex: 1; }
+.dictation-box { max-width: 460px; }
+.dictation-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 26px 18px !important;
+}
+.dictation-counter { font-size: 15px; color: #636e72; font-weight: 600; }
+.dictation-answer {
+  font-size: 56px;
+  font-weight: 700;
+  color: #6a5acd;
+  letter-spacing: 6px;
+  min-height: 70px;
+  line-height: 1.2;
+  text-align: center;
+}
+.dictation-answer.hidden { display: none; }
+.btn-play-big {
+  width: 150px;
+  height: 150px;
+  border-radius: 50%;
+  border: none;
+  background: linear-gradient(135deg, #6c5ce7, #a29bfe);
+  color: #fff;
+  font-size: 19px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(108,92,231,0.35);
+  transition: transform 0.12s;
+}
+.btn-play-big:hover { transform: scale(1.04); }
+.btn-play-big:active { transform: scale(0.96); }
+.dictation-hint { font-size: 13px; color: #95a5a6; }
+.dictation-toggle {
+  font-size: 14px;
+  color: #636e72;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+.dictation-foot { justify-content: space-between; gap: 8px; }
+.dictation-foot .btn { flex: 1; }
+.dictation-foot .btn:disabled { opacity: 0.4; cursor: default; }
