@@ -261,26 +261,27 @@ node tools/build-ids.js --check      # 檢查有冇過時
 
 撳「✅ 套用這個」即可套用（會寫入 components + layout + positions）。
 
-## 「字典原拆法 #N」嘅來源
+## 字典來源
 
-`字典原拆法 #1 / #2 / …` 全部嚟自 **`chaizi-data.js`**，
-即 **kfcd/chaizi** 開源拆字字典（CC BY 3.0）：
-https://github.com/kfcd/chaizi
+- **`chaizi-unique.js` 係唯一權威字典**（每字一個篩選好嘅拆法），遊戲、導入、深拆全部只用呢個。
+- **`chaizi-data.js` 已停用**（原始 kfcd/chaizi 有多種拆法、質量參差），唔會再被讀取。
+  檔案仍然留喺 repo 只作歷史參考。
 
-該字典對同一個字有時會列出**多種拆法**，#N 就係嗰個檔案入面嘅次序。
+### 改字典嘅方法
 
-例子：
+1. 管理字庫 → 編輯字 → 直接改「部件」（適合逐個改）
+2. 管理字庫 → 編輯字 → **🔍 深拆／換方案**（多方案對比，手動選）
+3. 批量：直接改 `chaizi-unique.js`，然後記錄差異：
+   ```bash
+   node tools/dict-transform.js --diff <改之前嘅備份.js>   # 自動寫入 dict-changes.csv
+   node tools/dict-transform.js --check                    # 驗證記錄同字典一致
+   ```
 
-| 字 | 原拆法 |
-|----|--------|
-| 這 | #1 `辵 言`　#2 `辶 言` |
-| 泄 | #1 `水 世`　#2 `氵 世` |
-| 邊 | #1 `辵 自 穴 方`　#2 `辶 自 穴 方`　#3 `辵 臱`　#4 `辶 臱` |
-| 持 | #1 `手 寺`　#2 `扌 寺`　#3 `才 寺` |
-| 攀 | #1 `棥 大 手`　#2 `林 爻 大 手`　#3 `木 木 乂 乂 大 手` |
+### 深拆方案嘅來源
 
-`chaizi-data.js` 保持與上游一致（未經排序／轉換）。
-`chaizi-unique.js`（遊戲實際用）則由 `tools/dict-transform.js` 按 `tools/dict-rules.json`
-嘅基準算法（簡化 `辵→辶`／`糸→纟`、過濾空部件、取最散嗰種）生成。
-
-> 想核對：`node tools/dict-transform.js --check`
+| 來源 | 來自邊 |
+|------|--------|
+| 目前字典拆法 | `chaizi-unique.js`（你篩選好嘅） |
+| 字典深拆（生僻部件展開） | 用 `chaizi-unique.js` 把生僻部件再拆一層 |
+| IDS 字形樹 | Unicode IDS（`tools/ids.txt`），附精確位置 |
+| AI 建議 | 手動點擊，單字、8 秒冷卻 |

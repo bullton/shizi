@@ -1,21 +1,19 @@
 #!/usr/bin/env node
 /**
- * 字典變更工具 —— 套用變更規則到 chaizi-unique.js，並自動記錄到 dict-changes.csv
+ * 字典變更工具 —— 只操作 chaizi-unique.js（你篩選好嘅權威字典）
+ *
+ * ⚠️ 本專案唔再用 chaizi-data.js。
+ *    chaizi-unique.js 係唯一權威來源，可以直接手改，或者用呢個工具改。
  *
  * 用法：
- *   node tools/dict-transform.js              # 套用所有規則
- *   node tools/dict-transform.js --dry        # 只預覽會改咗乜，唔會寫檔
- *   node tools/dict-transform.js --rule 0     # 只套用第 0 條規則
- *   node tools/dict-transform.js --check      # 檢查字典有冇未記錄嘅改動
- *   node tools/dict-transform.js --baseline   # 用原始字典重建基準字典（覆蓋 chaizi-unique.js）
+ *   node tools/dict-transform.js --check            檢查 CSV 記錄同字典是否一致
+ *   node tools/dict-transform.js --diff <舊檔>      對比舊快照，自動記錄差異落 CSV
+ *   node tools/dict-transform.js --dry              預覽規則會改乜
+ *   node tools/dict-transform.js                    套用 rules 並記錄
+ *   node tools/dict-transform.js --rule 0           只套用第 0 條規則
  *
- * ⚠️ 規矩：每次改字典都必須經呢個工具，唔可以手改 chaizi-unique.js。
- *    步驟：
- *      1. 去 tools/dict-rules.json 加一條新規則
- *      2. node tools/dict-transform.js --dry    （預覽）
- *      3. node tools/dict-transform.js          （套用 + 自動寫入 dict-changes.csv）
- *      4. node tools/dict-transform.js --check  （驗證）
- *      5. 部署 + 提交
+ * 規矩：每次改字典（無論手改定用工具）之後，都應該跑一次 --diff 或手動加 CSV，
+ *       再用 --check 確認冇漏記。
  *
  * CSV 格式（每行一條變更）：
  *   文字；原拆分；新拆分
@@ -38,18 +36,16 @@ const val = (f) => {
   return i >= 0 ? args[i + 1] : null;
 };
 
-const DRY = has('--dry');
 const CHECK_ONLY = has('--check');
-const BASELINE = has('--baseline');
+const DRY = has('--dry');
+const DIFF_FILE = val('--diff');
 const RULE_INDEX = val('--rule');
 
 // ===== 讀字典 =====
-function readDictFile(file, globalName) {
-  const content = fs.readFileSync(file, 'utf8');
-  const re = new RegExp(globalName + ' = (\\{.+\\});\\s*$', 's');
-  const m = content.match(re);
-  if (!m) throw new Error(`搵唔到 ${globalName} （${file}）`);
-  // 只定位 JSON 物件本身，唔好郁個 variable 名
+function readDict() {
+  const content = fs.readFileSync(DICT_FILE, 'utf8');
+  const m = content.match(/ChaiziDictUnique = (\{.+\});\s*$/s);
+  if (!m) throw new Error('搵唔到 ChaiziDictUnique');
   const jsonStart = m.index + m[0].indexOf(m[1]);
   return {
     dict: JSON.parse(m[1]),
@@ -59,36 +55,11 @@ function readDictFile(file, globalName) {
   };
 }
 
-function writeDictFile(content, start, end, dict) {
-  const out = content.slice(0, start) + JSON.stringify(dict) + content.slice(end);
-  fs.writeFileSync(DICT_FILE, out, 'utf8');
+function writeDict(content, start, end, dict) {
+  fs.writeFileSync(DICT_FILE, content.slice(0, start) + JSON.stringify(dict) + content.slice(end), 'utf8');
 }
 
-// ===== 基準字典：由原始字典生成 =====
-function buildBaseline(cfg) {
-  const src = readDictFile(path.join(ROOT, cfg.source || 'chaizi-data.js'), 'ChaiziDict');
-  const simplify = cfg.simplify || {};
-  const out = {};
-  for (const [char, decomps] of Object.entries(src.dict)) {
-    const seen = new Set();
-    const uniq = [];
-    for (const d of decomps) {
-      let comps = d.split(' ').map(c => simplify[c] || c);
-      if (cfg.filterEmpty) comps = comps.filter(c => c);
-      if (!comps.length) continue;
-      const key = comps.join(' ');
-      if (seen.has(key)) continue;
-      seen.add(key);
-      uniq.push(comps);
-    }
-    if (!uniq.length) continue;
-    if (cfg.pick === 'longest') uniq.sort((a, b) => b.length - a.length); // 穩定排序 → 同原字典次序一致
-    out[char] = uniq[0];
-  }
-  return out;
-}
-
-// ===== 讀寫 CSV =====
+// ===== CSV =====
 function readCsv() {
   if (!fs.existsSync(CSV_FILE)) return { header: CSV_HEADER, rows: [] };
   const raw = fs.readFileSync(CSV_FILE, 'utf8').replace(/^﻿/, '');
@@ -98,14 +69,13 @@ function readCsv() {
 }
 
 function writeCsv(header, rows) {
-  const body = [header, ...rows.map(r => r.join(DELIM))].join('\r\n') + '\r\n';
-  fs.writeFileSync(CSV_FILE, '﻿' + body, 'utf8');
+  fs.writeFileSync(CSV_FILE, '﻿' + [header, ...rows.map(r => r.join(DELIM))].join('\r\n') + '\r\n', 'utf8');
 }
 
-// ===== 規則 =====
-function loadConfig() {
-  if (!fs.existsSync(RULES_FILE)) return { baseline: {}, rules: [] };
-  return JSON.parse(fs.readFileSync(RULES_FILE, 'utf8'));
+function loadRules() {
+  if (!fs.existsSync(RULES_FILE)) return [];
+  const cfg = JSON.parse(fs.readFileSync(RULES_FILE, 'utf8'));
+  return cfg.rules || [];
 }
 
 function applyRule(dict, rule) {
@@ -125,7 +95,7 @@ function applyRule(dict, rule) {
       if (idx >= 0) { next[idx] = to; hit = true; }
     }
     if (hit) {
-      dict[char] = next;   // 直接改字典
+      dict[char] = next;
       changes.push({ char, old: comps.join(' '), new: next.join(' ') });
     }
   }
@@ -134,58 +104,64 @@ function applyRule(dict, rule) {
 
 // ===== 主流程 =====
 function main() {
-  const cfg = loadConfig();
-  const rules = cfg.rules || [];
+  const { dict, content, start, end } = readDict();
+  const csv = readCsv();
 
-  // --baseline：重建基準字典
-  if (BASELINE) {
-    const baseline = buildBaseline(cfg.baseline || {});
-    const { content, start, end } = readDictFile(DICT_FILE, 'ChaiziDictUnique');
-    writeDictFile(content, start, end, baseline);
-    console.log(`✅ 已用原始字典重建基準：${Object.keys(baseline).length} 字`);
-    console.log('   （注意：呢個會還原所有規則，記得跟住重新套用）');
-    return;
-  }
-
-  // --check：驗證字典 = 基準 + 全部規則
+  // --check：CSV 記錄 vs 字典現況
   if (CHECK_ONLY) {
-    const expected = buildBaseline(cfg.baseline || {});
-    for (const rule of rules) applyRule(expected, rule);
-
-    const actual = readDictFile(DICT_FILE, 'ChaiziDictUnique').dict;
-    const csv = readCsv();
-
-    const drift = [];
-    for (const char of new Set([...Object.keys(expected), ...Object.keys(actual)])) {
-      const e = expected[char] ? expected[char].join(' ') : '(無)';
-      const a = actual[char] ? actual[char].join(' ') : '(無)';
-      if (e !== a) drift.push({ char, expected: e, actual: a });
+    const lastByChar = new Map();
+    for (const row of csv.rows) {
+      if (row.length < 3) continue;
+      lastByChar.set(row[0], row);
     }
-
-    console.log(`基準 + ${rules.length} 條規則  =  ${Object.keys(expected).length} 字`);
-    console.log(`實際 chaizi-unique.js      =  ${Object.keys(actual).length} 字`);
-    console.log(`dict-changes.csv 記錄      =  ${csv.rows.length} 條`);
-    console.log('');
-    if (drift.length === 0) {
-      console.log('✅ 一致：所有改動都有記錄，冇手改過字典');
+    const problems = [];
+    for (const [char, row] of lastByChar) {
+      const cur = dict[char];
+      if (!cur) { problems.push(`${char}：CSV 有記錄但字典冇呢個字`); continue; }
+      const curStr = cur.join(' ');
+      if (curStr !== row[2]) {
+        problems.push(`${char}：CSV 最後記錄「${row[2]}」，但字典而家係「${curStr}」`);
+      }
+    }
+    console.log(`字典: ${Object.keys(dict).length} 字 | CSV: ${csv.rows.length} 條（涵蓋 ${lastByChar.size} 字）`);
+    if (!problems.length) {
+      console.log('✅ 一致：所有已記錄嘅變更都反映喺字典；字典冇被改走樣');
     } else {
-      console.log(`❌ 有 ${drift.length} 個字未經規則/未記錄：`);
-      drift.slice(0, 20).forEach(d => console.log(`     ${d.char}：期望「${d.expected}」實際「${d.actual}」`));
-      if (drift.length > 20) console.log(`     ... 仲有 ${drift.length - 20} 個`);
-      console.log('\n   → 請用工具改字典（唔好手改），然後 node tools/dict-transform.js --check');
+      console.log(`❌ ${problems.length} 個字同 CSV 記錄唔一致：`);
+      problems.slice(0, 20).forEach(p => console.log('   ' + p));
+      if (problems.length > 20) console.log(`   …仲有 ${problems.length - 20} 個`);
       process.exitCode = 1;
     }
     return;
   }
 
-  // 套用規則
-  const { dict, content, start, end } = readDictFile(DICT_FILE, 'ChaiziDictUnique');
-  const csv = readCsv();
+  // --diff <舊檔>：對比快照，記錄差異
+  if (DIFF_FILE) {
+    const oldContent = fs.readFileSync(DIFF_FILE, 'utf8');
+    const m = oldContent.match(/ChaiziDictUnique = (\{.+\});\s*$/s);
+    if (!m) throw new Error('舊檔搵唔到 ChaiziDictUnique');
+    const oldDict = JSON.parse(m[1]);
+    const seen = new Set(csv.rows.map(r => r.join(DELIM)));
+    let added = 0;
+    for (const char of new Set([...Object.keys(oldDict), ...Object.keys(dict)])) {
+      const a = (oldDict[char] || []).join(' ');
+      const b = (dict[char] || []).join(' ');
+      if (a === b) continue;
+      const row = [char, a, b];
+      const key = row.join(DELIM);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      csv.rows.push(row);
+      added++;
+    }
+    writeCsv(CSV_HEADER, csv.rows);
+    console.log(`📝 已記錄 ${added} 條差異到 dict-changes.csv（現共 ${csv.rows.length} 條）`);
+    return;
+  }
 
-  const selected = RULE_INDEX !== null
-    ? [rules[parseInt(RULE_INDEX, 10)]].filter(Boolean)
-    : rules;
-
+  // 套用規則（改 chaizi-unique.js 本身）
+  const rules = loadRules();
+  const selected = RULE_INDEX !== null ? [rules[parseInt(RULE_INDEX, 10)]].filter(Boolean) : rules;
   if (!selected.length) {
     console.log('冇規則可以套用');
     return;
@@ -210,7 +186,7 @@ function main() {
     return;
   }
 
-  writeDictFile(content, start, end, dict);
+  writeDict(content, start, end, dict);
 
   const seen = new Set(csv.rows.map(r => r.join(DELIM)));
   let added = 0;

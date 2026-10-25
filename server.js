@@ -10,12 +10,10 @@ const DATA_FILE = path.join(BASE_DIR, 'shizi-data.json');
 // Load ChaiziDictUnique (new dict: each char has exactly 1 decomp)
 // + ChaiziAtomic (拆開只剩筆畫嘅字，唔會出現喺練習字庫／布置任務)
 globalThis.window = globalThis;
-require(path.join(BASE_DIR, 'chaizi-data.js'));
 require(path.join(BASE_DIR, 'chaizi-unique.js'));
 require(path.join(BASE_DIR, 'chaizi-atomic.js'));
 require(path.join(BASE_DIR, 'chaizi-ids.js'));
-const ChaiziDict = globalThis.ChaiziDict;          // 原始字典（保留）
-const ChaiziDictUnique = globalThis.ChaiziDictUnique;  // 每字唯一拆法
+const ChaiziDictUnique = globalThis.ChaiziDictUnique;  // 每字唯一拆法（權威，唔用 chaizi-data.js）
 const ChaiziAtomic = new Set(globalThis.ChaiziAtomic || []);  // 原子字庫
 const ChaiziIds = globalThis.ChaiziIds || {};  // Unicode IDS 結構表
 const idsLib = require(path.join(BASE_DIR, 'ids.js'));
@@ -70,17 +68,9 @@ function isAtomicChar(char) {
 
 // 查字典（使用新字典：每字唯一）
 function longestDecomp(char) {
-  if (ChaiziDictUnique && ChaiziDictUnique[char]) {
-    const entry = ChaiziDictUnique[char];
-    return Array.isArray(entry) ? entry : entry.split(' ');
-  }
-  // fallback: 從原字典取最長
-  if (!ChaiziDict || !ChaiziDict[char]) return [];
-  const alts = ChaiziDict[char];
-  if (alts.length === 0) return [];
-  let best = alts[0];
-  for (const a of alts) if (a.split(' ').length > best.split(' ').length) best = a;
-  return best.split(' ');
+  const entry = ChaiziDictUnique?.[char];
+  if (!entry) return [];
+  return Array.isArray(entry) ? [...entry] : entry.split(' ');
 }
 
 const DEFAULT_CHARS = [
@@ -1018,17 +1008,13 @@ async function handleAPI(req, res) {
       candidates.push(cand);
     };
 
-    // ① 字典原拆法（所有備選）
-    const alts = ChaiziDict?.[ch] || [];
-    alts.forEach((a, i) => {
-      const comps = a.split(' ').filter(Boolean);
-      if (comps.length >= 1) {
-        push({ source: 'dict', label: `字典原拆法${alts.length > 1 ? ' #' + (i + 1) : ''}`, components: comps });
-      }
-    });
+    // ① 目前字典拆法（chaizi-unique.js，你篩選好嘅唯一拆法）
+    const base = longestDecomp(ch);
+    if (base.length >= 1) {
+      push({ source: 'dict', label: '目前字典拆法', components: base });
+    }
 
     // ② 字典深拆（逐個部件用字典再拆一層）
-    const base = ChaiziDictUnique?.[ch] || (alts[0] ? alts[0].split(' ') : []);
     if (base.length >= 2) {
       const expanded = [];
       for (const part of base) {
@@ -1077,7 +1063,7 @@ async function handleAPI(req, res) {
     if (!target) return jsonResponse(res, 404, { error: '字唔存在' });
     const ch = target.char;
     try {
-      const decompStr = (ChaiziDict?.[ch] || []).map((a, i) => `${i + 1}. ${a}`).join(' / ') || '（無）';
+      const decompStr = (longestDecomp(ch) || []).join(' ') || '（無）';
       const prompt = `你是繁體中文字形結構專家。請為「${ch}」提出一個最適合小朋友認字嘅拆法。
 
 字典現有拆法：${decompStr}

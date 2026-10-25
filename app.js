@@ -4,9 +4,9 @@
 
 const STORAGE_KEY = 'shizi_chars_v9';
 
-// 查字典工具：每字只有唯一拆法（從 chaizi-unique.js 載入）
+// 查字典工具：只用 chaizi-unique.js（你自己篩選嘅權威版本）
 function lookupChaizi(char, prefer = 'longest') {
-  const dict = window.ChaiziDictUnique || window.ChaiziDict;
+  const dict = window.ChaiziDictUnique;
   if (!dict || !dict[char]) return null;
   const entry = dict[char];
   // 兼容兩種格式：字串（原始）或陣列（新字典）
@@ -2526,25 +2526,14 @@ function generateHint(char, components, layout) {
 }
 
 function processCharForImport(char) {
-  const decompositions = window.ChaiziDict?.[char];
-  if (!decompositions) return null;
-  const allDecomps = decompositions.map(d => d.split(' '));
-  // 預設拆法用「唯一字典」（同遊戲一致：辵→辶、水→氵…）
+  // 只用 chaizi-unique.js（權威版本，唔再用 chaizi-data.js）
   const unique = window.ChaiziDictUnique?.[char];
-  const defaultComponents = Array.isArray(unique)
-    ? [...unique]
-    : (unique ? unique.split(' ') : allDecomps[0]);
+  if (!unique) return null;
+  const defaultComponents = Array.isArray(unique) ? [...unique] : unique.split(' ');
   const defaultLayout = autoLayout(defaultComponents, char);
   const defaultHint = generateHint(char, defaultComponents, defaultLayout);
-  // 選項清單：唯一拆法排頭，其他原字典拆法去重後跟後
-  const seen = new Set([defaultComponents.join(' ')]);
+  // 只有一個拆法（chaizi-unique.js 已篩選好）
   const options = [defaultComponents];
-  for (const d of allDecomps) {
-    const key = d.join(' ');
-    if (seen.has(key)) continue;
-    seen.add(key);
-    options.push(d);
-  }
   return {
     char,
     decompositions: options,
@@ -2696,9 +2685,9 @@ document.addEventListener('DOMContentLoaded', () => {
     for (const c of localChars) {
       if (!c.char) continue;
       if (!c.hint) {
-        const decompositions = window.ChaiziDict?.[c.char];
-        if (decompositions) {
-          c.components = decompositions[0].split(' ');
+        const unique = window.ChaiziDictUnique?.[c.char];
+        if (unique) {
+          c.components = Array.isArray(unique) ? [...unique] : unique.split(' ');
           c.layout = autoLayout(c.components, c.char);
           c.hint = generateHint(c.char, c.components, c.layout);
           await Data.update(c.id, c);
