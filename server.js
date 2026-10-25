@@ -18,6 +18,40 @@ const ChaiziDict = globalThis.ChaiziDict;          // 原始字典（保留）
 const ChaiziDictUnique = globalThis.ChaiziDictUnique;  // 每字唯一拆法
 const ChaiziAtomic = new Set(globalThis.ChaiziAtomic || []);  // 原子字庫
 const ChaiziIds = globalThis.ChaiziIds || {};  // Unicode IDS 結構表
+const idsLib = require(path.join(BASE_DIR, 'ids.js'));
+const idsMap = idsLib.loadIdsMap(path.join(BASE_DIR, 'tools', 'ids.txt'));
+
+// 用 IDS 樹逐層深拆，搵出同目標部件數吻合嘅一層 → 有位置
+function positionsForCount(char, count) {
+  for (let level = 0; level <= 8; level++) {
+    const r = idsLib.deepSplit(char, idsMap, level);
+    if (!r) break;
+    if (r.components.length === count && !r.hasPlaceholder) return r.positions;
+    if (r.components.length > count) break;
+  }
+  return null;
+}
+
+// 常用部件（同 app.js 的 LEFT_RADICALS 保持一致）——呢啲唔會當「生僻」展開
+const COMMON_PARTS = new Set((
+  '木 扌 氵 亻 讠 钅 口 女 言 金 心 火 山 足 目 馬 禾 車 魚 米 手 肉 玉 犬 ' +
+  '巾 貝 舟 止 片 牛 弓 方 絲 衣 毛 鬼 鬥 舌 土 石 人 虫 尸 戶 支 少 父 井 ' +
+  '甘 戈 斤 元 冫 爻 豸 豕 攸 爿 卩 斥 免 兌 匕 隹 日 白 甫 疋 無 ' +
+  '蟲 阜 食 酉 革 彳 骨 歹 耳 鹿 角 耒 羽 風 身 冰 示 齒 黑 鳥 走 髟 病 ' +
+  '缶 矢 皮 巳 辛 甾 鹵 鬲 彡 田 羊 音 其 豆 豈 束 者 奇 良 咅 是 咢 共 ' +
+  '弗 耑 臣 奚 黹 曾 堯 巫 真 肖 尗 兔'
+).split(/\s+/).filter(Boolean));
+
+// 基本筆畫（用於提示「拆得太細」）
+const STROKE_SET = new Set('一 丨 丿 丶 乀 乁 乚 乛 亅 乙 ㇆ ㇉ 丩 𠄌 𠃊 ㇀ ㇁ ㇂ ㇃ ㇄ ㇅ ㇇ ㇈ ㇊ ㇋ ㇌ ㇍ ㇎ ㇏'.split(' '));
+
+// 部件係唔係「仲可以再拆」（有字典拆法、而且唔係筆畫/常用部件）
+function isCompoundPart(part) {
+  if (ChaiziAtomic.has(part)) return false;
+  if (COMMON_PARTS.has(part)) return false;
+  const d = ChaiziDictUnique?.[part];
+  return Array.isArray(d) && d.length >= 2;
+}
 
 // 用 Unicode IDS 判斷結構（免費、離線、準確）；冇 IDS 就回退去規則
 function idsLayoutFor(char, components) {
@@ -102,6 +136,7 @@ const db = {
   attempts: [],
   chars: [],
   assignments: [],
+  config: { aiToken: '' },
 };
 
 // Load on startup
@@ -111,6 +146,7 @@ db.progress = savedData.progress || [];
 db.attempts = savedData.attempts || [];
 db.chars = savedData.chars || [];
 db.assignments = savedData.assignments || [];
+db.config = savedData.config || { aiToken: '' };
 
 // 資料完整性檢查：用戶 id 撞會令兩個帳號共用進度，即刻修正
 (async () => {
@@ -140,6 +176,18 @@ db.assignments = savedData.assignments || [];
     console.log(`[shizi] 已自動 seed ${db.chars.length} 個預設字到 server`);
   }
 })();
+
+// ===== AI 呼叫防護（只限手動單字，嚴禁批量）=====
+const AI_COOLDOWN_MS = 8000;
+let aiLastCallAt = 0;
+function aiGuard() {
+  const now = Date.now();
+  if (now - aiLastCallAt < AI_COOLDOWN_MS) {
+    return { ok: false, error: `請等 ${Math.ceil((AI_COOLDOWN_MS - (now - aiLastCallAt)) / 1000)} 秒後再試（AI 唔可以連續調用）` };
+  }
+  aiLastCallAt = now;
+  return { ok: true };
+}
 
 // ===== 任務輔助 =====
 function decorateAssignment(a, chars) {
@@ -922,6 +970,156 @@ async function handleAPI(req, res) {
     return;
   }
 
+
+  // AI Token 設定（只用於手動「AI 建議」）
+  if (pathname === '/api/config' && method === 'GET') {
+    jsonResponse(res, 200, { aiToken: db.config.aiToken || '' });
+    return;
+  }
+  if (pathname === '/api/config' && method === 'PUT') {
+    try {
+      const { aiToken } = await parseBody(req);
+      db.config.aiToken = aiToken || '';
+      await saveData(db);
+      jsonResponse(res, 200, { success: true });
+    } catch (e) {
+      jsonResponse(res, 400, { error: '無效的請求' });
+    }
+    return;
+  }
+
+  // ===== 深拆方案（多方案，手動選擇）=====
+  // 回傳：字典原拆法 / 字典深拆 / IDS 深拆 / IDS 最深，每項標明來源
+  if (pathname.startsWith('/api/admin/chars/') && pathname.endsWith('/decompositions') && method === 'POST') {
+    const adminUser = requireAuth(req, res);
+    if (!adminUser) return jsonResponse(res, 401, { error: '請先登入' });
+    if (adminUser.role !== 'admin') return jsonResponse(res, 403, { error: '需要管理員權限' });
+    const charId = parseInt(pathname.split('/')[4]);
+    const target = db.chars.find(x => x.id === charId);
+    if (!target) return jsonResponse(res, 404, { error: '字唔存在' });
+    const ch = target.char;
+
+    const seen = new Set();
+    const candidates = [];
+    const push = (cand) => {
+      const key = cand.components.join('+');
+      if (seen.has(key)) return;
+      seen.add(key);
+      const compound = cand.components.filter(isCompoundPart);
+      const strokes = cand.components.filter(x => STROKE_SET.has(x));
+      const weird = cand.components.filter(x => x.length > 1 || idsLib.PLACEHOLDER.test(x));
+      const notes = [];
+      if (weird.length) notes.push(`⚠️ 含罕見字符：${weird.join('')}`);
+      if (strokes.length) notes.push(`⚠️ 含 ${strokes.length} 個筆畫：${strokes.join('')}`);
+      if (compound.length) notes.push(`含 ${compound.length} 個可再展開部件：${compound.join('')}`);
+      if (!notes.length) notes.push('全部部件都係最底層部件');
+      cand.note = notes.join('　');
+      cand.positions = cand.positions || positionsForCount(ch, cand.components.length);
+      candidates.push(cand);
+    };
+
+    // ① 字典原拆法（所有備選）
+    const alts = ChaiziDict?.[ch] || [];
+    alts.forEach((a, i) => {
+      const comps = a.split(' ').filter(Boolean);
+      if (comps.length >= 1) {
+        push({ source: 'dict', label: `字典原拆法${alts.length > 1 ? ' #' + (i + 1) : ''}`, components: comps });
+      }
+    });
+
+    // ② 字典深拆（逐個部件用字典再拆一層）
+    const base = ChaiziDictUnique?.[ch] || (alts[0] ? alts[0].split(' ') : []);
+    if (base.length >= 2) {
+      const expanded = [];
+      for (const part of base) {
+        const d = ChaiziDictUnique?.[part];
+        if (isCompoundPart(part) && Array.isArray(d)) expanded.push(...d);
+        else expanded.push(part);
+      }
+      if (expanded.join('+') !== base.join('+')) {
+        push({ source: 'dict-deep', label: '字典深拆（生僻部件展開）', components: expanded });
+      }
+    }
+
+    // ③ IDS 深拆一層 / 最深
+    const ids1 = idsLib.deepSplit(ch, idsMap, 1);
+    if (ids1 && ids1.components.join('+') !== base.join('+')) {
+      push({ source: 'ids-1', label: 'IDS 字形樹（一層）', components: ids1.components, positions: ids1.positions });
+    }
+    const idsAll = idsLib.deepSplit(ch, idsMap);
+    if (idsAll) {
+      push({
+        source: 'ids-deep',
+        label: `IDS 字形樹（最深${idsAll.hasPlaceholder ? '，含佔位符' : ''}）`,
+        components: idsAll.components,
+        positions: idsAll.positions
+      });
+    }
+
+    jsonResponse(res, 200, {
+      char: ch,
+      current: { components: target.components, layout: target.layout, positions: target.positions || null },
+      candidates
+    });
+    return;
+  }
+
+  // ===== AI 建議拆法（單字、手動、有冷卻，禁止批量）=====
+  if (pathname.startsWith('/api/admin/chars/') && pathname.endsWith('/ai-suggest') && method === 'POST') {
+    const adminUser = requireAuth(req, res);
+    if (!adminUser) return jsonResponse(res, 401, { error: '請先登入' });
+    if (adminUser.role !== 'admin') return jsonResponse(res, 403, { error: '需要管理員權限' });
+    if (!db.config.aiToken) return jsonResponse(res, 400, { error: '未設定 AI Token' });
+    const g = aiGuard();
+    if (!g.ok) return jsonResponse(res, 429, { error: g.error });
+    const charId = parseInt(pathname.split('/')[4]);
+    const target = db.chars.find(x => x.id === charId);
+    if (!target) return jsonResponse(res, 404, { error: '字唔存在' });
+    const ch = target.char;
+    try {
+      const decompStr = (ChaiziDict?.[ch] || []).map((a, i) => `${i + 1}. ${a}`).join(' / ') || '（無）';
+      const prompt = `你是繁體中文字形結構專家。請為「${ch}」提出一個最適合小朋友認字嘅拆法。
+
+字典現有拆法：${decompStr}
+目前採用：${(target.components || []).join(' + ')}
+
+## 要求
+1. 部件要用小朋友認識嘅常用字／偏旁（避免生僻字，例如「臤」「霝」「龠」）
+2. 部件數 2-4 個為佳
+3. 給出每個部件喺字中嘅實際位置（top/bottom/left/right/top-left/top-right/bottom-left/bottom-right/center）
+
+## 回覆格式（嚴格 JSON）
+{"components": ["臣", "又", "土"], "parts": ["top-left","top-right","bottom"], "reason": "簡短解釋"}`;
+
+      const aiRes = await fetch('https://api.minimax.cn/anthropic/v1/messages', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${db.config.aiToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'MiniMax-M3', output_config: { effort: 'max' }, max_tokens: 1024, messages: [{ role: 'user', content: prompt }] })
+      });
+      if (!aiRes.ok) {
+        const err = await aiRes.text();
+        return jsonResponse(res, 502, { error: 'AI API 錯誤: ' + err.slice(0, 200) });
+      }
+      const aiData = await aiRes.json();
+      const content = aiData.content?.[0]?.text || '';
+      const m = content.match(/\{[\s\S]*\}/);
+      if (!m) return jsonResponse(res, 500, { error: '無法解析 AI 回覆' });
+      const parsed = JSON.parse(m[0]);
+      const comps = (parsed.components || []).filter(Boolean);
+      if (comps.length < 1) return jsonResponse(res, 500, { error: 'AI 冇提出拆法' });
+      jsonResponse(res, 200, {
+        source: 'ai',
+        label: 'AI 建議',
+        components: comps,
+        parts: parsed.parts || [],
+        note: parsed.reason || '',
+        positions: positionsForCount(ch, comps.length)
+      });
+    } catch (e) {
+      jsonResponse(res, 500, { error: 'AI 分析失敗: ' + e.message });
+    }
+    return;
+  }
 
   // ===== 重新分析字庫結構（用 Unicode IDS，免費離線，唔使 AI）=====
   if (pathname === '/api/admin/reanalyze-layouts' && method === 'POST') {

@@ -2136,3 +2136,127 @@ nav {
 }
 .import-ai-status { font-size: 13px; color: #6c5ce7; margin-bottom: 8px; min-height: 18px; }
 .import-ai-status.error { color: #c0392b; }
+
+/* ===== 深拆方案面板 ===== */
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+.modal.hidden { display: none; }
+.modal-box {
+  background: #fff;
+  border-radius: 16px;
+  width: 100%;
+  max-width: 640px;
+  max-height: 86vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.25);
+}
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 18px;
+  border-bottom: 1px solid #e4e6e7;
+}
+.modal-head h3 { margin: 0; font-size: 18px; }
+.modal-close {
+  border: none;
+  background: #f1f2f6;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 15px;
+  color: #636e72;
+}
+.modal-close:hover { background: #dfe6e9; }
+.modal-body { padding: 16px 18px; overflow-y: auto; }
+.modal-foot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  border-top: 1px solid #e4e6e7;
+}
+.decomp-current {
+  font-size: 13px;
+  color: #636e72;
+  background: #f8f9fa;
+  padding: 8px 12px;
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+.decomp-card {
+  border: 2px solid #e4e6e7;
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.decomp-card.current { border-color: #b2bec3; background: #fafbfc; }
+.decomp-card.ai { border-color: #a29bfe; background: #f8f7ff; }
+.decomp-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.decomp-source {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: #dfe6e9;
+  color: #2d3436;
+  font-weight: 600;
+}
+.decomp-source.dict { background: #d6eaf8; color: #1b4f72; }
+.decomp-source.deep { background: #fdebd0; color: #9c640c; }
+.decomp-source.ids { background: #d5f5e3; color: #186a3b; }
+.decomp-source.ai { background: #e8daef; color: #5b2c6f; }
+.decomp-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.decomp-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 42px;
+  height: 42px;
+  padding: 0 8px;
+  border-radius: 10px;
+  background: #fff;
+  border: 2px solid #dfe6e9;
+  font-size: 24px;
+  color: #2d3436;
+}
+.decomp-plus { color: #b2bec3; font-size: 14px; }
+.decomp-note { font-size: 13px; color: #636e72; }
+.decomp-note.warn { color: #b9770e; }
+.decomp-actions { display: flex; gap: 8px; }
+.decomp-badge-current {
+  font-size: 12px;
+  color: #fff;
+  background: #95a5a6;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+.decomp-count { font-size: 12px; color: #95a5a6; margin-left: auto; }
+.btn-decomp {
+  background: #a29bfe;
+  color: #fff;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  cursor: pointer;
+  font-weight: 600;
+}
+.btn-decomp:hover { background: #8c7ae6; }

@@ -1235,6 +1235,13 @@ const Admin = {
     document.getElementById('reset-data-btn').onclick = () => this.resetData();
     document.getElementById('purge-atomic-btn')?.addEventListener('click', () => this.purgeAtomicChars());
     document.getElementById('reanalyze-btn')?.addEventListener('click', () => this.reanalyzeLayouts());
+    document.getElementById('decomp-close')?.addEventListener('click', () => {
+      document.getElementById('decomp-modal').classList.add('hidden');
+    });
+    document.getElementById('decomp-modal')?.addEventListener('click', (e) => {
+      if (e.target.id === 'decomp-modal') e.target.classList.add('hidden');
+    });
+    document.getElementById('decomp-ai-btn')?.addEventListener('click', () => this.aiSuggestDecomp());
     document.getElementById('clear-positions-btn')?.addEventListener('click', () => this.clearAllPositions());
 
     document.getElementById('form-char').addEventListener('input', (e) => {
@@ -1278,12 +1285,14 @@ const Admin = {
         <div class="char-actions">
           <button class="btn-edit" data-id="${c.id}">✏️ 編輯</button>
           <button class="btn-position" data-id="${c.id}">📐 調整結構</button>
+          <button class="btn-decomp" data-id="${c.id}">🔍 深拆／換方案</button>
           <button class="btn-delete" data-id="${c.id}">🗑️ 刪除</button>
         </div>
       `;
       item.querySelector('.btn-edit').onclick = () => this.edit(c.id);
       item.querySelector('.btn-delete').onclick = () => this.deleteChar(c.id);
       item.querySelector('.btn-position').onclick = () => this.openPositionEditor(c.id);
+      item.querySelector('.btn-decomp').onclick = () => this.openDecompPanel(c.id);
       container.appendChild(item);
     });
   },
@@ -1399,6 +1408,121 @@ const Admin = {
       await this.render();
     } catch (e) {
       toast('移除失敗: ' + e.message);
+    }
+  },
+
+  // ===== 深拆／換方案 =====
+  async openDecompPanel(id) {
+    const chars = await Data.getAll();
+    const c = chars.find(x => x.id === id);
+    if (!c) return;
+    this._decompCharId = id;
+    this._decompChar = c;
+    this._decompCandidates = [];
+    document.getElementById('decomp-title').textContent = `「${c.char}」拆法方案`;
+    document.getElementById('decomp-body').innerHTML = '<p class="muted">載入中…</p>';
+    document.getElementById('decomp-ai-status').textContent = '';
+    document.getElementById('decomp-modal').classList.remove('hidden');
+
+    try {
+      const res = await fetch(`/api/admin/chars/${id}/decompositions`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include'
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || '載入失敗');
+      this._decompCandidates = data.candidates || [];
+      this._renderDecompPanel(data);
+    } catch (e) {
+      document.getElementById('decomp-body').innerHTML = `<p style="color:#c0392b">${escapeHtml(e.message)}</p>`;
+    }
+  },
+
+  _renderDecompPanel(data) {
+    const c = this._decompChar;
+    const curKey = (c.components || []).join('+');
+    const srcClass = { 'dict': 'dict', 'dict-deep': 'deep', 'ids-1': 'ids', 'ids-deep': 'ids', 'ai': 'ai' };
+    const cards = this._decompCandidates.map((cand, i) => {
+      const isCur = cand.components.join('+') === curKey && !cand.source.startsWith('ai');
+      const layout = fitLayout(autoLayout(cand.components, c.char), cand.components.length);
+      const hasPos = !!cand.positions;
+      const warn = /⚠️/.test(cand.note);
+      const chips = cand.components.map((x, k) =>
+        `<span class="decomp-chip">${escapeHtml(x)}</span>` +
+        (k < cand.components.length - 1 ? '<span class="decomp-plus">+</span>' : '')
+      ).join('');
+      return `<div class="decomp-card ${isCur ? 'current' : ''} ${cand.source === 'ai' ? 'ai' : ''}">
+        <div class="decomp-card-head">
+          <span class="decomp-source ${srcClass[cand.source] || ''}">${escapeHtml(cand.label)}</span>
+          ${isCur ? '<span class="decomp-badge-current">目前使用</span>' : ''}
+          <span class="decomp-count">${cand.components.length} 部件・${layout}${hasPos ? '・含精確位置' : ''}</span>
+        </div>
+        <div class="decomp-chips">${chips}</div>
+        <div class="decomp-note ${warn ? 'warn' : ''}">${escapeHtml(cand.note || '')}</div>
+        <div class="decomp-actions">
+          <button class="btn btn-primary small" data-apply="${i}">${isCur ? '重新套用' : '✅ 套用這個'}</button>
+        </div>
+      </div>`;
+    }).join('');
+
+    document.getElementById('decomp-body').innerHTML = `
+      <div class="decomp-current">
+        目前：${(c.components || []).map(escapeHtml).join(' + ')}　（${c.layout}${c.positions ? '・自訂位置' : ''}）
+      </div>
+      ${cards || '<p class="muted">冇其他方案</p>'}
+    `;
+    document.getElementById('decomp-body').querySelectorAll('[data-apply]').forEach(btn => {
+      btn.onclick = () => this.applyDecomp(this._decompCandidates[parseInt(btn.dataset.apply)]);
+    });
+  },
+
+  async applyDecomp(cand) {
+    const c = this._decompChar;
+    const layout = fitLayout(autoLayout(cand.components, c.char), cand.components.length);
+    try {
+      const res = await fetch('/api/chars/' + c.id, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          components: cand.components,
+          layout,
+          positions: cand.positions || null
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || '套用失敗');
+      toast(`已套用：${cand.components.join(' + ')}（${layout}）`);
+      await Data.init(true);
+      document.getElementById('decomp-modal').classList.add('hidden');
+      await this.render();
+    } catch (e) {
+      toast('套用失敗: ' + e.message);
+    }
+  },
+
+  async aiSuggestDecomp() {
+    const c = this._decompChar;
+    if (!c) return;
+    const btn = document.getElementById('decomp-ai-btn');
+    const status = document.getElementById('decomp-ai-status');
+    btn.disabled = true;
+    status.textContent = 'AI 分析中…';
+    try {
+      const res = await fetch(`/api/admin/chars/${c.id}/ai-suggest`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include'
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'AI 失敗');
+      // 移除舊嘅 AI 方案再加新
+      this._decompCandidates = this._decompCandidates.filter(x => x.source !== 'ai');
+      this._decompCandidates.push(data);
+      const cur = { components: c.components, layout: c.layout, positions: c.positions || null };
+      this._renderDecompPanel({ current: cur });
+      status.textContent = '✅ 已加入 AI 方案';
+    } catch (e) {
+      status.textContent = '❌ ' + e.message;
+    } finally {
+      btn.disabled = false;
     }
   },
 
