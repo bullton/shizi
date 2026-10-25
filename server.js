@@ -195,6 +195,107 @@ function normalizeWords(words) {
   return out;
 }
 
+// ===== 部件位置 → 結構 =====
+// AI 只負責講部件位置（top/bottom/left/right/...），由代碼推導 layout。
+// 咁樣可以避免 AI 套用「言字旁一定喺左」呢類先驗而判錯。
+const TOP_POS = new Set(['top', 'top-left', 'top-right']);
+const BOTTOM_POS = new Set(['bottom', 'bottom-left', 'bottom-right']);
+const LEFT_POS = new Set(['left', 'top-left', 'bottom-left']);
+const RIGHT_POS = new Set(['right', 'top-right', 'bottom-right']);
+
+function layoutFromParts(parts, components) {
+  const n = parts.length;
+  if (n < 2) return 'top-bottom';
+
+  // 包圍類部件
+  const first = components[0];
+  if (['囗', '冖', '冂', '凵', '⺆', '門'].includes(first)) {
+    return n === 2 ? 'surround' : 'surround-3';
+  }
+  if (first === '辶' || first === '辵') {
+    if (n === 2) return 'half-surround-left';
+    if (n === 3) return 'complex-3-left';
+    if (n >= 4) return 'complex-4-left';
+  }
+
+  const tops = parts.filter(p => p === 'top').length;
+  const bottoms = parts.filter(p => p === 'bottom').length;
+  const lefts = parts.filter(p => p === 'left').length;
+  const rights = parts.filter(p => p === 'right').length;
+  const bl = parts.filter(p => p === 'bottom-left').length;
+  const br = parts.filter(p => p === 'bottom-right').length;
+  const tl = parts.filter(p => p === 'top-left').length;
+  const tr = parts.filter(p => p === 'top-right').length;
+  const centers = parts.filter(p => p === 'center').length;
+
+  // 2 部件
+  if (n === 2) {
+    const [a, b] = parts;
+    const horizontal = (LEFT_POS.has(a) && RIGHT_POS.has(b)) ||
+                       (LEFT_POS.has(b) && RIGHT_POS.has(a));
+    const vertical = (TOP_POS.has(a) && BOTTOM_POS.has(b)) ||
+                     (TOP_POS.has(b) && BOTTOM_POS.has(a));
+    if (horizontal && !vertical) return 'left-right';
+    if (vertical && !horizontal) return 'top-bottom';
+    // 斜角：左上+右下 → 視為左右；右上+左下 → 同樣
+    if (tl || tr) return 'left-right';
+    return 'top-bottom';
+  }
+
+  // 3 部件
+  if (n === 3) {
+    // 上中下
+    if (tops === 1 && bottoms === 2) return 'top-2-bottom';
+    // 左 + 上下右（complex-3-left）
+    if (lefts === 1 && (tops === 1 || bottoms === 1) &&
+        !parts.includes('top-left') && !parts.includes('bottom-left')) return 'complex-3-left';
+    // 左 + 右 + 右（left-right-right）
+    if (lefts === 1 && rights === 2) return 'left-right-right';
+    // 左 + 中 + 下 → 左邊一個，右邊上下（left-right-right）
+    if (lefts === 1 && centers === 1 && bottoms === 1) return 'left-right-right';
+    // 上 + 左右（bottom-left / bottom-right）
+    if (tops === 1 && bl === 1 && br === 1) return 'top-bottom-bottom';  // 品字
+    if (tops === 1 && (bl === 1 || br === 1)) return 'top-2-bottom';
+    // 上 + 下 + 中
+    if (tops === 1 && bottoms === 1) return 'vertical-3';
+    // 品字：上 1 + 下 2 並排
+    if (bl === 1 && br === 1) return 'top-bottom-bottom';
+    // 左上 + 左下 + 右 → 左右右
+    if (tl === 1 && bl === 1 && rights === 1) return 'left-right-right';
+    return 'vertical-3';
+  }
+
+  // 4 部件
+  if (n === 4) {
+    if (tops === 1 && (bl === 1 || br === 1)) return 'top-2-bottom';
+    if (tops === 1 && bottoms === 1) return 'top-bottom-bottom';
+    if (lefts === 1 && rights === 1) return 'complex-4-left';
+    if (bl === 2 && br === 2) return 'top-bottom-bottom-bottom';
+    return 'stack';
+  }
+
+  return 'stack';
+}
+
+// 由部件位置推算每個部件嘅歸一化座標（0-1）
+function positionsFromParts(parts) {
+  const box = {
+    'top': { x: 0.30, y: 0.04, w: 0.40, h: 0.30 },
+    'bottom': { x: 0.30, y: 0.66, w: 0.40, h: 0.30 },
+    'left': { x: 0.04, y: 0.22, w: 0.26, h: 0.60 },
+    'right': { x: 0.68, y: 0.22, w: 0.28, h: 0.60 },
+    'top-left': { x: 0.06, y: 0.08, w: 0.34, h: 0.40 },
+    'top-right': { x: 0.60, y: 0.08, w: 0.34, h: 0.40 },
+    'bottom-left': { x: 0.06, y: 0.54, w: 0.42, h: 0.40 },
+    'bottom-right': { x: 0.52, y: 0.54, w: 0.42, h: 0.40 },
+    'center': { x: 0.34, y: 0.34, w: 0.32, h: 0.32 }
+  };
+  return parts.map(p => {
+    const b = box[p] || box.center;
+    return { x: b.x, y: b.y, w: b.w, h: b.h };
+  });
+}
+
 // ===== 唯一 ID 生成 =====
 // 用戶 id 絕對不能撞，否則兩個帳號會共用同一份進度（進度串號）
 // Date.now() * 1000 + seq ≈ 1.8e15，仍在 Number.MAX_SAFE_INTEGER (9e15) 之內
@@ -838,6 +939,77 @@ async function handleAPI(req, res) {
   }
 
   // AI analyze char (admin only)
+  // ===== 重新分析字庫結構（修正已導入但結構錯亂嘅字）=====
+  if (pathname === '/api/admin/reanalyze-layouts' && method === 'POST') {
+    const adminUser = requireAuth(req, res);
+    if (!adminUser) return jsonResponse(res, 401, { error: '請先登入' });
+    if (adminUser.role !== 'admin') return jsonResponse(res, 403, { error: '需要管理員權限' });
+    if (!db.config.aiToken) return jsonResponse(res, 400, { error: '請先配置 AI Token' });
+    try {
+      const { ids } = await parseBody(req);
+      let targets = db.chars.filter(c => !isAtomicChar(c.char));
+      if (Array.isArray(ids) && ids.length) {
+        const set = new Set(ids.map(Number));
+        targets = targets.filter(c => set.has(c.id));
+      }
+      if (targets.length === 0) return jsonResponse(res, 400, { error: '冇字可以分析' });
+
+      const results = [];
+      const errors = [];
+      for (let i = 0; i < targets.length; i += 40) {
+        const batch = targets.slice(i, i + 40);
+        const itemStr = batch.map((x, k) => `${k + 1}. 「${x.char}」= ${(x.components || []).join(' + ')}`).join('\n');
+        const prompt = `你是繁體中文字形結構專家。以下每個漢字已拆成部件。\n\n${itemStr}\n\n## 請判斷每個部件喺成個字裡面嘅書寫位置\n可用值：top、bottom、left、right、top-left、top-right、bottom-left、bottom-right、center\n\n## 重要：要根據部件喺真實字形中嘅位置判斷，唔可以靠部件「通常」出現喺邊度\n- 「看」= 手 + 目 → 手喺上面（top），目喺下面（bottom）\n- 「語」= 言 + 吾 → 言喺左（left），吾喺右（right）\n- 「收」= 丩 + 攴 → 丩喺左（left），攴喺右（right）\n- 「古」= 十 + 口 → 十喺上（top），口喺下（bottom）\n\n## 回覆格式（嚴格 JSON 陣列）：\n[{"index": 1, "parts": ["top", "bottom"]}]`;
+
+        const aiRes = await fetch('https://api.minimax.cn/anthropic/v1/messages', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${db.config.aiToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model: 'MiniMax-M3', output_config: { effort: 'max' }, max_tokens: 8000, messages: [{ role: 'user', content: prompt }] })
+        });
+        if (!aiRes.ok) {
+          const err = await aiRes.text();
+          errors.push('AI API 錯誤: ' + err.slice(0, 200));
+          break;
+        }
+        const aiData = await aiRes.json();
+        const content = aiData.content?.[0]?.text || '';
+        let arr;
+        try {
+          const m = content.match(/\[[\s\S]*\]/);
+          if (!m) { errors.push('無法解析 AI 回覆'); continue; }
+          arr = JSON.parse(m[0]);
+        } catch (e) { errors.push('解析失敗'); continue; }
+
+        for (const r of arr) {
+          const idx = (r.index || 0) - 1;
+          const target = batch[idx];
+          if (!target) continue;
+          const parts = Array.isArray(r.parts) ? r.parts : [];
+          if (parts.length !== (target.components || []).length) continue;
+          const newLayout = layoutFromParts(parts, target.components);
+          const newPositions = positionsFromParts(parts);
+          const changed = target.layout !== newLayout;
+          target.layout = newLayout;
+          target.positions = newPositions;
+          target.updatedAt = new Date().toISOString();
+          results.push({ char: target.char, layout: newLayout, changed, parts });
+        }
+      }
+      await saveData(db);
+      jsonResponse(res, 200, {
+        analyzed: results.length,
+        changed: results.filter(r => r.changed).length,
+        results,
+        errors
+      });
+    } catch (e) {
+      jsonResponse(res, 500, { error: '重新分析失敗: ' + e.message });
+    }
+    return;
+  }
+
+  // ===== 批量 AI 分析 =====
+  // 一次過問 AI 多隻字嘅結構，用於批量導入時自動判斷
   // ===== 批量 AI 分析 =====
   // 一次過問 AI 多隻字嘅結構，用於批量導入時自動判斷
   if (pathname === '/api/analyze-chars' && method === 'POST') {
@@ -856,13 +1028,6 @@ async function handleAPI(req, res) {
         return jsonResponse(res, 400, { error: '一次最多分析 40 個字' });
       }
 
-      const validLayouts = [
-        'left-right', 'top-bottom', 'top-bottom-bottom', 'vertical-3',
-        'top-bottom-bottom-bottom', 'top-2-bottom', 'surround',
-        'half-surround-left', 'complex-3-left', 'complex-4-left',
-        'surround-3', 'left-right-right', 'stack'
-      ];
-
       // 每個字：拆法（用唯一字典）
       const items = chars.map(ch => {
         const comps = longestDecomp(ch);
@@ -876,40 +1041,38 @@ async function handleAPI(req, res) {
       const itemStr = items.map((it, i) =>
         `${i + 1}. 「${it.char}」= ${it.components.join(' + ')}`).join('\n');
 
-      const prompt = `你是繁體中文字形結構專家。請分析以下 ${items.length} 個漢字的視覺結構。
+      // ⚠️ 重點：唔好直接叫 AI 揀 layout 標籤。
+      // AI 會套用「言字旁一定喺左」呢類先驗，導致「看」(手+目) 被判成左右。
+      // 改為叫 AI 講出每個部件實際喺邊個位置，再由代碼推導結構。
+      const prompt = `你是繁體中文字形結構專家。以下每個漢字已拆成部件。
 
 ${itemStr}
 
-## 可用的 layout 值：
-- left-right = 左右結構（左部 + 右部）
-- top-bottom = 上下結構（上 + 下）
-- top-bottom-bottom = 品字結構（頂部1個 + 底部2個並排）
-- vertical-3 = 三疊結構（3個上下堆疊）
-- top-bottom-bottom-bottom = 四疊結構（4個上下堆疊）
-- top-2-bottom = 上中下結構（頂部1 + 中間2並排 + 底1）
-- surround = 包圍結構（外框包住內部）
-- half-surround-left = 半包圍（走之旁辶包左）
-- complex-3-left = 三方結構（辶左 + 上下右）
-- complex-4-left = 四方結構（辶左 + 右3上下）
-- surround-3 = 包圍結構（冖包住上下）
-- left-right-right = 左右右結構（左1 + 中右2並排）
-- stack = 通用堆疊（5+部件上下堆疊）
+## 請判斷每個部件喺成個字裡面嘅書寫位置（相對其他部件）
+每個部件嘅位置用以下其中一個值：
+- top（最上面，獨立在上方）
+- bottom（最下面，獨立在下方）
+- left（最左邊，獨立在左邊）
+- right（最右邊，獨立在右邊）
+- top-left（左上角）
+- top-right（右上角）
+- bottom-left（左下角）
+- bottom-right（右下角）
+- center（中間，被其他部件包圍）
 
-## 要求：
-1. 每個字嘅 layout 部件數必須等於該字嘅部件數
-2. 部件數 5+ 一律用 stack
-3. 部件位置用 0-1 歸一化坐標（x/y/w/h），部件頂部接近 0、底部接近 1、左側接近 0、右側接近 1
+## 重要：要根據部件喺真實字形中嘅位置判斷，唔可以靠部件「通常」出現喺邊度
+- 「看」= 手 + 目 → 手喺上面（top），目喺下面（bottom）
+- 「語」= 言 + 吾 → 言喺左邊（left），吾喺右邊（right）
+- 「收」= 丩 + 攴 → 丩喺左（left），攴喺右（right）
+- 「古」= 十 + 口 → 十喺上面（top），口喺下面（bottom）
+- 「雀」= 少 + 隹 → 少喺上面（top），隹喺下面（bottom）
+- 「握」= 手 + 屋 → 手喺左邊（left），屋喺右邊（right）
+- 「掌」= 尚 + 口 + 手 → 尚喺上面，口喺中間，手喺下面
+- 「森」= 木 + 木 + 木 → 一個喺上面，兩個喺下面（bottom-left, bottom-right）
 
-## 回覆格式（嚴格 JSON 數組，無多餘文字）：
+## 回覆格式（嚴格 JSON 陣列，無多餘文字）：
 [
-  {
-    "index": 1,
-    "layout": "left-right",
-    "positions": [
-      { "x": 0.04, "y": 0.16, "w": 0.24, "h": 0.76 },
-      { "x": 0.31, "y": 0.20, "w": 0.65, "h": 0.68 }
-    ]
-  },
+  {"index": 1, "parts": ["top", "bottom"]},
   ...
 ]`;
 
@@ -948,20 +1111,16 @@ ${itemStr}
         const idx = (r.index || 0) - 1;
         const it = items[idx];
         if (!it) continue;
-        let layout = r.layout;
-        if (!validLayouts.includes(layout)) {
-          layout = it.components.length >= 5 ? 'stack' : 'top-bottom';
-        }
-        let positions = null;
-        if (Array.isArray(r.positions) && r.positions.length === it.components.length) {
-          positions = r.positions.map(p => ({
-            x: Math.max(0, Math.min(1, parseFloat(p.x) || 0)),
-            y: Math.max(0, Math.min(1, parseFloat(p.y) || 0)),
-            w: Math.max(0.05, Math.min(1, parseFloat(p.w) || 0.3)),
-            h: Math.max(0.05, Math.min(1, parseFloat(p.h) || 0.3))
-          }));
-        }
-        results.push({ char: it.char, components: it.components, layout, positions });
+        const parts = Array.isArray(r.parts) ? r.parts : [];
+        if (parts.length !== it.components.length) continue;   // 數目唔啱就唔用
+        const layout = layoutFromParts(parts, it.components);
+        results.push({
+          char: it.char,
+          components: it.components,
+          parts,
+          layout,
+          positions: positionsFromParts(parts)
+        });
       }
 
       jsonResponse(res, 200, { results });
@@ -971,6 +1130,7 @@ ${itemStr}
     return;
   }
 
+  // 單字 AI 分析（同批量一致：問部件位置，由代碼推導結構）
   if (pathname === '/api/analyze-char' && method === 'POST') {
     const adminUser = requireAuth(req, res);
     if (!adminUser) return jsonResponse(res, 401, { error: '請先登入' });
@@ -978,72 +1138,38 @@ ${itemStr}
     try {
       const { char, decompositions } = await parseBody(req);
       if (!char) return jsonResponse(res, 400, { error: '缺少字符' });
-
-      // If no AI token, return error
       if (!db.config.aiToken) {
         return jsonResponse(res, 400, { error: '請先配置 AI Token' });
       }
+      // 用第一個（唯一字典嘅首選）拆法
+      const comps = (decompositions && decompositions[0]) || longestDecomp(char);
+      if (!comps || comps.length === 0) {
+        return jsonResponse(res, 400, { error: '冇拆法' });
+      }
 
-      const decompsStr = decompositions.map((d, i) => `${i + 1}. [${d.join(' ')}]`).join('\n');
-      const validLayouts = [
-        'left-right', 'top-bottom', 'top-bottom-bottom', 'vertical-3',
-        'top-bottom-bottom-bottom', 'top-2-bottom', 'surround',
-        'half-surround-left', 'complex-3-left', 'complex-4-left',
-        'surround-3', 'left-right-right', 'stack'
-      ];
-      const layoutDescs = {
-        'left-right': '左右結構（左部 + 右部）',
-        'top-bottom': '上下結構（上 + 下）',
-        'top-bottom-bottom': '品字結構（頂部1個 + 底部2個並排）',
-        'vertical-3': '三疊結構（3個上下堆疊）',
-        'top-bottom-bottom-bottom': '四疊結構（4個上下堆疊）',
-        'top-2-bottom': '上中下結構（頂部1個 + 中間2個並排 + 底部1個）',
-        'surround': '包圍結構（外框包住內部）',
-        'stack': '通用堆疊（5+部件上下堆疊）',
-        'half-surround-left': '半包圍結構（走之旁辶包左邊）',
-        'complex-3-left': '三方結構（辶左 + 上下右）',
-        'complex-4-left': '四方結構（辶左 + 自穴方右）',
-        'surround-3': '包圍結構（冖包住上下部分）',
-        'left-right-right': '左右右結構（左1 + 中右2個並排）'
-      };
-      const layoutList = validLayouts.map(l => `- ${l} = ${layoutDescs[l]}`).join('\n  ');
+      const prompt = `你是繁體中文字形結構專家。以下漢字已拆成部件：
+「${char}」= ${comps.join(' + ')}
 
-      const prompt = `你是繁體中文字形結構專家。請分析字符「${char}」的視覺結構。
+## 請判斷每個部件喺成個字裡面嘅書寫位置（相對其他部件）
+每個部件嘅位置用以下其中一個值：
+- top（最上面，獨立在上方）
+- bottom（最下面，獨立在下方）
+- left（最左邊，獨立在左邊）
+- right（最右邊，獨立在右邊）
+- top-left（左上角）
+- top-right（右上角）
+- bottom-left（左下角）
+- bottom-right（右下角）
+- center（中間，被其他部件包圍）
 
-現有以下拆字選項（每個選項是一個部件數組）：
-${decompsStr}
+## 重要：要根據部件喺真實字形中嘅位置判斷，唔可以靠部件「通常」出現喺邊度
+- 「看」= 手 + 目 → 手喺上面（top），目喺下面（bottom）
+- 「語」= 言 + 吾 → 言喺左邊（left），吾喺右邊（right）
+- 「收」= 丩 + 攴 → 丩喺左（left），攴喺右（right）
+- 「古」= 十 + 口 → 十喺上面（top），口喺下面（bottom）
 
-## 必須使用的 layout 值（只選一個，每個 layout 期望的部件數已列出）：
-  ${layoutList}
-
-## 要求：
-1. 從拆字選項中選擇視覺上最準確的一個
-2. **layout 的部件數必須等於所選拆字選項的部件數**
-3. 如果選項的部件數是 5+，必須使用 stack 布局
-4. 如果某個 layout 的部件數與所選拆字不符，自動改用 stack
-5. **給出每個部件在目標字中的視覺位置**（用 0-1 歸一化坐標系，x/y/w/h 都在 0-1 之間，部件頂部接近 0、底部接近 1，左側接近 0、右側接近 1）
-
-回复格式（嚴格只用JSON，無多餘文字）：
-{
-  "recommended": 選擇的序號(整數, 從1開始),
-  "layout": "上方的layout英文值",
-  "positions": [
-    { "x": 部件1左邊緣(0-1), "y": 部件1頂部(0-1), "w": 部件1寬度(0-1), "h": 部件1高度(0-1) },
-    { "x": ..., "y": ..., "w": ..., "h": ... }
-  ],
-  "reason": "簡短中文解釋為何選擇此拆分和結構"
-}
-
-## 位置示例（繁字: 糹+毎+攵）：
-{
-  "recommended": 1,
-  "layout": "bottom-top-top",
-  "positions": [
-    { "x": 0.1, "y": 0.05, "w": 0.4, "h": 0.45 },
-    { "x": 0.5, "y": 0.05, "w": 0.4, "h": 0.45 },
-    { "x": 0.0, "y": 0.55, "w": 1.0, "h": 0.4 }
-  ]
-}`;
+## 回覆格式（嚴格 JSON，無多餘文字）：
+{"parts": ["top", "bottom"], "reason": "簡短中文解釋"}`;
 
       const aiRes = await fetch('https://api.minimax.cn/anthropic/v1/messages', {
         method: 'POST',
@@ -1058,75 +1184,31 @@ ${decompsStr}
           messages: [{ role: 'user', content: prompt }]
         })
       });
-
       if (!aiRes.ok) {
         const err = await aiRes.text();
         return jsonResponse(res, 502, { error: 'AI API 錯誤: ' + err });
       }
-
       const aiData = await aiRes.json();
       const content = aiData.content?.[0]?.text || '';
-
-      // Parse JSON from response
-      let result;
+      let parsed;
       try {
-        const jsonMatch = content.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          result = JSON.parse(jsonMatch[0]);
-        } else {
-          return jsonResponse(res, 500, { error: '無法解析 AI 回覆' });
-        }
+        const m = content.match(/\{[\s\S]*\}/);
+        if (!m) return jsonResponse(res, 500, { error: '無法解析 AI 回覆' });
+        parsed = JSON.parse(m[0]);
       } catch (e) {
-        return jsonResponse(res, 500, { error: '解析 AI 回覆失敗: ' + content.substring(0, 100) });
+        return jsonResponse(res, 500, { error: '解析 AI 回覆失敗' });
       }
-
-      // Validate layout
-      if (!validLayouts.includes(result.layout)) {
-        // Fallback: choose based on component count
-        const chosenDecomp = decompositions[(result.recommended || 1) - 1];
-        if (chosenDecomp) {
-          result.layout = chosenDecomp.length >= 5 ? 'stack' : 'top-bottom';
-        } else {
-          return jsonResponse(res, 500, { error: 'AI 返回了無效的 layout: ' + result.layout });
-        }
+      const parts = Array.isArray(parsed.parts) ? parsed.parts : [];
+      if (parts.length !== comps.length) {
+        return jsonResponse(res, 500, { error: 'AI 部件數目唔啱（' + parts.length + ' vs ' + comps.length + '）' });
       }
-
-      // Validate layout matches component count
-      const chosenDecomp2 = decompositions[(result.recommended || 1) - 1];
-      if (chosenDecomp2) {
-        const counts = {
-          'left-right': 2, 'top-bottom': 2, 'top-bottom-bottom': 3, 'vertical-3': 3,
-          'top-bottom-bottom-bottom': 4, 'top-2-bottom': 4, 'surround': 2,
-          'half-surround-left': 2, 'complex-3-left': 3, 'complex-4-left': 4,
-          'surround-3': 3, 'left-right-right': 3
-        };
-        const expected = counts[result.layout];
-        if (expected && chosenDecomp2.length !== expected) {
-          result.layout = chosenDecomp2.length >= 5 ? 'stack' : 'top-bottom';
-        }
-      }
-
-      // Validate recommended index
-      const recIdx = (result.recommended || 1) - 1;
-      if (recIdx < 0 || recIdx >= decompositions.length) {
-        result.recommended = 1;
-      }
-
-      // Validate positions: must be array with correct length, each item has x/y/w/h
-      const chosenDecomp3 = decompositions[(result.recommended || 1) - 1] || [];
-      if (Array.isArray(result.positions) && result.positions.length === chosenDecomp3.length) {
-        const cleaned = result.positions.map(p => ({
-          x: Math.max(0, Math.min(1, parseFloat(p.x) || 0)),
-          y: Math.max(0, Math.min(1, parseFloat(p.y) || 0)),
-          w: Math.max(0.05, Math.min(1, parseFloat(p.w) || 0.3)),
-          h: Math.max(0.05, Math.min(1, parseFloat(p.h) || 0.3))
-        }));
-        result.positions = cleaned;
-      } else {
-        result.positions = null;
-      }
-
-      jsonResponse(res, 200, result);
+      jsonResponse(res, 200, {
+        recommended: 1,
+        parts,
+        layout: layoutFromParts(parts, comps),
+        positions: positionsFromParts(parts),
+        reason: parsed.reason || ''
+      });
     } catch (e) {
       jsonResponse(res, 500, { error: '分析失敗: ' + e.message });
     }

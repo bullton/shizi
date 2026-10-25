@@ -129,7 +129,8 @@
 
         <div class="card" id="import-words-preview" style="display:none">
           <h3>📋 詞語導入預覽</h3>
-          <div id="import-words-list"></div>
+          <div id="import-words-status" class="import-ai-status"></div>
+        <div id="import-words-list"></div>
           <div style="margin-top:16px;display:flex;gap:12px">
             <button class="btn btn-primary" id="confirm-words-btn">✅ 確認導入</button>
             <button class="btn btn-secondary" id="cancel-words-btn">✕ 取消</button>
@@ -216,6 +217,7 @@
         <div class="card">
           <div class="list-header">
             <h2>字庫 (<span id="char-count">0</span>)</h2>
+            <button class="btn btn-secondary small" id="reanalyze-btn">🤖 重新分析結構</button>
             <button class="btn btn-secondary small" id="purge-atomic-btn">🔒 移除原子字</button>
             <button class="btn btn-secondary small" id="reset-data-btn">🔄 重置預設</button>
           </div>

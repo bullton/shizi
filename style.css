@@ -2139,3 +2139,5 @@ nav {
   font-size: 13px;
   color: #636e72;
 }
+.import-ai-status { font-size: 13px; color: #6c5ce7; margin-bottom: 8px; min-height: 18px; }
+.import-ai-status.error { color: #c0392b; }

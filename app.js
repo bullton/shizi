@@ -1058,6 +1058,7 @@ const Game = {
 const WordImport = {
   words: [],
   newChars: [],
+  aiLayouts: new Map(),   // char -> { layout, parts, positions }
 
   // 解析輸入：每行一個詞，或用空白/標點分隔
   parse(input) {
@@ -1109,7 +1110,8 @@ const WordImport = {
           char: processed.char,
           components: processed.components,
           layout: processed.layout,
-          hint: processed.hint
+          hint: processed.hint,
+          positions: processed.positions || null
         });
       } else {
         missing.push(ch);
@@ -1125,6 +1127,34 @@ const WordImport = {
       if (!charWords[ch]) charWords[ch] = [];
       charWords[ch].push(w);
     }));
+
+    // 用 AI 分析新字嘅結構（準確過規則猜測）
+    this.aiLayouts = new Map();
+    const toAnalyze = newChars.map(n => n.char);
+    if (toAnalyze.length > 0) {
+      const status = document.getElementById('import-words-status');
+      if (status) status.textContent = `🤖 AI 正在分析 ${toAnalyze.length} 個新字嘅結構…`;
+      await this._analyzeLayouts(toAnalyze);
+      // 用 AI 結果更新 layout + positions
+      let aiCount = 0;
+      for (const n of newChars) {
+        const ai = this.aiLayouts.get(n.char);
+        if (ai && ai.layout) {
+          n.layout = ai.layout;
+          n.positions = ai.positions || null;
+          aiCount++;
+        }
+      }
+      if (status) {
+        if (this._aiError) {
+          status.textContent = `⚠️ AI 分析失敗（${this._aiError}），已用規則推測——請逐個核對結構`;
+          status.classList.add('error');
+        } else {
+          status.textContent = aiCount > 0 ? `✅ AI 已分析 ${aiCount} 個新字結構` : '';
+          status.classList.remove('error');
+        }
+      }
+    }
 
     document.getElementById('import-words-preview').style.display = 'block';
     document.getElementById('import-words-list').innerHTML = `
@@ -1162,6 +1192,35 @@ const WordImport = {
     document.getElementById('import-words-preview').scrollIntoView({ behavior: 'smooth' });
   },
 
+  // 叫 AI 批量分析結構（每次最多 40 個）
+  async _analyzeLayouts(chars) {
+    const list = [...chars];
+    this._aiError = null;
+    for (let i = 0; i < list.length; i += 40) {
+      const batch = list.slice(i, i + 40);
+      try {
+        const res = await fetch('/api/analyze-chars', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ chars: batch })
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          this._aiError = data.error || ('HTTP ' + res.status);
+          continue;
+        }
+        const data = await res.json();
+        for (const r of (data.results || [])) {
+          this.aiLayouts.set(r.char, r);
+        }
+      } catch (e) {
+        this._aiError = e.message;
+        console.warn('AI 分析失敗:', e.message);
+      }
+    }
+  },
+
   async confirm() {
     try {
       const res = await fetch('/api/chars/words', {
@@ -1196,6 +1255,7 @@ const Admin = {
     document.getElementById('cancel-btn').onclick = () => this.cancel();
     document.getElementById('reset-data-btn').onclick = () => this.resetData();
     document.getElementById('purge-atomic-btn')?.addEventListener('click', () => this.purgeAtomicChars());
+    document.getElementById('reanalyze-btn')?.addEventListener('click', () => this.reanalyzeLayouts());
     document.getElementById('clear-positions-btn')?.addEventListener('click', () => this.clearAllPositions());
 
     document.getElementById('form-char').addEventListener('input', (e) => {
@@ -1316,6 +1376,37 @@ const Admin = {
     await Data.deleteChar(id);
     toast('已刪除');
     await this.render();
+  },
+
+  // 用 AI 重新分析全部字嘅結構（修正錯亂嘅上下／左右）
+  async reanalyzeLayouts() {
+    if (!confirm('用 AI 重新分析字庫所有字嘅結構？\n（會覆寫現有 layout 同部件位置；AI 額度不足會失敗）')) return;
+    const btn = document.getElementById('reanalyze-btn');
+    btn.disabled = true;
+    btn.textContent = '⏳ 分析中…';
+    try {
+      const res = await fetch('/api/admin/reanalyze-layouts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({})
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast('分析失敗: ' + (data.error || ''));
+      } else if (data.errors && data.errors.length) {
+        toast('分析中斷：' + data.errors[0]);
+      } else {
+        toast(`已分析 ${data.analyzed} 字，修正 ${data.changed} 字結構`);
+      }
+      await Data.init(true);
+      await this.render();
+    } catch (e) {
+      toast('分析失敗: ' + e.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '🤖 重新分析結構';
+    }
   },
 
   // 由字庫移除所有原子字（拆開只剩筆畫嘅字，冇練習價值）
@@ -2430,7 +2521,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  document.getElementById('import-btn')?.addEventListener('click', () => {
+  document.getElementById('import-btn')?.addEventListener('click', async () => {
     const input = document.getElementById('import-chars').value.trim();
     if (!input) {
       toast('請輸入字符');
@@ -2447,6 +2538,29 @@ document.addEventListener('DOMContentLoaded', () => {
     if (importPreviewData.length === 0) {
       toast('沒有找到可導入的字符（確保字符在字典中存在）');
       return;
+    }
+    // 用 AI 分析結構（準確過規則猜測）
+    const aiMap = new Map();
+    for (let i = 0; i < importPreviewData.length; i += 40) {
+      const batch = importPreviewData.slice(i, i + 40).map(p => p.char);
+      try {
+        const res = await fetch('/api/analyze-chars', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ chars: batch })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          for (const r of (data.results || [])) aiMap.set(r.char, r);
+        }
+      } catch (e) {
+        console.warn('AI 分析失敗:', e.message);
+      }
+    }
+    for (const p of importPreviewData) {
+      const ai = aiMap.get(p.char);
+      if (ai && ai.layout) { p.layout = ai.layout; p.positions = ai.positions; }
     }
     document.getElementById('import-preview-list').innerHTML = importPreviewData.map((p, idx) => `
       <div class="import-preview-item" data-idx="${idx}">
