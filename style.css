@@ -2414,7 +2414,7 @@ header { flex: 0 0 auto; }
   flex: 1 1 auto;
   min-height: 0;
   height: auto !important;
-  padding: 6px;
+  padding: 10px;
   overflow: hidden;
 }
 #view-game .character-display[class*="layout-"] {
@@ -2545,4 +2545,20 @@ header { flex: 0 0 auto; }
   opacity: 0.92;
   transform: scale(1.06);
   transition: none;
+}
+
+/* ===== 完成後保留方框 ===== */
+#view-game .character-display.solved {
+  background: linear-gradient(135deg, #fff9c4 0%, #ffeaa7 100%);
+  border-color: #fdcb6e;
+  border-style: solid;
+}
+#view-game .character-display.solved .slot {
+  background: #eafaf1;
+  border-color: #2ecc71;
+  border-style: solid;
+}
+#view-game .pieces-tray .word-chip {
+  font-size: clamp(14px, 2.4vh, 22px);
+  padding: 6px 14px;
 }

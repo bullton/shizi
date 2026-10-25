@@ -950,6 +950,9 @@ const Game = {
     display.innerHTML = '';
     display.classList.remove('complete-mode');
     display.classList.remove('has-words');
+    display.classList.remove('solved');
+    const trayTitle = document.querySelector('#view-game .pieces-card h3');
+    if (trayTitle) trayTitle.textContent = '👇 部件';
 
     const hasCustomPositions = this.current.positions &&
       Object.keys(this.current.positions).length === this.current.components.length;
@@ -1300,41 +1303,43 @@ const Game = {
     this._updateScore();
     const display = document.getElementById('character-display');
     const tray = document.getElementById('pieces-tray');
+    const trayTitle = document.querySelector('#view-game .pieces-card h3');
     const char = this.current.char;
     const words = this.current.words || [];
     const responseTime = Date.now() - this.startTime;
     User.recordProgress(char, this.current.id, responseTime, true);
     this._markTaskDone();
-    display.querySelectorAll('.slot').forEach(s => s.classList.add('fade-out'));
-    tray.classList.add('fade-out');
-    this._setTimer(() => {
-      const wordsHtml = words.length ? `
-        <div class="char-words">
-          <div class="char-words-label">💬 詞語</div>
-          <div class="char-words-list">
-            ${words.map(w => `<button class="word-chip" data-word="${escapeHtml(w)}">${escapeHtml(w)}</button>`).join('')}
-          </div>
-        </div>` : '';
-      display.innerHTML = `<div class="complete-character">${char}</div>${wordsHtml}`;
-      display.classList.add('complete-mode');
-      display.classList.toggle('has-words', words.length > 0);
-      requestAnimationFrame(fitGameSizes);
-      // 撳詞語可以讀出嚟
-      display.querySelectorAll('.word-chip').forEach(btn => {
-        btn.onclick = () => this._speak(btn.dataset.word);
-      });
+
+    // ⚠️ 保留方框（唔好清走）——只加完成樣式
+    display.classList.add('solved');
+
+    // 詞語放喺（已經空咗嘅）部件架，避免版面跳動
+    if (tray) {
       tray.innerHTML = '';
       tray.classList.remove('fade-out');
-      this._playSuccess();
-      this._setTimer(() => this._speak(char), 200);
-    }, 400);
+      if (words.length) {
+        tray.innerHTML = words.map(w =>
+          `<button class="word-chip" data-word="${escapeHtml(w)}">${escapeHtml(w)}</button>`
+        ).join('');
+        tray.querySelectorAll('.word-chip').forEach(btn => {
+          btn.onclick = () => this._speak(btn.dataset.word);
+        });
+        if (trayTitle) trayTitle.textContent = '💬 詞語（撳可以聽）';
+      }
+    }
+
+    this._playSuccess();
+    this._setTimer(() => this._speak(char), 200);
+
     const cel = document.getElementById('celebration');
     this._setTimer(() => {
       cel.classList.remove('hidden');
-      this._setTimer(() => cel.classList.add('hidden'), 2200);
-    }, 700);
+      this._setTimer(() => cel.classList.add('hidden'), 1600);
+    }, 250);
+
     document.getElementById('next-btn').classList.remove('hidden');
   },
+
 
   _speak(text) {
     speakCantonese(text, 0.7);
