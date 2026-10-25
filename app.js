@@ -107,7 +107,8 @@ const FIXED_SLOT_LAYOUTS = {
   'complex-3-left': 3,
   'left-right-right': 3,
   'complex-4-left': 4,
-  'left-middle-right': 3
+  'left-middle-right': 3,
+  'bottom-top-top': 3
 };
 
 // 保險：佈局槽數同部件數對唔上就改用通用佈局
@@ -127,11 +128,7 @@ function autoLayout(components, char) {
   // ① Unicode IDS 最準（官方字形結構，離線免費）
   //    只喺部件數同字典一致時採用，避免管理員改咗拆法後對唔上
   if (char && window.ChaiziIds && window.ChaiziIds[char]) {
-    const dictComps = window.ChaiziDictUnique?.[char];
-    const dictCount = Array.isArray(dictComps) ? dictComps.length : null;
-    if (dictCount === null || dictCount === components.length) {
-      return window.ChaiziIds[char];
-    }
+    return window.ChaiziIds[char];
   }
 
   const first = components[0];
@@ -2474,6 +2471,7 @@ document.addEventListener('DOMContentLoaded', () => {
               <option value="surround-3" ${p.layout === 'surround-3' ? 'selected' : ''}>包圍-3</option>
               <option value="left-right-right" ${p.layout === 'left-right-right' ? 'selected' : ''}>左中右結構</option>
               <option value="left-middle-right" ${p.layout === 'left-middle-right' ? 'selected' : ''}>左中右結構（三分）</option>
+              <option value="bottom-top-top" ${p.layout === 'bottom-top-top' ? 'selected' : ''}>上二下一結構</option>
               <option value="stack" ${p.layout === 'stack' ? 'selected' : ''}>通用堆疊（5+部件）</option>
             </select>
           </div>

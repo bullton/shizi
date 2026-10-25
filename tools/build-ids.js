@@ -103,9 +103,12 @@ function layoutFromIds(root, compCount, idsMap) {
   if (op === '⿱') {
     if (n === 2) return 'top-bottom';
     if (n === 3) {
-      // 右邊（下半）如果係左右並排 → 品字；否則三疊
+      // 右邊（下半）左右並排 → 品字（上1下2）
       const right = expandLeaf(root.kids[1], idsMap);
       if (right && right.op === '⿰') return 'top-bottom-bottom';
+      // 左邊（上半）左右並排 → 上二下一
+      const left = expandLeaf(root.kids[0], idsMap);
+      if (left && left.op === '⿰') return 'bottom-top-top';
       return 'vertical-3';
     }
     if (n === 4) return 'top-2-bottom';
