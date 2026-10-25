@@ -121,6 +121,37 @@ function fitLayout(layout, count) {
   return 'stack';
 }
 
+// ===== 練習畫面自適應（按每個槽實際大小設定字級）=====
+function fitGameSizes() {
+  const display = document.getElementById('character-display');
+  if (!display) return;
+
+  // 每個槽位：用佢自己嘅實際大細計字級（嵌套／自訂位置都啱）
+  display.querySelectorAll('.slot').forEach(s => {
+    const r = s.getBoundingClientRect();
+    if (r.width < 6 || r.height < 6) return;
+    const size = Math.floor(Math.min(r.width * 0.80, r.height * 0.84));
+    s.style.fontSize = Math.max(12, size) + 'px';
+  });
+
+  // 完成畫面嘅大字
+  const cc = display.querySelector('.complete-character');
+  if (cc) {
+    const dr = display.getBoundingClientRect();
+    const hasWords = display.classList.contains('has-words');
+    const size = Math.floor(dr.height * (hasWords ? 0.40 : 0.64));
+    cc.style.fontSize = Math.max(28, size) + 'px';
+  }
+
+  // 詞語 chip 唔好過大
+  const words = display.querySelector('.char-words');
+  if (words) {
+    const dr = display.getBoundingClientRect();
+    const fs = Math.max(13, Math.floor(dr.height * 0.05));
+    words.querySelectorAll('.word-chip').forEach(w => { w.style.fontSize = fs + 'px'; });
+  }
+}
+
 // ===== 粵語語音（共用）=====
 let _voiceWarmed = false;
 function warmUpVoices() {
@@ -903,6 +934,7 @@ const Game = {
     }
     this._updateProgress();
     this.render();
+    requestAnimationFrame(fitGameSizes);
     this._speak(this.current.char);
   },
 
@@ -1219,6 +1251,7 @@ const Game = {
       display.innerHTML = `<div class="complete-character">${char}</div>${wordsHtml}`;
       display.classList.add('complete-mode');
       display.classList.toggle('has-words', words.length > 0);
+      requestAnimationFrame(fitGameSizes);
       // 撳詞語可以讀出嚟
       display.querySelectorAll('.word-chip').forEach(btn => {
         btn.onclick = () => this._speak(btn.dataset.word);
@@ -2078,6 +2111,8 @@ function showView(name) {
   if ((name === 'admin' || name === 'admin-panel') && User.current?.role !== 'admin') {
     return;
   }
+  // 練習頁鎖死視窗高度（唔使捲）
+  document.body.classList.toggle('game-mode', name === 'game');
   document.querySelectorAll('.nav-btn').forEach(b =>
     b.classList.toggle('active', b.dataset.view === name));
   document.querySelectorAll('.view').forEach(v =>
@@ -2090,6 +2125,7 @@ function showView(name) {
     } else {
       Game.start();
     }
+    setTimeout(fitGameSizes, 60);
   }
   if (name === 'admin') Admin.init();
   if (name === 'dashboard') loadDashboard();
@@ -2126,6 +2162,10 @@ async function init() {
   document.getElementById('speak-btn').onclick = () => {
     if (Game.current) Game._speak(Game.current.char);
   };
+
+  // 視窗尺寸改變 → 重新量度
+  window.addEventListener('resize', () => requestAnimationFrame(fitGameSizes));
+  window.addEventListener('orientationchange', () => setTimeout(fitGameSizes, 250));
 
   // ===== 默書模式（全域綁定，唔好放喺 Admin.init）=====
   const dPlay = document.getElementById('dictation-play');

@@ -2339,3 +2339,172 @@ nav {
 .dictation-foot { justify-content: space-between; gap: 8px; }
 .dictation-foot .btn { flex: 1; }
 .dictation-foot .btn:disabled { opacity: 0.4; cursor: default; }
+
+/* ============================================================
+   練習畫面：一屏顯示（唔使捲），電腦／平板／手機一致
+   ============================================================ */
+html { height: 100%; }
+body {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+/* 練習模式：鎖死高度，唔可以捲 */
+body.game-mode {
+  height: 100dvh;
+  overflow: hidden;
+}
+header { flex: 0 0 auto; }
+.container {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* 只將「練習」頁變成一屏 flex 佈局；其他頁面照舊可以捲 */
+#view-game.active {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow: hidden;
+}
+
+#view-game > .task-banner,
+#view-game > .free-banner {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 8px 14px;
+  font-size: 14px;
+}
+
+#view-game > .game-info {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 8px 14px;
+  gap: 14px;
+}
+#view-game .info-item { font-size: 15px; }
+#view-game .info-value { font-size: 19px; }
+
+/* 中間卡：說明 + 字形 + 重播 */
+#view-game > .card:not(.pieces-card):not(.game-info) {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0;
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+#view-game > .card > .instruction {
+  flex: 0 0 auto;
+  font-size: 14px;
+  margin: 0;
+}
+#view-game .speak-row { flex: 0 0 auto; margin: 0; }
+#view-game .btn-speak { padding: 6px 18px; font-size: 14px; }
+
+/* 字形區：食晒剩餘高度，用容器單位算字級 */
+#view-game .character-display {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto !important;
+  padding: 6px;
+  overflow: hidden;
+}
+#view-game .character-display[class*="layout-"] {
+  height: auto !important;
+  min-height: 0 !important;
+}
+
+/* 固定行高 → 比例行高 */
+#view-game .layout-top-bottom { grid-template-rows: 1fr 1fr !important; }
+#view-game .layout-top-bottom-bottom { grid-template-rows: 1.05fr 1fr !important; }
+#view-game .layout-vertical-3 { grid-template-rows: repeat(3, 1fr) !important; }
+#view-game .layout-top-bottom-bottom-bottom { grid-template-rows: repeat(4, 1fr) !important; }
+#view-game .layout-top-2-bottom { grid-template-rows: repeat(3, 1fr) !important; }
+#view-game .layout-complex-3-left { grid-template-rows: 1fr 1fr !important; }
+#view-game .layout-complex-4-left { grid-template-rows: repeat(3, 1fr) !important; }
+#view-game .layout-surround-3 { height: auto !important; }
+#view-game .layout-stack { min-height: 0 !important; height: auto !important; }
+#view-game .layout-custom { height: auto !important; }
+
+/* 字級由 JS（fitGameSizes）按實際槽位大小設定 */
+#view-game .character-display .slot {
+  line-height: 1;
+  /* 唔好 transition font-size（會令字級慢慢變） */
+  transition: background-color 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+
+/* 包圍／半包圍／自訂位置 */
+#view-game .layout-surround > .slot,
+#view-game .layout-half-surround-left > .slot,
+#view-game .layout-custom > .slot { font-size: clamp(18px, 8vh, 150px); }
+
+/* 完成畫面 */
+#view-game .character-display.complete-mode {
+  height: auto !important;
+  min-height: 0 !important;
+  padding: 6px;
+}
+#view-game .complete-character { line-height: 1; }
+#view-game .character-display.complete-mode.has-words { min-height: 0 !important; }
+
+#view-game .char-words { margin-top: 6px; }
+#view-game .char-words-label { font-size: 12px; }
+#view-game .word-chip { padding: 5px 12px; }
+
+/* 部件卡：唔好撐高 */
+#view-game > .pieces-card {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 6px 12px 8px;
+  text-align: center;
+}
+#view-game > .pieces-card h3 {
+  font-size: 13px;
+  margin: 0 0 5px;
+}
+#view-game .pieces-tray {
+  min-height: 0;
+  padding: 6px;
+  gap: 10px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+#view-game .piece {
+  flex: 0 0 auto;
+  width: clamp(46px, 9vh, 96px);
+  height: clamp(46px, 9vh, 96px);
+  font-size: clamp(28px, 6vh, 68px);
+  border-width: 3px;
+  border-radius: 12px;
+}
+
+/* 底部按鈕 */
+#view-game > .game-actions {
+  flex: 0 0 auto;
+  gap: 10px;
+}
+#view-game > .game-actions .btn {
+  padding: 9px 20px;
+  font-size: 16px;
+}
+
+@media (max-height: 950px) {
+  .container { padding: 12px 16px; }
+}
+
+/* 矮螢幕進一步壓縮 */
+@media (max-height: 700px) {
+  #view-game > .card > .instruction { display: none; }
+  #view-game > .pieces-card h3 { display: none; }
+  #view-game .btn-speak { padding: 4px 14px; font-size: 13px; }
+  #view-game > .game-actions .btn { padding: 7px 16px; font-size: 15px; }
+}
