@@ -121,12 +121,63 @@ function fitLayout(layout, count) {
   return 'stack';
 }
 
+// ===== 粵語語音（共用）=====
+let _voiceWarmed = false;
+function warmUpVoices() {
+  if (!('speechSynthesis' in window)) return;
+  if (_voiceWarmed) return;
+  _voiceWarmed = true;
+  // 觸發語音列表載入（部分瀏覽器首次係空）
+  window.speechSynthesis.getVoices();
+  window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
+}
+function pickCantoneseVoice() {
+  const voices = window.speechSynthesis.getVoices() || [];
+  return voices.find(v => /zh[-_]HK/i.test(v.lang))
+      || voices.find(v => /yue/i.test(v.lang))
+      || voices.find(v => /zh[-_]TW/i.test(v.lang))
+      || voices.find(v => /^zh/i.test(v.lang))
+      || null;
+}
+// 讀出文字（rate 越細越慢）
+function speakCantonese(text, rate = 0.75) {
+  if (!('speechSynthesis' in window)) {
+    toast('呢個瀏覽器唔支援語音');
+    return;
+  }
+  const synth = window.speechSynthesis;
+  warmUpVoices();
+
+  const make = () => {
+    const u = new SpeechSynthesisUtterance(String(text));
+    u.lang = 'zh-HK';
+    u.rate = rate;
+    u.pitch = 1.05;
+    u.volume = 1;
+    const v = pickCantoneseVoice();
+    if (v) u.voice = v;
+    return u;
+  };
+
+  // 冇聲喺播放緊 → 直接講（保留用戶手勢，iOS 需要）
+  if (!synth.speaking && !synth.pending) {
+    if (synth.paused) synth.resume();
+    synth.speak(make());
+    return;
+  }
+  // 已經有聲 → 先取消，稍等再講（Chrome cancel 後即 speak 會被丟棄）
+  synth.cancel();
+  setTimeout(() => {
+    if (synth.paused) synth.resume();
+    synth.speak(make());
+  }, 80);
+}
+
 function autoLayout(components, char) {
   if (!components || components.length === 0) return 'top-bottom';
   if (components.length === 1) return 'top-bottom';
 
   // ① Unicode IDS 最準（官方字形結構，離線免費）
-  //    只喺部件數同字典一致時採用，避免管理員改咗拆法後對唔上
   if (char && window.ChaiziIds && window.ChaiziIds[char]) {
     return window.ChaiziIds[char];
   }
@@ -274,13 +325,7 @@ const Dictation = {
   taskName: '',
 
   _speak(text, rate = 0.75) {
-    if (!('speechSynthesis' in window)) return;
-    speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = 'zh-HK';
-    u.rate = rate;
-    u.pitch = 1.05;
-    speechSynthesis.speak(u);
+    speakCantonese(text, rate);
   },
 
   async start(task) {
@@ -343,7 +388,18 @@ const Dictation = {
 
   play() {
     const it = this.items[this.index];
-    if (it) this._speak(it.word);
+    if (!it) return;
+    if (!('speechSynthesis' in window)) {
+      toast('呢個瀏覽器唔支援語音播放');
+      return;
+    }
+    warmUpVoices();
+    const voices = window.speechSynthesis.getVoices().length;
+    this._speak(it.word);
+    if (voices === 0) {
+      document.getElementById('dictation-hint').textContent =
+        '⚠️ 系統未安裝中文語音（可去系統設定加粵語語音），但已嘗試播放';
+    }
   },
 
   next() {
@@ -1181,13 +1237,7 @@ const Game = {
   },
 
   _speak(text) {
-    if (!('speechSynthesis' in window)) return;
-    speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = 'zh-HK';
-    u.rate = 0.7;
-    u.pitch = 1.1;
-    speechSynthesis.speak(u);
+    speakCantonese(text, 0.7);
   },
 
   _playTone(freq, dur, delay = 0) {
@@ -1404,16 +1454,6 @@ const Admin = {
       if (e.target.id === 'decomp-modal') e.target.classList.add('hidden');
     });
     document.getElementById('decomp-ai-btn')?.addEventListener('click', () => this.aiSuggestDecomp());
-
-    // 默書模式
-    document.getElementById('dictation-play')?.addEventListener('click', () => Dictation.play());
-    document.getElementById('dictation-next')?.addEventListener('click', () => Dictation.next());
-    document.getElementById('dictation-prev')?.addEventListener('click', () => Dictation.prev());
-    document.getElementById('dictation-reveal')?.addEventListener('click', () => Dictation.toggleReveal());
-    document.getElementById('dictation-close')?.addEventListener('click', () => Dictation.close());
-    document.getElementById('dictation-modal')?.addEventListener('click', (e) => {
-      if (e.target.id === 'dictation-modal') Dictation.close();
-    });
     document.getElementById('clear-positions-btn')?.addEventListener('click', () => this.clearAllPositions());
 
     document.getElementById('form-char').addEventListener('input', (e) => {
@@ -2059,6 +2099,8 @@ function showView(name) {
 
 // ===== 啟動 =====
 async function init() {
+  warmUpVoices();
+
   document.querySelectorAll('.nav-btn').forEach(btn => {
     btn.onclick = () => showView(btn.dataset.view);
   });
@@ -2084,6 +2126,22 @@ async function init() {
   document.getElementById('speak-btn').onclick = () => {
     if (Game.current) Game._speak(Game.current.char);
   };
+
+  // ===== 默書模式（全域綁定，唔好放喺 Admin.init）=====
+  const dPlay = document.getElementById('dictation-play');
+  if (dPlay) dPlay.addEventListener('click', () => Dictation.play());
+  const dNext = document.getElementById('dictation-next');
+  if (dNext) dNext.addEventListener('click', () => Dictation.next());
+  const dPrev = document.getElementById('dictation-prev');
+  if (dPrev) dPrev.addEventListener('click', () => Dictation.prev());
+  const dReveal = document.getElementById('dictation-reveal');
+  if (dReveal) dReveal.addEventListener('click', () => Dictation.toggleReveal());
+  const dClose = document.getElementById('dictation-close');
+  if (dClose) dClose.addEventListener('click', () => Dictation.close());
+  const dModal = document.getElementById('dictation-modal');
+  if (dModal) dModal.addEventListener('click', (e) => {
+    if (e.target === dModal) Dictation.close();
+  });
 
   // 自由練習：換一批字
   document.getElementById('free-refresh-btn').onclick = () => {
