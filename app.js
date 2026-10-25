@@ -1244,98 +1244,151 @@ const Game = {
   },
 
   _setupPiece(piece) {
-    let active = false, startX = 0, startY = 0, lastX = 0, lastY = 0;
-    let moved = false, ghost = null, dragW = 0, dragH = 0, lastWasDrag = false;
-    let pid = null, usedPointer = false;
+    // 拖拽狀態
+    let drag = null;
+    let lastWasDrag = false;
 
-    const begin = (x, y) => {
-      active = true; startX = x; startY = y; lastX = x; lastY = y; moved = false;
+    const clearVisuals = () => {
+      document.querySelectorAll('.drag-ghost').forEach(g => g.remove());
+      document.querySelectorAll('#character-display .slot.drag-over')
+        .forEach(s => s.classList.remove('drag-over'));
+      piece.classList.remove('dragging');
     };
 
-    const move = (x, y) => {
-      if (!active) return;
-      lastX = x; lastY = y;
-      if (!moved) {
-        if (Math.hypot(x - startX, y - startY) < 8) return;   // 太細當輕觸
-        moved = true;
-        dragW = piece.offsetWidth; dragH = piece.offsetHeight;
-        ghost = piece.cloneNode(true);
-        ghost.className = 'drag-ghost';
-        ghost.style.width = dragW + 'px';
-        ghost.style.height = dragH + 'px';
-        ghost.style.fontSize = getComputedStyle(piece).fontSize;
-        document.body.appendChild(ghost);
+    const detach = () => {
+      document.removeEventListener('pointermove', onPointerMove);
+      document.removeEventListener('pointerup', onPointerUp);
+      document.removeEventListener('pointercancel', onPointerCancel);
+      document.removeEventListener('touchmove', onTouchMove);
+      document.removeEventListener('touchend', onTouchEnd);
+      document.removeEventListener('touchcancel', onTouchEnd);
+      window.removeEventListener('blur', onBlur);
+    };
+
+    const doMove = (x, y) => {
+      if (!drag) return;
+      drag.lastX = x; drag.lastY = y;
+      if (!drag.moved) {
+        if (Math.hypot(x - drag.startX, y - drag.startY) < 8) return;  // 太細當輕觸
+        drag.moved = true;
+        drag.w = piece.offsetWidth; drag.h = piece.offsetHeight;
+        drag.ghost = piece.cloneNode(true);
+        drag.ghost.className = 'drag-ghost';
+        drag.ghost.style.width = drag.w + 'px';
+        drag.ghost.style.height = drag.h + 'px';
+        drag.ghost.style.fontSize = getComputedStyle(piece).fontSize;
+        document.body.appendChild(drag.ghost);
         piece.classList.add('dragging');
       }
-      ghost.style.left = (x - dragW / 2) + 'px';
-      ghost.style.top = (y - dragH / 2) + 'px';
+      drag.ghost.style.left = (x - drag.w / 2) + 'px';
+      drag.ghost.style.top = (y - drag.h / 2) + 'px';
       const slot = slotAtPoint(x, y, piece.dataset.component);
       document.querySelectorAll('#character-display .slot.drag-over')
         .forEach(s => { if (s !== slot) s.classList.remove('drag-over'); });
       if (slot && !slot.classList.contains('filled')) slot.classList.add('drag-over');
     };
 
-    const finish = (x, y) => {
-      if (!active) return;
-      active = false;
-      const wasMoved = moved;
-      moved = false;
-      lastWasDrag = wasMoved;
-      piece.classList.remove('dragging');
-      if (ghost) { ghost.remove(); ghost = null; }
-      document.querySelectorAll('#character-display .slot.drag-over')
-        .forEach(s => s.classList.remove('drag-over'));
-      if (wasMoved) {
-        const slot = slotAtPoint(x, y, piece.dataset.component);
-        if (slot) this._tryPlace(piece, slot);
+    const doEnd = (x, y, place = true) => {
+      if (!drag) return;
+      const d = drag;
+      drag = null;
+      detach();
+      try { piece.releasePointerCapture(d.pid); } catch (_) {}
+      clearVisuals();
+      if (d.moved) {
+        lastWasDrag = true;
         setTimeout(() => { lastWasDrag = false; }, 400);
+        if (place) {
+          const slot = slotAtPoint(x, y, piece.dataset.component);
+          if (slot) this._tryPlace(piece, slot);
+        }
       }
     };
 
-    // ===== Pointer（現代瀏覽器，iPad 13+）=====
+    // 全部監聽器都掛喺 document —— 唔理指標最後飛去邊都會收到 end 事件
+    const onPointerMove = (e) => {
+      if (!drag) return;
+      if (drag.pid !== null && e.pointerId !== drag.pid) return;
+      doMove(e.clientX, e.clientY);
+      if (drag && drag.moved) e.preventDefault();
+    };
+    const onPointerUp = (e) => {
+      if (!drag) return;
+      if (drag.pid !== null && e.pointerId !== drag.pid) return;
+      const d = drag;
+      doEnd(
+        (typeof e.clientX === 'number' && e.clientX) || d.lastX,
+        (typeof e.clientY === 'number' && e.clientY) || d.lastY
+      );
+    };
+    const onPointerCancel = (e) => {
+      if (!drag) return;
+      const d = drag;
+      // 取消都要放（iOS 可能因為手勢切換而 cancel，但手指其實喺槽上面）
+      doEnd(d.lastX, d.lastY);
+    };
+    const onTouchMove = (e) => {
+      if (!drag) return;
+      const t = e.touches[0]; if (!t) return;
+      doMove(t.clientX, t.clientY);
+      if (drag && drag.moved) e.preventDefault();
+    };
+    const onTouchEnd = (e) => {
+      if (!drag) return;
+      const d = drag;
+      const t = (e.changedTouches && e.changedTouches[0]) || null;
+      doEnd(t ? t.clientX : d.lastX, t ? t.clientY : d.lastY);
+    };
+    const onBlur = () => { if (drag) doEnd(drag.lastX, drag.lastY, false); };
+
     piece.addEventListener('pointerdown', (e) => {
       if (e.pointerType === 'mouse' && e.button !== 0) return;
-      usedPointer = true;
-      pid = e.pointerId;
-      begin(e.clientX, e.clientY);
-      try { piece.setPointerCapture(pid); } catch (_) {}
+      if (drag) doEnd(drag.lastX, drag.lastY, false);   // 清走殘留
+      drag = {
+        startX: e.clientX, startY: e.clientY,
+        lastX: e.clientX, lastY: e.clientY,
+        moved: false, ghost: null, w: 0, h: 0,
+        pid: e.pointerId
+      };
+      try { piece.setPointerCapture(e.pointerId); } catch (_) {}
+      document.addEventListener('pointermove', onPointerMove, { passive: false });
+      document.addEventListener('pointerup', onPointerUp);
+      document.addEventListener('pointercancel', onPointerCancel);
+      // 保險：同時聽 touch，任何一個 end 事件都會結束拖拽（唔會重複放置）
+      document.addEventListener('touchmove', onTouchMove, { passive: false });
+      document.addEventListener('touchend', onTouchEnd);
+      document.addEventListener('touchcancel', onTouchEnd);
+      window.addEventListener('blur', onBlur);
     });
-    piece.addEventListener('pointermove', (e) => {
-      if (!active || (pid !== null && e.pointerId !== pid)) return;
-      move(e.clientX, e.clientY);
-      if (moved) e.preventDefault();
-    });
-    const pEnd = (e) => {
-      if (pid === null) return;
-      pid = null;
-      const x = (typeof e.clientX === 'number' && e.clientX) || lastX;
-      const y = (typeof e.clientY === 'number' && e.clientY) || lastY;
-      finish(x, y);
-    };
-    piece.addEventListener('pointerup', pEnd);
-    piece.addEventListener('pointercancel', pEnd);
 
-    // ===== Touch 後備（舊 iPad 冇 PointerEvent）=====
+    // 舊 iPad 冇 PointerEvent 時用 touch
     piece.addEventListener('touchstart', (e) => {
-      if (usedPointer) return;
+      if (window.PointerEvent) return;   // 有 pointer 就靠 pointer
+      if (drag) doEnd(drag.lastX, drag.lastY, false);
       const t = e.touches[0]; if (!t) return;
-      begin(t.clientX, t.clientY);
+      drag = {
+        startX: t.clientX, startY: t.clientY,
+        lastX: t.clientX, lastY: t.clientY,
+        moved: false, ghost: null, w: 0, h: 0, pid: null
+      };
+      document.addEventListener('touchmove', onTouchMove, { passive: false });
+      document.addEventListener('touchend', onTouchEnd);
+      document.addEventListener('touchcancel', onTouchEnd);
+      window.addEventListener('blur', onBlur);
     }, { passive: true });
-    piece.addEventListener('touchmove', (e) => {
-      if (usedPointer || !active) return;
-      const t = e.touches[0]; if (!t) return;
-      move(t.clientX, t.clientY);
-      if (moved) e.preventDefault();
-    }, { passive: false });
-    const tEnd = (e) => {
-      if (usedPointer || !active) return;
-      const t = (e.changedTouches && e.changedTouches[0]) || null;
-      finish(t ? t.clientX : lastX, t ? t.clientY : lastY);
-    };
-    piece.addEventListener('touchend', tEnd);
-    piece.addEventListener('touchcancel', tEnd);
 
-    // ===== 輕觸選取 =====
+    // 桌面：保留原生拖拽（用滑鼠時可以直接拖）
+    piece.addEventListener('dragstart', (e) => {
+      e.dataTransfer.setData('text/plain', piece.dataset.id);
+      e.dataTransfer.effectAllowed = 'move';
+      piece.classList.add('dragging');
+    });
+    piece.addEventListener('dragend', () => {
+      piece.classList.remove('dragging');
+      clearVisuals();
+    });
+
+    // 輕觸選取（點部件再點槽）
     piece.addEventListener('click', () => {
       if (lastWasDrag) return;
       document.querySelectorAll('.piece.selected').forEach(p => p.classList.remove('selected'));
