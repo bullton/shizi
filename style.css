@@ -519,40 +519,9 @@ nav {
 }
 
 /* ===== Hint ===== */
-.hint-section { text-align: center; margin-top: 16px; }
 
-.btn-hint {
-  background: #fdcb6e;
-  color: #2d3436;
-  border: none;
-  padding: 12px 28px;
-  border-radius: 24px;
-  font-size: 18px;
-  font-weight: bold;
-  cursor: pointer;
-  transition: all 0.2s;
-  font-family: inherit;
-}
 
-.btn-hint:hover {
-  background: #fdb44e;
-  box-shadow: 0 4px 12px rgba(253,208,128,0.5);
-  transform: translateY(-2px);
-}
 
-.hint-content {
-  background: linear-gradient(135deg, #fff9c4 0%, #fff3a0 100%);
-  padding: 16px 20px;
-  border-radius: 14px;
-  margin-top: 12px;
-  font-size: 22px;
-  color: #5d4037;
-  font-weight: bold;
-  border-left: 6px solid #f39c12;
-  text-align: left;
-  display: inline-block;
-  max-width: 80%;
-}
 
 /* ===== Pieces Tray ===== */
 .pieces-card { text-align: center; }
@@ -831,12 +800,6 @@ nav {
   font-weight: bold;
 }
 
-.char-hint-mini {
-  font-size: 13px;
-  color: #2d3436;
-  margin-top: 6px;
-  line-height: 1.4;
-}
 
 .char-meta {
   font-size: 11px;
@@ -1435,11 +1398,6 @@ nav {
   color: #b2bec3;
 }
 
-.import-preview-hint {
-  font-size: 13px;
-  color: #636e72;
-  margin-top: 4px;
-}
 
 .decomp-options {
   display: flex;

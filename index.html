@@ -81,10 +81,6 @@
     <div class="card">
       <h2 class="instruction">把部件拖到正確位置組成字</h2>
       <div class="character-display" id="character-display"></div>
-      <div class="hint-section">
-        <button class="btn btn-hint" id="hint-btn">💡 粵語提示</button>
-        <div class="hint-content hidden" id="hint-content"></div>
-      </div>
     </div>
 
     <div class="card pieces-card">
@@ -157,23 +153,10 @@
         </div>
 
         <div class="card">
-          <h3>⚙️ AI 設置</h3>
-          <div class="form-field">
-            <label>MiniMax API Token</label>
-            <input type="password" id="ai-token" placeholder="輸入 API Token">
-            <small style="color:#636e72">用於 AI 自動分析字形結構</small>
-          </div>
-          <button class="btn btn-primary" id="save-ai-token-btn">保存</button>
-        </div>
-
-        <div class="card">
           <h2 id="form-title">新增字</h2>
           <div class="form-field">
             <label>字（結構由 Unicode 自動判斷）</label>
-            <div style="display:flex;gap:8px;align-items:center">
-              <input type="text" id="form-char" maxlength="2" placeholder="例：媽" style="flex:1">
-              <button class="btn btn-secondary" id="analyze-single-btn">🤖 AI 生成口訣</button>
-            </div>
+            <input type="text" id="form-char" maxlength="2" placeholder="例：媽">
           </div>
           <div class="form-field">
             <label>部件（用逗號分隔）</label>
@@ -202,10 +185,6 @@
           <div class="form-field">
             <label>詞語（用逗號分隔，答對時會顯示）</label>
             <input type="text" id="form-words" placeholder="例：媽媽, 媽咪">
-          </div>
-          <div class="form-field">
-            <label>粵語提示</label>
-            <textarea id="form-hint" rows="3" placeholder="例：女人騎著一匹馬"></textarea>
           </div>
           <div class="form-actions">
             <button class="btn btn-primary" id="save-btn">💾 保存</button>

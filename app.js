@@ -750,8 +750,6 @@ const Game = {
 
     this._renderPieceTray();
 
-    document.getElementById('hint-content').classList.add('hidden');
-    document.getElementById('hint-btn').classList.add('hidden');
     document.getElementById('next-btn').classList.add('hidden');
     document.getElementById('celebration').classList.add('hidden');
   },
@@ -989,7 +987,6 @@ const Game = {
     const display = document.getElementById('character-display');
     const tray = document.getElementById('pieces-tray');
     const char = this.current.char;
-    const hint = this.current.hint;
     const words = this.current.words || [];
     const responseTime = Date.now() - this.startTime;
     User.recordProgress(char, this.current.id, responseTime, true);
@@ -1015,14 +1012,6 @@ const Game = {
       tray.classList.remove('fade-out');
       this._playSuccess();
       this._setTimer(() => this._speak(char), 200);
-      const hintBtn = document.getElementById('hint-btn');
-      const hintContent = document.getElementById('hint-content');
-      hintBtn.classList.remove('hidden');
-      hintBtn.textContent = '💡 粵語提示';
-      if (hint) {
-        hintContent.textContent = hint;
-        hintContent.classList.remove('hidden');
-      }
     }, 400);
     const cel = document.getElementById('celebration');
     this._setTimer(() => {
@@ -1289,7 +1278,6 @@ const Admin = {
         ${c.atomic ? '<div class="char-atomic-note">🔒 原子字：拆開只剩筆畫，唔會喺練習／布置任務出現</div>' : ''}
         <div class="char-meta">${layoutLabel}結構 · ${c.components.length}部件${c.positions ? ' · ✏️ 自定義' : ''}</div>
         ${c.words && c.words.length ? `<div class="char-words-mini">💬 ${c.words.map(w => escapeHtml(w)).join('、')}</div>` : ''}
-        <div class="char-hint-mini">${escapeHtml(c.hint || '(無口訣)')}</div>
         <div class="char-actions">
           <button class="btn-edit" data-id="${c.id}">✏️ 編輯</button>
           <button class="btn-position" data-id="${c.id}">📐 調整結構</button>
@@ -1312,7 +1300,6 @@ const Admin = {
     document.getElementById('form-char').value = c.char;
     document.getElementById('form-components').value = c.components.join(',');
     document.getElementById('form-layout').value = c.layout;
-    document.getElementById('form-hint').value = c.hint || '';
     document.getElementById('form-words').value = (c.words || []).join(', ');
     document.getElementById('save-btn').textContent = '💾 更新';
   },
@@ -1323,7 +1310,6 @@ const Admin = {
     document.getElementById('form-char').value = '';
     document.getElementById('form-components').value = '';
     document.getElementById('form-layout').value = 'left-right';
-    document.getElementById('form-hint').value = '';
     document.getElementById('form-words').value = '';
     document.getElementById('save-btn').textContent = '💾 保存';
   },
@@ -1337,18 +1323,16 @@ const Admin = {
     const componentsRaw = document.getElementById('form-components').value;
     const components = componentsRaw.split(',').map(s => s.trim()).filter(Boolean);
     const layout = document.getElementById('form-layout').value;
-    const hint = document.getElementById('form-hint').value.trim();
     const wordsRaw = document.getElementById('form-words')?.value || '';
     const words = wordsRaw.split(/[,，、]/).map(s => s.trim()).filter(Boolean);
 
     if (!char) return toast('請填寫字');
     if (components.length < 1) return toast('請填寫部件');
-    if (!hint) return toast('請填寫口訣');
 
     if (this.editingId) {
       const chars = await Data.getAll();
       const old = chars.find(x => x.id === this.editingId);
-      const updates = { char, components, layout, hint, words };
+      const updates = { char, components, layout, words };
       if (old && old.layout !== layout) {
         updates.positions = null;
       } else if (old && old.positions) {
@@ -1357,7 +1341,7 @@ const Admin = {
       await Data.update(this.editingId, updates);
       toast('已更新');
     } else {
-      await Data.add({ char, components, layout, hint, words });
+      await Data.add({ char, components, layout, words });
       toast('已新增');
     }
     this.cancel();
@@ -1778,13 +1762,6 @@ async function init() {
   document.querySelectorAll('.nav-btn').forEach(btn => {
     btn.onclick = () => showView(btn.dataset.view);
   });
-
-  document.getElementById('hint-btn').onclick = () => {
-    if (!Game.current) return;
-    const hc = document.getElementById('hint-content');
-    hc.textContent = Game.current.hint;
-    hc.classList.toggle('hidden');
-  };
 
   document.getElementById('reset-btn').onclick = () => Game.render();
 
@@ -2450,71 +2427,6 @@ function processCharForImport(char) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  // Save AI token
-  document.getElementById('save-ai-token-btn')?.addEventListener('click', async () => {
-    const token = document.getElementById('ai-token').value.trim();
-    try {
-      const res = await fetch('/api/config', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ aiToken: token })
-      });
-      if (!res.ok) throw new Error('保存失敗');
-      toast('AI 配置已保存');
-    } catch (e) {
-      toast('保存失敗: ' + e.message);
-    }
-  });
-
-  // Load AI token
-  (async () => {
-    try {
-      const res = await fetch('/api/config');
-      if (res.ok) {
-        const data = await res.json();
-        document.getElementById('ai-token').value = data.aiToken || '';
-      }
-    } catch (e) {}
-  })();
-
-  // Analyze single character
-  document.getElementById('analyze-single-btn')?.addEventListener('click', async () => {
-    const char = document.getElementById('form-char').value.trim();
-    if (!char) {
-      toast('請輸入字符');
-      return;
-    }
-    // 同遊戲一致：用唯一字典做首選拆法（原字典其他拆法做備選）
-    const processed = processCharForImport(char);
-    if (!processed) {
-      toast('字符不在字典中');
-      return;
-    }
-    const allDecomps = processed.decompositions;
-    const btn = document.getElementById('analyze-single-btn');
-    btn.textContent = '分析中...';
-    btn.disabled = true;
-    try {
-      const res = await fetch('/api/analyze-char', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ char, decompositions: allDecomps })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || '分析失敗');
-      // 結構由 Unicode IDS 決定（唔用 AI）；AI 只負責寫口訣
-      const comps = allDecomps[0];
-      document.getElementById('form-layout').value = autoLayout(comps, char);
-      document.getElementById('form-hint').value = data.reason || '';
-      toast('已生成粵語口訣');
-    } catch (e) {
-      toast('分析失敗: ' + e.message);
-    } finally {
-      btn.textContent = '🤖 AI 生成口訣';
-      btn.disabled = false;
-    }
-  });
-
   document.getElementById('import-btn')?.addEventListener('click', async () => {
     const input = document.getElementById('import-chars').value.trim();
     if (!input) {
@@ -2565,7 +2477,6 @@ document.addEventListener('DOMContentLoaded', () => {
               <option value="stack" ${p.layout === 'stack' ? 'selected' : ''}>通用堆疊（5+部件）</option>
             </select>
           </div>
-          <div class="import-preview-hint">提示：${p.hint}</div>
         </div>
       </div>
     `).join('');

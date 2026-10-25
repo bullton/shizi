@@ -102,9 +102,6 @@ const db = {
   attempts: [],
   chars: [],
   assignments: [],
-  config: {
-    aiToken: ''
-  }
 };
 
 // Load on startup
@@ -114,7 +111,6 @@ db.progress = savedData.progress || [];
 db.attempts = savedData.attempts || [];
 db.chars = savedData.chars || [];
 db.assignments = savedData.assignments || [];
-db.config = savedData.config || { aiToken: '' };
 
 // 資料完整性檢查：用戶 id 撞會令兩個帳號共用進度，即刻修正
 (async () => {
@@ -144,28 +140,6 @@ db.config = savedData.config || { aiToken: '' };
     console.log(`[shizi] 已自動 seed ${db.chars.length} 個預設字到 server`);
   }
 })();
-
-// ===== AI 呼叫防護（嚴禁批量／連續調用）=====
-// 本專案結構判斷已改用 Unicode IDS，唔使 AI。
-// AI 只用於單字「生成口訣」，所以限制：兩次之間最少 8 秒，每小時最多 30 次。
-const AI_COOLDOWN_MS = 8000;
-const AI_HOURLY_LIMIT = 30;
-let aiLastCallAt = 0;
-const aiCallLog = [];   // 記錄最近呼叫時間
-
-function aiGuard() {
-  const now = Date.now();
-  if (now - aiLastCallAt < AI_COOLDOWN_MS) {
-    return { ok: false, error: `請等 ${Math.ceil((AI_COOLDOWN_MS - (now - aiLastCallAt)) / 1000)} 秒後再試（AI 唔可以連續調用）` };
-  }
-  while (aiCallLog.length && now - aiCallLog[0] > 3600 * 1000) aiCallLog.shift();
-  if (aiCallLog.length >= AI_HOURLY_LIMIT) {
-    return { ok: false, error: `AI 每小時最多 ${AI_HOURLY_LIMIT} 次，請稍後再試` };
-  }
-  aiLastCallAt = now;
-  aiCallLog.push(now);
-  return { ok: true };
-}
 
 // ===== 任務輔助 =====
 function decorateAssignment(a, chars) {
@@ -948,31 +922,7 @@ async function handleAPI(req, res) {
     return;
   }
 
-  // Config routes (admin only)
-  if (pathname === '/api/config' && method === 'GET') {
-    const adminUser = requireAuth(req, res);
-    if (!adminUser) return jsonResponse(res, 401, { error: '請先登入' });
-    if (adminUser.role !== 'admin') return jsonResponse(res, 403, { error: '需要管理員權限' });
-    jsonResponse(res, 200, { aiToken: db.config.aiToken || '' });
-    return;
-  }
 
-  if (pathname === '/api/config' && method === 'PUT') {
-    const adminUser = requireAuth(req, res);
-    if (!adminUser) return jsonResponse(res, 401, { error: '請先登入' });
-    if (adminUser.role !== 'admin') return jsonResponse(res, 403, { error: '需要管理員權限' });
-    try {
-      const { aiToken } = await parseBody(req);
-      db.config.aiToken = aiToken || '';
-      saveData(db);
-      jsonResponse(res, 200, { success: true });
-    } catch (e) {
-      jsonResponse(res, 400, { error: '無效的請求' });
-    }
-    return;
-  }
-
-  // AI analyze char (admin only)
   // ===== 重新分析字庫結構（用 Unicode IDS，免費離線，唔使 AI）=====
   if (pathname === '/api/admin/reanalyze-layouts' && method === 'POST') {
     const adminUser = requireAuth(req, res);
@@ -1011,93 +961,6 @@ async function handleAPI(req, res) {
   }
 
 
-  // 單字 AI 分析（同批量一致：問部件位置，由代碼推導結構）
-  if (pathname === '/api/analyze-char' && method === 'POST') {
-    const adminUser = requireAuth(req, res);
-    if (!adminUser) return jsonResponse(res, 401, { error: '請先登入' });
-    if (adminUser.role !== 'admin') return jsonResponse(res, 403, { error: '需要管理員權限' });
-    try {
-      const { char, decompositions } = await parseBody(req);
-      if (!char) return jsonResponse(res, 400, { error: '缺少字符' });
-      if (!db.config.aiToken) {
-        return jsonResponse(res, 400, { error: '請先配置 AI Token' });
-      }
-      // ⛔ 禁止批量／連續調用
-      const guard = aiGuard();
-      if (!guard.ok) return jsonResponse(res, 429, { error: guard.error });
-      // 用第一個（唯一字典嘅首選）拆法
-      const comps = (decompositions && decompositions[0]) || longestDecomp(char);
-      if (!comps || comps.length === 0) {
-        return jsonResponse(res, 400, { error: '冇拆法' });
-      }
-
-      const prompt = `你是繁體中文字形結構專家。以下漢字已拆成部件：
-「${char}」= ${comps.join(' + ')}
-
-## 請判斷每個部件喺成個字裡面嘅書寫位置（相對其他部件）
-每個部件嘅位置用以下其中一個值：
-- top（最上面，獨立在上方）
-- bottom（最下面，獨立在下方）
-- left（最左邊，獨立在左邊）
-- right（最右邊，獨立在右邊）
-- top-left（左上角）
-- top-right（右上角）
-- bottom-left（左下角）
-- bottom-right（右下角）
-- center（中間，被其他部件包圍）
-
-## 重要：要根據部件喺真實字形中嘅位置判斷，唔可以靠部件「通常」出現喺邊度
-- 「看」= 手 + 目 → 手喺上面（top），目喺下面（bottom）
-- 「語」= 言 + 吾 → 言喺左邊（left），吾喺右邊（right）
-- 「收」= 丩 + 攴 → 丩喺左（left），攴喺右（right）
-- 「古」= 十 + 口 → 十喺上面（top），口喺下面（bottom）
-
-## 回覆格式（嚴格 JSON，無多餘文字）：
-{"parts": ["top", "bottom"], "reason": "簡短中文解釋"}`;
-
-      const aiRes = await fetch('https://api.minimax.cn/anthropic/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${db.config.aiToken}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          model: 'MiniMax-M3',
-          output_config: { effort: 'max' },
-          max_tokens: 2048,
-          messages: [{ role: 'user', content: prompt }]
-        })
-      });
-      if (!aiRes.ok) {
-        const err = await aiRes.text();
-        return jsonResponse(res, 502, { error: 'AI API 錯誤: ' + err });
-      }
-      const aiData = await aiRes.json();
-      const content = aiData.content?.[0]?.text || '';
-      let parsed;
-      try {
-        const m = content.match(/\{[\s\S]*\}/);
-        if (!m) return jsonResponse(res, 500, { error: '無法解析 AI 回覆' });
-        parsed = JSON.parse(m[0]);
-      } catch (e) {
-        return jsonResponse(res, 500, { error: '解析 AI 回覆失敗' });
-      }
-      const parts = Array.isArray(parsed.parts) ? parsed.parts : [];
-      if (parts.length !== comps.length) {
-        return jsonResponse(res, 500, { error: 'AI 部件數目唔啱（' + parts.length + ' vs ' + comps.length + '）' });
-      }
-      jsonResponse(res, 200, {
-        recommended: 1,
-        parts,
-        layout: layoutFromParts(parts, comps),
-        positions: positionsFromParts(parts),
-        reason: parsed.reason || ''
-      });
-    } catch (e) {
-      jsonResponse(res, 500, { error: '分析失敗: ' + e.message });
-    }
-    return;
-  }
 
   // Progress routes (require auth)
   const user = requireAuth(req, res);
