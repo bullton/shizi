@@ -409,23 +409,31 @@ const Dictation = {
     const covered = new Set();   // 已經被某個詞語包含嘅字
     const items = [];
 
-    // ① 先收集所有詞語（成個詞語做一項）
-    for (const id of task.charIds) {
-      const c = byId.get(id);
-      if (!c) continue;
-      for (const w of (c.words || [])) {
-        if (!w || seen.has(w)) continue;
-        seen.add(w);
-        items.push({ word: w, char: c.char });
-        for (const ch of w) covered.add(ch);
+    // ① 任務自帶嘅詞語優先（管理員揀過嘅，唔會帶埋其他無關詞語）
+    //    舊任務冇 words 欄位 →  fallback 用字嘅詞語
+    const taskWords = Array.isArray(task.words) ? task.words : null;
+    const wordSource = taskWords !== null ? taskWords : (() => {
+      const list = [];
+      for (const id of task.charIds) {
+        const c = byId.get(id);
+        if (!c) continue;
+        for (const w of (c.words || [])) if (!list.includes(w)) list.push(w);
       }
+      return list;
+    })();
+
+    for (const w of wordSource) {
+      if (!w || seen.has(w)) continue;
+      seen.add(w);
+      items.push({ word: w, char: '' });
+      for (const ch of w) covered.add(ch);
     }
 
-    // ② 冇詞語嘅字：如果已經包含喺某個詞語入面，就唔會再單獨讀一次
+    // ② 任務詞語冇覆蓋到嘅字：單獨讀一次
+    //    （呢個字自己有詞語但唔喺任務詞語表內 → 都當單字讀，唔會帶埋其他無關詞語）
     for (const id of task.charIds) {
       const c = byId.get(id);
       if (!c) continue;
-      if (c.words && c.words.length) continue;
       if (covered.has(c.char) || seen.has(c.char)) continue;
       seen.add(c.char);
       items.push({ word: c.char, char: c.char });
@@ -1743,6 +1751,20 @@ const Admin = {
       if (e.target.id === 'decomp-modal') e.target.classList.add('hidden');
     });
     document.getElementById('decomp-ai-btn')?.addEventListener('click', () => this.aiSuggestDecomp());
+
+    // 任務詞語：手動加入
+    document.getElementById('assign-words-add')?.addEventListener('click', () => {
+      const input = document.getElementById('assign-words-input');
+      const text = (input.value || '').trim();
+      if (!text) return;
+      if (!AdminAssignments._extraWords) AdminAssignments._extraWords = new Set();
+      for (const w of text.split(/[，,、\s]+/).map(s => s.trim()).filter(Boolean)) {
+        AdminAssignments._extraWords.add(w);
+        AdminAssignments.selectedWords.add(w);
+      }
+      input.value = '';
+      AdminAssignments.renderWordPicker();
+    });
     document.getElementById('clear-positions-btn')?.addEventListener('click', () => this.clearAllPositions());
 
     document.getElementById('form-char').addEventListener('input', (e) => {
@@ -2833,6 +2855,54 @@ const AdminAssignments = {
     }
   },
 
+  // 依家揀咗嘅字，推算可用的詞語
+  _availableWords() {
+    const list = [];
+    for (const c of this.chars) {
+      if (!this.selected.has(c.id)) continue;
+      for (const w of (c.words || [])) {
+        if (!list.includes(w)) list.push(w);
+      }
+    }
+    return list;
+  },
+
+  renderWordPicker() {
+    const el = document.getElementById('assign-words-picker');
+    if (!el) return;
+    if (!this._wordSeen) this._wordSeen = new Set();
+    if (!this._extraWords) this._extraWords = new Set();
+
+    const avail = this._availableWords();
+    // 新出現嘅詞語預設勾選
+    for (const w of avail) {
+      if (!this._wordSeen.has(w)) { this._wordSeen.add(w); this.selectedWords.add(w); }
+    }
+    // 清走同任務無關嘅詞語（手動加嘅除外）
+    for (const w of [...this.selectedWords]) {
+      if (!avail.includes(w) && !this._extraWords.has(w)) this.selectedWords.delete(w);
+    }
+
+    const all = [...new Set([...avail, ...this._extraWords])];
+    if (!all.length) {
+      el.innerHTML = '<span style="color:#b2bec3;font-size:13px">（揀咗字之後會列出佢哋嘅詞語；冇詞語可以用下面直接輸入）</span>';
+      return;
+    }
+    el.innerHTML = all.map(w => `
+      <label class="word-pick">
+        <input type="checkbox" data-word="${escapeHtml(w)}" ${this.selectedWords.has(w) ? 'checked' : ''}>
+        <span>${escapeHtml(w)}</span>
+      </label>
+    `).join('');
+    el.querySelectorAll('input[data-word]').forEach(cb => {
+      cb.onchange = () => {
+        const w = cb.dataset.word;
+        if (cb.checked) this.selectedWords.add(w);
+        else this.selectedWords.delete(w);
+      };
+    });
+  },
+
   renderCharPicker() {
     const el = document.getElementById('assign-chars-picker');
     if (!el) return;
@@ -2853,9 +2923,11 @@ const AdminAssignments = {
         }
         btn.classList.toggle('selected');
         this._updateSummary();
+        this.renderWordPicker();
       };
     });
     this._updateSummary();
+    this.renderWordPicker();
   },
 
   _updateSummary() {
@@ -2913,15 +2985,20 @@ const AdminAssignments = {
         userIds: [...this.selectedUsers],
         name,
         note,
-        charIds: [...this.selected]
+        charIds: [...this.selected],
+        words: [...this.selectedWords]
       });
       toast(`✅ 任務已建立（${res.created} 個小孩）`);
       document.getElementById('assign-name').value = '';
       document.getElementById('assign-note').value = '';
       this.selected.clear();
       this.selectedUsers.clear();
+      this.selectedWords.clear();
+      this._wordSeen = new Set();
+      this._extraWords = new Set();
       this.renderCharPicker();
       this.renderUserPicker();
+      this.renderWordPicker();
       await this.renderList();
     } catch (e) {
       toast('建立失敗: ' + e.message);

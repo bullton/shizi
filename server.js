@@ -209,6 +209,7 @@ function decorateAssignment(a, chars) {
     name: a.name,
     note: a.note || '',
     charIds: a.charIds || [],
+    words: a.words || [],
     createdAt: a.createdAt,
     updatedAt: a.updatedAt || null,
     total,
@@ -1171,7 +1172,7 @@ async function handleAPI(req, res) {
   // 管理員：建立任務（可以一次過派畀多個小孩）
   if (pathname === '/api/admin/assignments' && method === 'POST') {
     try {
-      const { userId, userIds, name, charIds, note } = await parseBody(req);
+      const { userId, userIds, name, charIds, note, words } = await parseBody(req);
       // 支援 userIds（多選）同 userId（單選，向後兼容）
       let targets = Array.isArray(userIds) ? userIds : (userId ? [userId] : []);
       targets = [...new Set(targets.map(x => parseInt(x)).filter(x => !isNaN(x)))];
@@ -1194,6 +1195,7 @@ async function handleAPI(req, res) {
           userId: uid,
           name: taskName,
           charIds: cleanIds,
+          words: normalizeWords(words),     // 任務自帶嘅詞語（可以同字嘅詞語唔一樣）
           note: (note && note.trim()) || '',
           done: {},
           createdAt: new Date().toISOString()
@@ -1219,13 +1221,14 @@ async function handleAPI(req, res) {
     const a = db.assignments.find(x => x.id === id);
     if (!a) return jsonResponse(res, 404, { error: '任務不存在' });
     try {
-      const { name, charIds, note, resetDone, userId } = await parseBody(req);
+      const { name, charIds, note, resetDone, userId, words } = await parseBody(req);
       // 同一組（groupId）嘅任務一齊處理
       const group = a.groupId ? db.assignments.filter(x => x.groupId === a.groupId) : [a];
       const targets = group.length ? group : [a];
       for (const t of targets) {
         if (name !== undefined) t.name = name.trim() || t.name;
         if (note !== undefined) t.note = note.trim();
+        if (words !== undefined) t.words = normalizeWords(words);
         if (userId !== undefined) t.userId = parseInt(userId);
         if (Array.isArray(charIds)) {
           const validIds = new Set(db.chars.filter(c => !isAtomicChar(c.char)).map(c => c.id));

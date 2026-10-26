@@ -315,6 +315,15 @@
         </div>
         <div class="char-picker" id="assign-chars-picker"></div>
         <div id="assign-summary" class="assign-summary">未揀任何字</div>
+        <div class="form-field">
+          <label>任務詞語（默書時會讀呢啲，可自行增刪）</label>
+          <div class="word-picker" id="assign-words-picker"></div>
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <input type="text" id="assign-words-input" placeholder="或者直接輸入詞語，用逗號分隔" style="flex:1">
+            <button class="btn btn-secondary small" id="assign-words-add">加入</button>
+          </div>
+          <small style="color:#636e72">預設會帶入所選字嘅詞語；取消勾選就唔會帶入任務</small>
+        </div>
         <div class="form-actions">
           <button class="btn btn-primary" id="assign-save-btn">💾 建立任務</button>
           <button class="btn btn-secondary" id="assign-clear-btn">清空選字</button>
