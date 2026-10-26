@@ -1175,7 +1175,7 @@ async function handleAPI(req, res) {
       // 支援 userIds（多選）同 userId（單選，向後兼容）
       let targets = Array.isArray(userIds) ? userIds : (userId ? [userId] : []);
       targets = [...new Set(targets.map(x => parseInt(x)).filter(x => !isNaN(x)))];
-      if (targets.length === 0) return jsonResponse(res, 400, { error: '請至少選擇一個小孩' });
+      if (targets.length === 0) return jsonResponse(res, 400, { error: '請至少選擇一個對象' });
       if (!Array.isArray(charIds) || charIds.length === 0) {
         return jsonResponse(res, 400, { error: '請至少選一個字' });
       }

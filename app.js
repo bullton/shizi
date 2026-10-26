@@ -2757,7 +2757,11 @@ const AdminAssignments = {
   async _loadUsers() {
     try {
       const users = await AdminAPI.getUsers();
-      this.users = users.filter(u => u.role !== 'admin');
+      // 管理員都可以畀自己布置任務（方便測試）
+      this.users = users.slice().sort((a, b) => {
+        if (a.role === b.role) return 0;
+        return a.role === 'admin' ? -1 : 1;   // 管理員排前面
+      });
       this.renderUserPicker();
     } catch (e) {
       console.warn('載入用戶失敗:', e.message);
@@ -2774,8 +2778,8 @@ const AdminAssignments = {
       return;
     }
     el.innerHTML = this.users.map(u => `
-      <button class="user-chip ${this.selectedUsers.has(u.id) ? 'selected' : ''}" data-user-id="${u.id}">
-        ${escapeHtml(u.nickname || u.username)}
+      <button class="user-chip ${this.selectedUsers.has(u.id) ? 'selected' : ''} ${u.role === 'admin' ? 'is-admin' : ''}" data-user-id="${u.id}">
+        ${u.role === 'admin' ? '👑 ' : ''}${escapeHtml(u.nickname || u.username)}
       </button>
     `).join('') + `<button class="user-chip select-all" id="assign-select-all">全選</button>`;
     el.querySelectorAll('.user-chip[data-user-id]').forEach(btn => {
@@ -2801,7 +2805,7 @@ const AdminAssignments = {
     const hint = document.getElementById('assign-user-hint');
     if (!hint) return;
     const n = this.selectedUsers.size;
-    hint.textContent = n === 0 ? '未揀任何小孩' : `已揀 ${n} 個小孩`;
+    hint.textContent = n === 0 ? '未揀任何任何人' : `已揀 ${n} 個人（可以包括你自己 👑）`;
   },
 
   async _loadChars() {
