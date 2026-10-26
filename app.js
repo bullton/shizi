@@ -848,6 +848,7 @@ const Game = {
   _clearTimers() {
     this._pendingTimers.forEach(id => clearTimeout(id));
     this._pendingTimers = [];
+    document.querySelectorAll('#character-display .slot').forEach(s => { s._wrongTimer = null; });
   },
 
   _setTimer(fn, delay) {
@@ -1395,10 +1396,16 @@ const Game = {
 
   _tryPlace(piece, slot) {
     if (slot.classList.contains('filled')) return;
+
+    // 取消呢個槽之前嘅「錯誤復原」計時器（避免新動作被舊 timer 干擾）
+    if (slot._wrongTimer) { clearTimeout(slot._wrongTimer); slot._wrongTimer = null; }
+
     const expected = slot.dataset.expected;
     const actual = piece.dataset.component;
     if (expected === actual) {
       slot.textContent = actual;
+      // 緊要：清走之前嘅錯誤樣式（否則放啱都會顯示紅色 ✕）
+      slot.classList.remove('wrong', 'wrong-filled');
       slot.classList.add('filled');
       slot.dataset.locked = 'true';
       piece.classList.remove('selected');
@@ -1411,9 +1418,11 @@ const Game = {
       this.currentErrors = (this.currentErrors || 0) + 1;
       slot.textContent = actual;
       slot.classList.add('wrong', 'wrong-filled');
+      slot.classList.remove('filled');
       this._playError();
       toast(`「${actual}」唔啱呢個位，再試一次`);
-      this._setTimer(() => {
+      slot._wrongTimer = this._setTimer(() => {
+        slot._wrongTimer = null;
         // 如果呢段時間內已經放啱（locked），就唔好清
         if (slot.dataset.locked !== 'true') {
           slot.textContent = '';
@@ -1462,6 +1471,13 @@ const Game = {
     if (errs > 0) this._addRepeatLater(this.current, Math.min(errs, 2));
 
     // ⚠️ 保留方框（唔好清走）——只加完成樣式
+    // 但如果仲有格顯示住「放錯嘅部件」，要清返（嗰個部件從來冇放對過）
+    display.querySelectorAll('.slot').forEach(s => {
+      if (s.dataset.locked === 'true') return;
+      if (s._wrongTimer) { clearTimeout(s._wrongTimer); s._wrongTimer = null; }
+      s.textContent = '';
+      s.classList.remove('wrong', 'wrong-filled');
+    });
     display.classList.add('solved');
 
     // 詞語放喺（已經空咗嘅）部件架，避免版面跳動
