@@ -401,20 +401,34 @@ const Dictation = {
   },
 
   async start(task) {
-    // 由任務嘅字抽詞語；冇詞語就用返個字
+    // 由任務嘅字抽詞語。
+    // 重點：詞語要**成個讀出嚟**，唔可以拆散（例如「水泄不通」唔應該變成「泄」+「通」）
     const all = await Data.getPractice();
     const byId = new Map(all.map(c => [c.id, c]));
     const seen = new Set();
+    const covered = new Set();   // 已經被某個詞語包含嘅字
     const items = [];
+
+    // ① 先收集所有詞語（成個詞語做一項）
     for (const id of task.charIds) {
       const c = byId.get(id);
       if (!c) continue;
-      const words = (c.words && c.words.length) ? c.words : [c.char];
-      for (const w of words) {
-        if (seen.has(w)) continue;
+      for (const w of (c.words || [])) {
+        if (!w || seen.has(w)) continue;
         seen.add(w);
         items.push({ word: w, char: c.char });
+        for (const ch of w) covered.add(ch);
       }
+    }
+
+    // ② 冇詞語嘅字：如果已經包含喺某個詞語入面，就唔會再單獨讀一次
+    for (const id of task.charIds) {
+      const c = byId.get(id);
+      if (!c) continue;
+      if (c.words && c.words.length) continue;
+      if (covered.has(c.char) || seen.has(c.char)) continue;
+      seen.add(c.char);
+      items.push({ word: c.char, char: c.char });
     }
     if (!items.length) {
       toast('呢個任務冇詞語可以默書');
