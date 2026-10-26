@@ -2638,3 +2638,45 @@ header { flex: 0 0 auto; }
   color: #e74c3c;
   font-weight: bold;
 }
+
+/* ===== 重疊部件框：上層框用半透明，睇到下層部件 ===== */
+/* 內層框（包圍／半包圍／三方／四方／左右右結構，會蓋住外層框） */
+#view-game .layout-surround .slot-inner,
+#view-game .layout-half-surround-left .slot-inner,
+#view-game .layout-surround-3 .slot-inner-top,
+#view-game .layout-surround-3 .slot-inner-bottom,
+#view-game .layout-complex-3-left .slot-inner-top,
+#view-game .layout-complex-3-left .slot-inner-bottom,
+#view-game .layout-complex-4-left .slot-inner-top,
+#view-game .layout-complex-4-left .slot-inner-middle,
+#view-game .layout-complex-4-left .slot-inner-bottom,
+#view-game .layout-left-right-right .slot-inner-top,
+#view-game .layout-left-right-right .slot-inner-bottom {
+  background: rgba(255, 255, 255, 0.28);
+}
+#view-game .layout-surround .slot-inner.filled,
+#view-game .layout-half-surround-left .slot-inner.filled,
+#view-game .layout-surround-3 .slot-inner-top.filled,
+#view-game .layout-surround-3 .slot-inner-bottom.filled,
+#view-game .layout-complex-3-left .slot-inner-top.filled,
+#view-game .layout-complex-3-left .slot-inner-bottom.filled,
+#view-game .layout-complex-4-left .slot-inner-top.filled,
+#view-game .layout-complex-4-left .slot-inner-middle.filled,
+#view-game .layout-complex-4-left .slot-inner-bottom.filled,
+#view-game .layout-left-right-right .slot-inner-top.filled,
+#view-game .layout-left-right-right .slot-inner-bottom.filled {
+  background: rgba(209, 247, 235, 0.38);
+}
+#view-game .layout-surround .slot-inner.drag-over,
+#view-game .layout-half-surround-left .slot-inner.drag-over,
+#view-game .layout-surround-3 .slot-inner-top.drag-over,
+#view-game .layout-surround-3 .slot-inner-bottom.drag-over,
+#view-game .layout-complex-3-left .slot-inner-top.drag-over,
+#view-game .layout-complex-3-left .slot-inner-bottom.drag-over,
+#view-game .layout-complex-4-left .slot-inner-top.drag-over,
+#view-game .layout-complex-4-left .slot-inner-middle.drag-over,
+#view-game .layout-complex-4-left .slot-inner-bottom.drag-over,
+#view-game .layout-left-right-right .slot-inner-top.drag-over,
+#view-game .layout-left-right-right .slot-inner-bottom.drag-over {
+  background: rgba(255, 243, 205, 0.75);
+}
