@@ -373,16 +373,62 @@
         <h3>🔒 修改密碼</h3>
         <div class="form-field">
           <label>當前密碼</label>
-          <input type="password" id="profile-current-password" placeholder="••••">
+          <input type="password" id="profile-current-password" autocomplete="current-password" placeholder="••••">
         </div>
         <div class="form-field">
-          <label>新密碼</label>
-          <input type="password" id="profile-new-password" placeholder="••••（至少4字）">
+          <label>新密碼（至少 4 字）</label>
+          <input type="password" id="profile-new-password" autocomplete="new-password" placeholder="••••">
+          <div class="password-strength" id="password-strength"></div>
+        </div>
+        <div class="form-field">
+          <label>確認新密碼</label>
+          <input type="password" id="profile-confirm-password" autocomplete="new-password" placeholder="再輸入一次">
         </div>
         <button class="btn btn-primary" id="save-password-btn">更新密碼</button>
+        <div class="profile-account-info" id="profile-account-info"></div>
       </div>
     </div>
   </section>
+</div>
+
+<!-- 管理員：編輯用戶 -->
+<div id="user-edit-modal" class="modal hidden">
+  <div class="modal-box" style="max-width:520px">
+    <div class="modal-head">
+      <h3 id="user-edit-title">編輯用戶</h3>
+      <button class="modal-close" id="user-edit-close">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="user-edit-avatar-row">
+        <div class="avatar-preview" id="user-edit-avatar-preview" style="width:64px;height:64px"><span>?</span></div>
+        <div class="avatar-grid" id="user-edit-avatar-grid" style="max-height:120px;overflow-y:auto"></div>
+      </div>
+      <div class="form-field">
+        <label>暱稱</label>
+        <input type="text" id="user-edit-nickname" maxlength="20" placeholder="顯示畀人睇嘅名">
+      </div>
+      <div class="form-field">
+        <label>頭像 URL（可留空）</label>
+        <input type="text" id="user-edit-avatar-url" placeholder="https://…">
+      </div>
+      <div class="form-field">
+        <label>角色</label>
+        <select id="user-edit-role">
+          <option value="user">🧒 學生</option>
+          <option value="admin">👑 管理員</option>
+        </select>
+      </div>
+      <div class="form-field">
+        <label>重設密碼（留空＝唔改）</label>
+        <input type="text" id="user-edit-password" placeholder="至少 4 字">
+      </div>
+      <div class="user-edit-info" id="user-edit-info"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-secondary" id="user-edit-cancel">取消</button>
+      <button class="btn btn-primary" id="user-edit-save">💾 保存</button>
+    </div>
+  </div>
 </div>
 
 <!-- 默書模式 -->

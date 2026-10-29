@@ -599,6 +599,86 @@ const Tasks = {
   }
 };
 
+// ===== 管理員：編輯用戶 =====
+const UserEditor = {
+  userId: null,
+  avatar: null,
+
+  open(user) {
+    this.userId = user.id;
+    this.avatar = user.avatar || '';
+    document.getElementById('user-edit-title').textContent =
+      `編輯：${user.nickname || user.username}`;
+    document.getElementById('user-edit-nickname').value = user.nickname || '';
+    document.getElementById('user-edit-avatar-url').value =
+      (user.avatar && user.avatar.startsWith('http')) ? user.avatar : '';
+    document.getElementById('user-edit-role').value = user.role || 'user';
+    document.getElementById('user-edit-password').value = '';
+
+    const info = [];
+    info.push(`用戶名：${user.username}`);
+    if (user.createdAt) info.push('建立：' + new Date(user.createdAt).toLocaleDateString('zh-HK'));
+    if (user.lastLogin) info.push('最後登入：' + new Date(user.lastLogin).toLocaleString('zh-HK'));
+    info.push(`已學 ${user.charsKnown || 0} 字 · 練習 ${user.totalAttempts || 0} 次`);
+    document.getElementById('user-edit-info').textContent = info.join('　|　');
+
+    this.renderAvatars();
+    this.updatePreview();
+    document.getElementById('user-edit-modal').classList.remove('hidden');
+  },
+
+  renderAvatars() {
+    const grid = document.getElementById('user-edit-avatar-grid');
+    if (!grid) return;
+    grid.innerHTML = AVATARS.map(a => `
+      <div class="avatar-option ${this.avatar === a ? 'selected' : ''}" data-avatar="${a}">${a}</div>
+    `).join('');
+    grid.querySelectorAll('.avatar-option').forEach(opt => {
+      opt.onclick = () => {
+        grid.querySelectorAll('.avatar-option').forEach(o => o.classList.remove('selected'));
+        opt.classList.add('selected');
+        this.avatar = opt.dataset.avatar;
+        document.getElementById('user-edit-avatar-url').value = '';
+        this.updatePreview();
+      };
+    });
+  },
+
+  updatePreview() {
+    const el = document.getElementById('user-edit-avatar-preview');
+    if (!el) return;
+    const url = (document.getElementById('user-edit-avatar-url')?.value || '').trim();
+    const src = url || this.avatar || '';
+    if (src.startsWith('http')) {
+      el.innerHTML = `<img src="${src}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`;
+    } else if (src) {
+      el.innerHTML = `<span style="font-size:34px">${src}</span>`;
+    } else {
+      el.innerHTML = '<span style="font-size:28px">?</span>';
+    }
+  },
+
+  async save() {
+    const nickname = document.getElementById('user-edit-nickname').value.trim();
+    const url = document.getElementById('user-edit-avatar-url').value.trim();
+    const role = document.getElementById('user-edit-role').value;
+    const password = document.getElementById('user-edit-password').value.trim();
+    const avatar = url || this.avatar || '';
+    try {
+      await AdminAPI.updateUserDetail(this.userId, { nickname, avatar, role, password });
+      toast('✅ 已保存');
+      this.close();
+      loadAdminPanel();
+    } catch (e) {
+      toast('保存失敗: ' + e.message);
+    }
+  },
+
+  close() {
+    document.getElementById('user-edit-modal').classList.add('hidden');
+  }
+};
+
 // ===== 管理員 API =====
 const AdminAPI = {
   apiBase: '/api/admin',
@@ -630,6 +710,10 @@ const AdminAPI = {
 
   async updateUser(userId, role) {
     return this.request('/user/' + userId, 'PUT', { role });
+  },
+
+  async updateUserDetail(userId, data) {
+    return this.request('/user/' + userId, 'PUT', data);
   },
 
   async   deleteUser(userId) {
@@ -2604,6 +2688,13 @@ async function loadProfile() {
   selectedAvatar = User.current.avatar || '';
   updateAvatarPreview();
   renderAvatarGrid();
+  const info = document.getElementById('profile-account-info');
+  if (info) {
+    const bits = [];
+    bits.push(`角色：${User.current.role === 'admin' ? '👑 管理員' : '🧒 學生'}`);
+    if (User.current.createdAt) bits.push('建立：' + new Date(User.current.createdAt).toLocaleDateString('zh-HK'));
+    info.textContent = bits.join('　|　');
+  }
 }
 
 function renderAvatarGrid() {
@@ -2641,6 +2732,24 @@ function updateAvatarPreview() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  // 密碼強度提示
+  document.getElementById('profile-new-password')?.addEventListener('input', (e) => {
+    const el = document.getElementById('password-strength');
+    if (!el) return;
+    const v = e.target.value || '';
+    if (!v) { el.textContent = ''; el.className = 'password-strength'; return; }
+    let score = 0;
+    if (v.length >= 4) score++;
+    if (v.length >= 8) score++;
+    if (/[a-z]/.test(v) && /[A-Z]/.test(v)) score++;
+    if (/\d/.test(v)) score++;
+    if (/[^\w]/.test(v)) score++;
+    const labels = ['太短', '弱', '一般', '唔錯', '好', '好強'];
+    const names = ['weak', 'weak', 'fair', 'good', 'good', 'strong'];
+    el.textContent = `密碼強度：${labels[score]}`;
+    el.className = 'password-strength ' + names[score];
+  });
+
   document.getElementById('profile-avatar')?.addEventListener('input', () => {
     selectedAvatar = document.getElementById('profile-avatar').value;
     updateAvatarPreview();
@@ -2675,6 +2784,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('save-password-btn')?.addEventListener('click', async () => {
     const currentPassword = document.getElementById('profile-current-password').value;
     const newPassword = document.getElementById('profile-new-password').value;
+    const confirmPassword = document.getElementById('profile-confirm-password')?.value;
     if (!currentPassword || !newPassword) {
       toast('請填寫所有欄位');
       return;
@@ -2688,8 +2798,16 @@ document.addEventListener('DOMContentLoaded', () => {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || '更新失敗');
       toast('密碼已更新');
+      if (newPassword !== confirmPassword) {
+        toast('❌ 兩次輸入嘅新密碼唔一樣');
+        return;
+      }
       document.getElementById('profile-current-password').value = '';
       document.getElementById('profile-new-password').value = '';
+      const cf = document.getElementById('profile-confirm-password');
+      if (cf) cf.value = '';
+      const st = document.getElementById('password-strength');
+      if (st) st.textContent = '';
     } catch (e) {
       toast('更新失敗: ' + e.message);
     }
@@ -2713,13 +2831,16 @@ async function loadAdminPanel() {
 
     document.getElementById('admin-user-list').innerHTML = users.map(u => `
       <div class="user-item" data-id="${u.id}">
+        <span class="user-avatar-mini">${u.avatar && u.avatar.startsWith('http') ? `<img src="${u.avatar}">` : (u.avatar || (u.nickname || u.username || '?')[0].toUpperCase())}</span>
         <span class="user-name">${u.nickname || u.username} <span class="role-badge ${u.role}">${u.role === 'admin' ? '👑 管理員' : '🧒 學生'}</span></span>
         <span class="user-stats">
           已學: ${u.charsKnown} 字 | 練習: ${u.totalAttempts || 0} 次
           ${u.taskCount ? ` | 任務: ${u.taskDoneCount}/${u.taskCount} 個完成（共 ${u.taskCharCount} 字）` : ' | 未布置任務'}
+          ${u.lastLogin ? ` | 最後登入 ${new Date(u.lastLogin).toLocaleDateString('zh-HK')}` : ' | 未登入過'}
         </span>
         <div class="user-actions">
           <button class="btn-small btn-view" data-id="${u.id}">查看</button>
+          <button class="btn-small btn-edit-user" data-id="${u.id}">✏️ 編輯</button>
           <button class="btn-small btn-toggle-role" data-id="${u.id}" data-role="${u.role === 'admin' ? 'user' : 'admin'}">${u.role === 'admin' ? '降級' : '升級'}</button>
           <button class="btn-small btn-danger btn-delete" data-id="${u.id}">刪除</button>
         </div>
@@ -2729,6 +2850,12 @@ async function loadAdminPanel() {
     // Bind events
     document.querySelectorAll('.btn-view').forEach(btn => {
       btn.onclick = () => showUserDetail(btn.dataset.id);
+    });
+    document.querySelectorAll('.btn-edit-user').forEach(btn => {
+      btn.onclick = () => {
+        const u = users.find(x => x.id == btn.dataset.id);
+        if (u) UserEditor.open(u);
+      };
     });
     document.querySelectorAll('.btn-toggle-role').forEach(btn => {
       btn.onclick = () => toggleUserRole(btn.dataset.id, btn.dataset.role);
@@ -3456,4 +3583,13 @@ document.addEventListener('DOMContentLoaded', () => {
 document.addEventListener('DOMContentLoaded', () => {
   init();
   if (location.hash === '#admin') showView('admin');
+
+  // ===== 管理員編輯用戶（全域綁定，唔好放喺 Admin.init）=====
+  document.getElementById('user-edit-close')?.addEventListener('click', () => UserEditor.close());
+  document.getElementById('user-edit-cancel')?.addEventListener('click', () => UserEditor.close());
+  document.getElementById('user-edit-save')?.addEventListener('click', () => UserEditor.save());
+  document.getElementById('user-edit-avatar-url')?.addEventListener('input', () => UserEditor.updatePreview());
+  document.getElementById('user-edit-modal')?.addEventListener('click', (e) => {
+    if (e.target.id === 'user-edit-modal') UserEditor.close();
+  });
 });

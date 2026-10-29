@@ -514,13 +514,15 @@ async function handleAPI(req, res) {
       if (!user || !verifyPassword(password, user.password)) {
         return jsonResponse(res, 401, { error: '用戶名或密碼錯誤' });
       }
+      user.lastLogin = new Date().toISOString();
+      await saveData(db);
       const sessionId = generateSessionId();
       sessions.set(sessionId, {
-        user: { id: user.id, username: user.username, role: user.role },
+        user: { id: user.id, username: user.username, nickname: user.nickname, role: user.role, avatar: user.avatar || null },
         expires: Date.now() + 30 * 24 * 60 * 60 * 1000
       });
       setSessionCookie(res, sessionId, Date.now() + 30 * 24 * 60 * 60 * 1000);
-      jsonResponse(res, 200, { id: user.id, username: user.username, role: user.role });
+      jsonResponse(res, 200, { id: user.id, username: user.username, nickname: user.nickname, role: user.role, avatar: user.avatar || null });
     } catch (e) {
       jsonResponse(res, 400, { error: '無效的請求' });
     }
@@ -541,7 +543,14 @@ async function handleAPI(req, res) {
     if (!user) return jsonResponse(res, 401, { error: '未登入' });
     const fullUser = db.users.find(u => u.id === user.id);
     if (!fullUser) return jsonResponse(res, 404, { error: '用戶不存在' });
-    jsonResponse(res, 200, { id: fullUser.id, username: fullUser.username, nickname: fullUser.nickname || fullUser.username, role: fullUser.role, avatar: fullUser.avatar || null });
+    jsonResponse(res, 200, {
+      id: fullUser.id,
+      username: fullUser.username,
+      nickname: fullUser.nickname || fullUser.username,
+      role: fullUser.role,
+      avatar: fullUser.avatar || null,
+      createdAt: fullUser.createdAt || null
+    });
     return;
   }
 
@@ -1271,8 +1280,12 @@ async function handleAPI(req, res) {
         id: u.id,
         username: u.username,
         nickname: u.nickname || u.username,
+        avatar: u.avatar || null,
         role: u.role,
         createdAt: u.createdAt,
+        lastLogin: u.lastLogin || null,
+        updatedAt: u.updatedAt || null,
+        passwordChangedAt: u.passwordChangedAt || null,
         charsKnown: userProgress.length,
         totalAttempts: userProgress.reduce((sum, p) => sum + (p.attempts || 0), 0),
         avgResponseTime: userProgress.length > 0
@@ -1313,13 +1326,62 @@ async function handleAPI(req, res) {
   if (pathname.startsWith('/api/admin/user/') && method === 'PUT') {
     const userId = parseInt(pathname.split('/').pop());
     try {
-      const { role } = await parseBody(req);
+      const { role, nickname, avatar, password } = await parseBody(req);
       const userIdx = db.users.findIndex(u => u.id === userId);
       if (userIdx < 0) return jsonResponse(res, 404, { error: '用戶不存在' });
-      if (role !== 'admin' && role !== 'user') return jsonResponse(res, 400, { error: '無效的角色' });
-      db.users[userIdx].role = role;
-      saveData(db);
-      jsonResponse(res, 200, { success: true });
+      const target = db.users[userIdx];
+
+      if (role !== undefined && role !== null) {
+        if (role !== 'admin' && role !== 'user') return jsonResponse(res, 400, { error: '無效的角色' });
+        if (userId === user.id && role !== 'admin') {
+          return jsonResponse(res, 400, { error: '唔可以將自己降級，以免鎖死管理功能' });
+        }
+        target.role = role;
+      }
+
+      if (nickname !== undefined) {
+        const n = (nickname || '').trim();
+        if (n.length > 20) return jsonResponse(res, 400, { error: '暱稱最多 20 字' });
+        if (n && db.users.some(u => u.id !== userId && (u.nickname || '') === n)) {
+          return jsonResponse(res, 400, { error: '暱稱已經俾其他人用咗' });
+        }
+        target.nickname = n;
+      }
+
+      if (avatar !== undefined) {
+        target.avatar = (avatar || '').trim().slice(0, 300);
+      }
+
+      if (password) {
+        if (String(password).length < 4) return jsonResponse(res, 400, { error: '密碼至少 4 字' });
+        if (userId === user.id) {
+          return jsonResponse(res, 400, { error: '請用自己嘅「🔒 修改密碼」功能改密碼' });
+        }
+        target.password = hashPassword(String(password));
+        target.passwordChangedAt = new Date().toISOString();
+      }
+
+      target.updatedAt = new Date().toISOString();
+      await saveData(db);
+
+      // 即時同步該用戶嘅 session（改咗暱稱／角色／頭像即刻生效）
+      for (const [sid, s] of sessions) {
+        if (s.user.id === userId) {
+          sessions.set(sid, {
+            ...s,
+            user: {
+              ...s.user,
+              nickname: target.nickname,
+              role: target.role,
+              avatar: target.avatar || null
+            }
+          });
+        }
+      }
+
+      const safe = { ...target };
+      delete safe.password;
+      jsonResponse(res, 200, { success: true, user: safe });
     } catch (e) {
       jsonResponse(res, 400, { error: '請求無效' });
     }
