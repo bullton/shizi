@@ -2302,16 +2302,6 @@ nav {
   padding: 26px 18px !important;
 }
 .dictation-counter { font-size: 15px; color: #636e72; font-weight: 600; }
-.dictation-answer {
-  font-size: 56px;
-  font-weight: 700;
-  color: #6a5acd;
-  letter-spacing: 6px;
-  min-height: 70px;
-  line-height: 1.2;
-  text-align: center;
-}
-.dictation-answer.hidden { display: none; }
 .btn-play-big {
   width: 150px;
   height: 150px;

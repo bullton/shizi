@@ -393,7 +393,6 @@ const User = {
 const Dictation = {
   items: [],      // [{ word, char }]
   index: 0,
-  revealed: false,
   taskName: '',
 
   _speak(text, rate = 0.75) {
@@ -449,7 +448,6 @@ const Dictation = {
     }
     this.items = items;
     this.index = 0;
-    this.revealed = false;
     this.taskName = task.name;
     document.getElementById('dictation-title').textContent = `📝 默書：${task.name}`;
     document.getElementById('dictation-modal').classList.remove('hidden');
@@ -461,15 +459,7 @@ const Dictation = {
     if (!it) return;
     document.getElementById('dictation-counter').textContent =
       `${this.index + 1} / ${this.items.length}`;
-    const ans = document.getElementById('dictation-answer');
-    if (this.revealed) {
-      ans.textContent = it.word;
-      ans.classList.remove('hidden');
-    } else {
-      ans.textContent = '';
-      ans.classList.add('hidden');
-    }
-    document.getElementById('dictation-reveal').textContent = this.revealed ? '🙈 收起答案' : '👁 顯示答案';
+    // 默書就係靠耳仔，冇答案睇
     document.getElementById('dictation-prev').disabled = this.index === 0;
     const nextBtn = document.getElementById('dictation-next');
     nextBtn.textContent = this.index === this.items.length - 1 ? '完成 ✓' : '下一個 →';
@@ -503,19 +493,12 @@ const Dictation = {
       return;
     }
     this.index++;
-    this.revealed = false;
     this.render();
   },
 
   prev() {
     if (this.index <= 0) return;
     this.index--;
-    this.revealed = false;
-    this.render();
-  },
-
-  toggleReveal() {
-    this.revealed = !this.revealed;
     this.render();
   },
 
@@ -2536,8 +2519,6 @@ async function init() {
   if (dNext) dNext.addEventListener('click', () => Dictation.next());
   const dPrev = document.getElementById('dictation-prev');
   if (dPrev) dPrev.addEventListener('click', () => Dictation.prev());
-  const dReveal = document.getElementById('dictation-reveal');
-  if (dReveal) dReveal.addEventListener('click', () => Dictation.toggleReveal());
   const dClose = document.getElementById('dictation-close');
   if (dClose) dClose.addEventListener('click', () => Dictation.close());
   const dModal = document.getElementById('dictation-modal');
