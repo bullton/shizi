@@ -2907,10 +2907,17 @@ async function loadAdminPanel() {
 const AdminAssignments = {
   selected: new Set(),
   selectedUsers: new Set(),
+  selectedWords: new Set(),   // 任務要帶嘅詞語
   chars: [],
   users: [],
 
   async load() {
+    // 防呆：確保各個 Set 一定存在（漏咗初始化唔會令成個功能死掉）
+    this.selected = this.selected || new Set();
+    this.selectedUsers = this.selectedUsers || new Set();
+    this.selectedWords = this.selectedWords || new Set();
+    this._wordSeen = this._wordSeen || new Set();
+    this._extraWords = this._extraWords || new Set();
     await Promise.all([this._loadUsers(), this._loadChars()]);
     this.renderCharPicker();
     await this.renderList();
@@ -3102,12 +3109,12 @@ const AdminAssignments = {
   },
 
   async create() {
-    const name = document.getElementById('assign-name').value.trim();
-    const note = document.getElementById('assign-note').value.trim();
-    if (this.selectedUsers.size === 0) return toast('請先揀至少一個小孩');
-    if (this.selected.size === 0) return toast('請至少揀一個字');
-
     try {
+      const name = document.getElementById('assign-name').value.trim();
+      const note = document.getElementById('assign-note').value.trim();
+      if (this.selectedUsers.size === 0) return toast('請先揀至少一個對象');
+      if (this.selected.size === 0) return toast('請至少揀一個字');
+
       const res = await AdminAPI.createAssignment({
         userIds: [...this.selectedUsers],
         name,
@@ -3583,6 +3590,12 @@ document.addEventListener('DOMContentLoaded', () => {
 document.addEventListener('DOMContentLoaded', () => {
   init();
   if (location.hash === '#admin') showView('admin');
+
+  // 全域錯誤提示：避免功能壞咗但完全冇反應
+  window.addEventListener('error', (e) => {
+    console.error('[shizi] 未處理錯誤:', e.error || e.message);
+    try { toast('⚠️ 有錯誤：' + ((e.error && e.error.message) || e.message)); } catch (_) {}
+  });
 
   // ===== 管理員編輯用戶（全域綁定，唔好放喺 Admin.init）=====
   document.getElementById('user-edit-close')?.addEventListener('click', () => UserEditor.close());
