@@ -1342,7 +1342,9 @@ async function handleAPI(req, res) {
       if (nickname !== undefined) {
         const n = (nickname || '').trim();
         if (n.length > 20) return jsonResponse(res, 400, { error: '暱稱最多 20 字' });
-        if (n && db.users.some(u => u.id !== userId && (u.nickname || '') === n)) {
+        // 同「顯示名稱」對齊（有暱稱用暱稱，冇就用用戶名）
+        const displayName = (u) => (u.nickname || u.username || '');
+        if (n && db.users.some(u => u.id !== userId && displayName(u) === n)) {
           return jsonResponse(res, 400, { error: '暱稱已經俾其他人用咗' });
         }
         target.nickname = n;
