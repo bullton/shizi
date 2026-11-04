@@ -15,36 +15,18 @@
     <button class="nav-btn hidden" data-view="admin" id="charlib-nav">⚙️ 管理字庫</button>
     <span id="user-nav" class="hidden">
       <button class="nav-btn" data-view="dashboard">📊 我的進度</button>
-      <button class="nav-btn" id="admin-btn" data-view="admin-panel" style="display:none">👑 管理</button>
-      <span id="user-info"></span>
-      <button class="btn-logout" id="logout-btn">🚪 登出</button>
     </span>
-    <span id="login-nav">
-      <button class="nav-btn" data-view="login">🔐 登入</button>
-    </span>
+    <button class="nav-btn" id="admin-btn" data-view="admin-panel" style="display:none">👑 管理</button>
   </nav>
 </header>
 
 <div class="container">
-  <!-- 登入/註冊 -->
-  <section id="view-login" class="view">
+  <!-- 未登入：帳戶由學習工具台管理 -->
+  <section id="view-locked" class="view">
     <div class="card login-card">
-      <h2 id="auth-title">登入</h2>
-      <div class="form-field">
-        <label>用戶名</label>
-        <input type="text" id="auth-username" placeholder="例：john" maxlength="20">
-      </div>
-      <div class="form-field">
-        <label>密碼</label>
-        <input type="password" id="auth-password" placeholder="••••" maxlength="50">
-      </div>
-      <div class="form-actions">
-        <button class="btn btn-primary" id="auth-submit">登入</button>
-      </div>
-      <p class="auth-switch">
-        還沒有帳戶？<a href="#" id="auth-switch-link">立即註冊</a>
-      </p>
-      <p id="auth-error" class="error-msg hidden"></p>
+      <h2>請先登入學習工具台</h2>
+      <p style="color:#636e72;font-size:14px;line-height:1.7">識字樂的帳戶、進度和排行榜已由學習工具台管理。請先到工具台登入，再回來開始練習。</p>
+      <p class="auth-switch"><a href="/" target="_top">前往學習工具台</a></p>
     </div>
   </section>
 
@@ -222,7 +204,6 @@
     <div class="dashboard-tabs">
       <button class="tab-btn active" data-tab="my-progress">📝 我的記錄（只有我）</button>
       <button class="tab-btn" data-tab="leaderboard">🏆 排行榜（公開）</button>
-      <button class="tab-btn" data-tab="profile">👤 個人資料</button>
     </div>
     <div id="tab-my-progress" class="dashboard-tab active">
       <div class="stats-grid">        <div class="stat-card">
@@ -246,55 +227,11 @@
     <div id="tab-leaderboard" class="dashboard-tab">
       <div class="card">
         <h3>🏆 識字量排行榜</h3>
-        <p style="color:#636e72;font-size:13px;margin-bottom:10px">全體用戶公開排名，只有統計數字；每人的詳細練習記錄只有自己和管理員睇到</p>
+        <p style="color:#636e72;font-size:13px;margin-bottom:10px">全體用戶公開排名，只顯示統計數字。</p>
         <div class="leaderboard-list" id="leaderboard-list"></div>
       </div>
     </div>
 
-    <div id="tab-profile" class="dashboard-tab">
-      <div class="card profile-card">
-        <h3>👤 個人資料</h3>
-        <div class="profile-avatar-section">
-          <div class="avatar-preview" id="avatar-preview">
-            <span id="avatar-initial">?</span>
-          </div>
-        </div>
-        <div class="avatar-selector">
-          <label>選擇頭像</label>
-          <div class="avatar-grid" id="avatar-grid"></div>
-          <div class="avatar-url-field">
-            <input type="text" id="profile-avatar" placeholder="或輸入自定義頭像 URL">
-          </div>
-        </div>
-        <div class="form-field">
-          <label>暱稱（可中文，不可重複）</label>
-          <input type="text" id="profile-nickname" maxlength="20" placeholder="顯示畀人睇嘅名">
-        </div>
-        <div class="form-field">
-          <label>用戶名（不可修改）</label>
-          <input type="text" id="profile-username" disabled placeholder="用戶名">
-        </div>
-        <button class="btn btn-primary" id="save-profile-btn">保存資料</button>
-      </div>
-      <div class="card profile-card">
-        <h3>🔒 修改密碼</h3>
-        <div class="form-field">
-          <label>當前密碼</label>
-          <input type="password" id="profile-current-password" autocomplete="current-password" placeholder="••••">
-        </div>
-        <div class="form-field">
-          <label>新密碼（至少 4 字）</label>
-          <input type="password" id="profile-new-password" autocomplete="new-password" placeholder="••••">
-          <div class="password-strength" id="password-strength"></div>
-        </div>
-        <div class="form-field">
-          <label>確認新密碼</label>
-          <input type="password" id="profile-confirm-password" autocomplete="new-password" placeholder="再輸入一次">
-        </div>
-        <button class="btn btn-primary" id="save-password-btn">更新密碼</button>
-        <div class="profile-account-info" id="profile-account-info"></div>
-      </div>
-    </div>
   </section>
 
   <!-- 管理員面板 -->
@@ -304,39 +241,18 @@
     </div>
     <div class="stats-grid">
       <div class="stat-card">
-        <div class="stat-value" id="admin-users">0</div>
-        <div class="stat-label">總用戶數</div>
-      </div>
-      <div class="stat-card">
         <div class="stat-value" id="admin-chars">0</div>
         <div class="stat-label">被練習字數</div>
       </div>
     </div>
 
     <div class="admin-tabs">
-      <button class="tab-btn active" data-tab="users">👥 用戶管理</button>
-      <button class="tab-btn" data-tab="assignments">📋 布置任務</button>
+      <button class="tab-btn active" data-tab="assignments">📋 布置任務</button>
       <button class="tab-btn" data-tab="chars">📊 字學習統計</button>
     </div>
 
-    <!-- 用戶管理 Tab -->
-    <div id="tab-users" class="admin-tab active">
-      <div class="card">
-        <h3>👥 用戶列表</h3>
-        <div class="user-list" id="admin-user-list"></div>
-      </div>
-      <div class="card" id="user-detail-panel" style="display:none">
-        <div class="user-detail-header">
-          <h3 id="user-detail-title">用戶詳情</h3>
-          <button class="btn btn-secondary" id="close-user-detail">✕ 關閉</button>
-        </div>
-        <div id="user-detail-stats"></div>
-        <div id="user-detail-records"></div>
-      </div>
-    </div>
-
     <!-- 布置任務 Tab -->
-    <div id="tab-assignments" class="admin-tab">
+    <div id="tab-assignments" class="admin-tab active">
       <div class="card">
         <h3>📋 新建任務</h3>
         <div class="form-field">
@@ -389,46 +305,6 @@
     </div>
 
   </section>
-</div>
-
-<!-- 管理員：編輯用戶 -->
-<div id="user-edit-modal" class="modal hidden">
-  <div class="modal-box" style="max-width:520px">
-    <div class="modal-head">
-      <h3 id="user-edit-title">編輯用戶</h3>
-      <button class="modal-close" id="user-edit-close">✕</button>
-    </div>
-    <div class="modal-body">
-      <div class="user-edit-avatar-row">
-        <div class="avatar-preview" id="user-edit-avatar-preview" style="width:64px;height:64px"><span>?</span></div>
-        <div class="avatar-grid" id="user-edit-avatar-grid" style="max-height:120px;overflow-y:auto"></div>
-      </div>
-      <div class="form-field">
-        <label>暱稱</label>
-        <input type="text" id="user-edit-nickname" maxlength="20" placeholder="顯示畀人睇嘅名">
-      </div>
-      <div class="form-field">
-        <label>頭像 URL（可留空）</label>
-        <input type="text" id="user-edit-avatar-url" placeholder="https://…">
-      </div>
-      <div class="form-field">
-        <label>角色</label>
-        <select id="user-edit-role">
-          <option value="user">🧒 學生</option>
-          <option value="admin">👑 管理員</option>
-        </select>
-      </div>
-      <div class="form-field">
-        <label>重設密碼（留空＝唔改）</label>
-        <input type="text" id="user-edit-password" placeholder="至少 4 字">
-      </div>
-      <div class="user-edit-info" id="user-edit-info"></div>
-    </div>
-    <div class="modal-foot">
-      <button class="btn btn-secondary" id="user-edit-cancel">取消</button>
-      <button class="btn btn-primary" id="user-edit-save">💾 保存</button>
-    </div>
-  </div>
 </div>
 
 <!-- 默書模式 -->

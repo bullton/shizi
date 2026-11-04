@@ -1448,8 +1448,15 @@ const server = http.createServer((req, res) => {
   }
 
   // Serve static files
-  let filePath = path.join(BASE_DIR, pathname === '/' ? 'index.html' : pathname);
-  const ext = path.extname(filePath);
+  const filePath = path.resolve(path.join(BASE_DIR, pathname === '/' ? 'hub/index.html' : pathname));
+  const staticExt = new Set(['.html', '.js', '.css', '.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.ico', '.woff', '.woff2', '.ttf']);
+  const hidden = filePath.split(path.sep).some(seg => seg.startsWith('.'));
+  const ext = path.extname(filePath).toLowerCase();
+  if (!filePath.startsWith(BASE_DIR + path.sep) || hidden || !staticExt.has(ext)) {
+    res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end('Not found');
+    return;
+  }
   const contentType = mimeTypes[ext] || 'application/octet-stream';
 
   sendFile(res, filePath, contentType);

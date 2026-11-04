@@ -211,10 +211,20 @@ function pickCantoneseVoice() {
       || voices.find(v => /^zh/i.test(v.lang))
       || null;
 }
-// 讀出文字（rate 越細越慢）
-function speakCantonese(text, rate = 0.75) {
+// 讀出文字（rate 越細越慢）；onDone 會喺語音真正播完（或失敗）後叫一次
+function speakCantonese(text, rate = 0.75, onDone = null) {
+  let finished = false;
+  let fallbackTimer = null;
+  const finish = () => {
+    if (finished) return;
+    finished = true;
+    if (fallbackTimer) clearTimeout(fallbackTimer);
+    if (onDone) onDone();
+  };
+
   if (!('speechSynthesis' in window)) {
     toast('呢個瀏覽器唔支援語音');
+    finish();
     return;
   }
   const synth = window.speechSynthesis;
@@ -228,20 +238,26 @@ function speakCantonese(text, rate = 0.75) {
     u.volume = 1;
     const v = pickCantoneseVoice();
     if (v) u.voice = v;
+    u.onend = finish;
+    u.onerror = finish;
     return u;
   };
 
-  // 冇聲喺播放緊 → 直接講（保留用戶手勢，iOS 需要）
+  // 保險：部分瀏覽器唔會觸發 onend，等太久就照樣繼續
+  if (onDone) {
+    fallbackTimer = setTimeout(finish, Math.max(2500, String(text).length * 700));
+  }
+
   if (!synth.speaking && !synth.pending) {
     if (synth.paused) synth.resume();
-    synth.speak(make());
+    try { synth.speak(make()); } catch (e) { finish(); }
     return;
   }
   // 已經有聲 → 先取消，稍等再講（Chrome cancel 後即 speak 會被丟棄）
   synth.cancel();
   setTimeout(() => {
     if (synth.paused) synth.resume();
-    synth.speak(make());
+    try { synth.speak(make()); } catch (e) { finish(); }
   }, 80);
 }
 
@@ -298,11 +314,11 @@ const User = {
     const res = await fetch(this.apiBase + path, options);
     let data = {};
     try { data = await res.json(); } catch {}
-    if (res.status === 401 && !path.startsWith('/login') && !path.startsWith('/register')) {
+    if (res.status === 401) {
       this.current = null;
       this.updateUI();
-      toast('請先登入');
-      showView('login');
+      toast('請從學習工具台重新登入');
+      showView('locked');
       throw new Error(data.error || '請先登入');
     }
     if (!res.ok) throw new Error(data.error || '請求失敗');
@@ -319,24 +335,6 @@ const User = {
       this.updateUI();
       return false;
     }
-  },
-
-  async login(username, password) {
-    this.current = await this.request('/login', 'POST', { username, password });
-    this.updateUI();
-    return this.current;
-  },
-
-  async register(username, password) {
-    this.current = await this.request('/register', 'POST', { username, password });
-    this.updateUI();
-    return this.current;
-  },
-
-  async logout() {
-    await this.request('/logout', 'POST');
-    this.current = null;
-    this.updateUI();
   },
 
   async recordProgress(char, charId, responseTime, correct) {
@@ -358,8 +356,6 @@ const User = {
 
   updateUI() {
     const userNav = document.getElementById('user-nav');
-    const loginNav = document.getElementById('login-nav');
-    const userInfo = document.getElementById('user-info');
     const adminBtn = document.getElementById('admin-btn');
     const userStats = document.getElementById('user-stats');
     const tasksNav = document.getElementById('tasks-nav');
@@ -367,23 +363,19 @@ const User = {
     const charLibNav = document.getElementById('charlib-nav');
 
     if (this.current) {
-      userNav.classList.remove('hidden');
-      loginNav.classList.add('hidden');
+      userNav?.classList.remove('hidden');
       tasksNav?.classList.remove('hidden');
       gameNav?.classList.remove('hidden');
       charLibNav?.classList.toggle('hidden', this.current.role !== 'admin');
-      const displayName = this.current.nickname || this.current.username;
-      const displayAvatar = this.current.avatar || displayName[0].toUpperCase();
-      userInfo.innerHTML = `<span style="font-size:20px">${displayAvatar}</span> ${displayName}`;
-      adminBtn.style.display = this.current.role === 'admin' ? 'inline-block' : 'none';
-      userStats.classList.remove('hidden');
+      if (adminBtn) adminBtn.style.display = this.current.role === 'admin' ? 'inline-block' : 'none';
+      userStats?.classList.remove('hidden');
     } else {
-      userNav.classList.add('hidden');
-      loginNav.classList.remove('hidden');
+      userNav?.classList.add('hidden');
       tasksNav?.classList.add('hidden');
       gameNav?.classList.add('hidden');
       charLibNav?.classList.add('hidden');
-      userStats.classList.add('hidden');
+      if (adminBtn) adminBtn.style.display = 'none';
+      userStats?.classList.add('hidden');
     }
   }
 };
@@ -582,86 +574,6 @@ const Tasks = {
   }
 };
 
-// ===== 管理員：編輯用戶 =====
-const UserEditor = {
-  userId: null,
-  avatar: null,
-
-  open(user) {
-    this.userId = user.id;
-    this.avatar = user.avatar || '';
-    document.getElementById('user-edit-title').textContent =
-      `編輯：${user.nickname || user.username}`;
-    document.getElementById('user-edit-nickname').value = user.nickname || '';
-    document.getElementById('user-edit-avatar-url').value =
-      (user.avatar && user.avatar.startsWith('http')) ? user.avatar : '';
-    document.getElementById('user-edit-role').value = user.role || 'user';
-    document.getElementById('user-edit-password').value = '';
-
-    const info = [];
-    info.push(`用戶名：${user.username}`);
-    if (user.createdAt) info.push('建立：' + new Date(user.createdAt).toLocaleDateString('zh-HK'));
-    if (user.lastLogin) info.push('最後登入：' + new Date(user.lastLogin).toLocaleString('zh-HK'));
-    info.push(`已學 ${user.charsKnown || 0} 字 · 練習 ${user.totalAttempts || 0} 次`);
-    document.getElementById('user-edit-info').textContent = info.join('　|　');
-
-    this.renderAvatars();
-    this.updatePreview();
-    document.getElementById('user-edit-modal').classList.remove('hidden');
-  },
-
-  renderAvatars() {
-    const grid = document.getElementById('user-edit-avatar-grid');
-    if (!grid) return;
-    grid.innerHTML = AVATARS.map(a => `
-      <div class="avatar-option ${this.avatar === a ? 'selected' : ''}" data-avatar="${a}">${a}</div>
-    `).join('');
-    grid.querySelectorAll('.avatar-option').forEach(opt => {
-      opt.onclick = () => {
-        grid.querySelectorAll('.avatar-option').forEach(o => o.classList.remove('selected'));
-        opt.classList.add('selected');
-        this.avatar = opt.dataset.avatar;
-        document.getElementById('user-edit-avatar-url').value = '';
-        this.updatePreview();
-      };
-    });
-  },
-
-  updatePreview() {
-    const el = document.getElementById('user-edit-avatar-preview');
-    if (!el) return;
-    const url = (document.getElementById('user-edit-avatar-url')?.value || '').trim();
-    const src = url || this.avatar || '';
-    if (src.startsWith('http')) {
-      el.innerHTML = `<img src="${src}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`;
-    } else if (src) {
-      el.innerHTML = `<span style="font-size:34px">${src}</span>`;
-    } else {
-      el.innerHTML = '<span style="font-size:28px">?</span>';
-    }
-  },
-
-  async save() {
-    const nickname = document.getElementById('user-edit-nickname').value.trim();
-    const url = document.getElementById('user-edit-avatar-url').value.trim();
-    const role = document.getElementById('user-edit-role').value;
-    const password = document.getElementById('user-edit-password').value.trim();
-    const avatar = url || this.avatar || '';
-    try {
-      await AdminAPI.updateUserDetail(this.userId, { nickname, avatar, role, password });
-      toast('✅ 已保存');
-      this.close();
-      loadAdminPanel();
-    } catch (e) {
-      toast('保存失敗: ' + e.message);
-    }
-  },
-
-  close() {
-    document.getElementById('user-edit-modal').classList.add('hidden');
-  }
-};
-
 // ===== 管理員 API =====
 const AdminAPI = {
   apiBase: '/api/admin',
@@ -675,8 +587,8 @@ const AdminAPI = {
     if (res.status === 401) {
       User.current = null;
       User.updateUI();
-      toast('請先登入');
-      showView('login');
+      toast('請從學習工具台重新登入');
+      showView('locked');
       throw new Error(data.error || '請先登入');
     }
     if (!res.ok) throw new Error(data.error || '請求失敗');
@@ -685,26 +597,6 @@ const AdminAPI = {
 
   async getUsers() {
     return this.request('/users');
-  },
-
-  async getUserDetail(userId) {
-    return this.request('/user/' + userId);
-  },
-
-  async updateUser(userId, role) {
-    return this.request('/user/' + userId, 'PUT', { role });
-  },
-
-  async updateUserDetail(userId, data) {
-    return this.request('/user/' + userId, 'PUT', data);
-  },
-
-  async   deleteUser(userId) {
-    return this.request('/user/' + userId, 'DELETE');
-  },
-
-  clearUserProgress(userId) {
-    return this.request('/user/' + userId + '/progress', 'DELETE');
   },
 
   async getChars() {
@@ -1499,9 +1391,21 @@ const Game = {
       slot.dataset.locked = 'true';
       piece.classList.remove('selected');
       piece.remove();
-      this._speak(actual);
-      this._playSuccess();
-      this._checkComplete();
+
+      const complete = this._checkComplete();
+      if (complete) {
+        // 最後一塊：等佢讀完先彈正確答案，唔好被後面嘅讀音蓋過
+        const token = this.current;
+        this._speak(actual, () => {
+          if (this.current !== token) return;
+          const gameView = document.getElementById('view-game');
+          if (!gameView || !gameView.classList.contains('active')) return;
+          this._celebrate();
+        });
+      } else {
+        this._speak(actual);
+        this._playSuccess();
+      }
     } else {
       // 容許放入錯誤部件：先顯示出嚟，提示錯誤，之後復原
       this.currentErrors = (this.currentErrors || 0) + 1;
@@ -1539,8 +1443,7 @@ const Game = {
 
   _checkComplete() {
     const slots = document.querySelectorAll('#character-display .slot');
-    const allFilled = Array.from(slots).every(s => s.dataset.locked === 'true');
-    if (allFilled) this._celebrate();
+    return Array.from(slots).every(s => s.dataset.locked === 'true');
   },
 
   _celebrate() {
@@ -1600,8 +1503,8 @@ const Game = {
   },
 
 
-  _speak(text) {
-    speakCantonese(text, 0.7);
+  _speak(text, onDone = null) {
+    speakCantonese(text, 0.7, onDone);
   },
 
   _playTone(freq, dur, delay = 0) {
@@ -2447,8 +2350,10 @@ const PROTECTED_VIEWS = ['game', 'tasks', 'dashboard', 'admin', 'admin-panel'];
 function showView(name) {
   // 未登入唔可以進入受保護頁面
   if (PROTECTED_VIEWS.includes(name) && !User.current) {
+    document.body.classList.remove('game-mode');
+    Game._clearTimers();
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-    document.getElementById('view-login').classList.add('active');
+    document.getElementById('view-locked').classList.add('active');
     document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
     return;
   }
@@ -2546,72 +2451,9 @@ async function init() {
     await Data.init();
     showView('tasks');
   } else {
-    showView('login');
+    showView('locked');
   }
 }
-
-// ===== 認證表單 =====
-let isRegister = false;
-
-document.getElementById('auth-submit').onclick = async () => {
-  console.log('[shizi] auth-submit clicked, isRegister=', isRegister);
-  const username = document.getElementById('auth-username').value.trim();
-  const password = document.getElementById('auth-password').value;
-  const errorEl = document.getElementById('auth-error');
-
-  if (!username || !password) {
-    errorEl.textContent = '請填寫用戶名和密碼';
-    errorEl.classList.remove('hidden');
-    return;
-  }
-
-  try {
-    if (isRegister) {
-      await User.request('/register', 'POST', { username, password });
-      toast('註冊成功！已自動登入');
-      isRegister = false;
-      document.getElementById('auth-title').textContent = '登入';
-      document.getElementById('auth-submit').textContent = '登入';
-      document.getElementById('auth-password').value = '';
-      document.getElementById('auth-error').classList.add('hidden');
-      await Data.init(true);
-      showView('tasks');
-    } else {
-      await User.login(username, password);
-      toast('登入成功！');
-      await Data.init(true);
-      showView('tasks');
-      errorEl.classList.add('hidden');
-      document.getElementById('auth-username').value = '';
-      document.getElementById('auth-password').value = '';
-    }
-  } catch (e) {
-    console.error('[shizi] login error:', e);
-    errorEl.textContent = e.message;
-    errorEl.classList.remove('hidden');
-  }
-};
-
-document.getElementById('auth-switch-link').onclick = (e) => {
-  e.preventDefault();
-  isRegister = !isRegister;
-  document.getElementById('auth-title').textContent = isRegister ? '註冊' : '登入';
-  document.getElementById('auth-submit').textContent = isRegister ? '註冊' : '登入';
-  document.getElementById('auth-error').classList.add('hidden');
-};
-
-document.getElementById('logout-btn').onclick = async () => {
-  try {
-    await User.logout();
-    toast('已登出');
-    Game.taskId = null;
-    Game.taskName = null;
-    Game._setTaskBanner(null);
-    showView('login');
-  } catch (e) {
-    toast('登出失敗: ' + e.message);
-  }
-};
 
 // ===== Dashboard =====
 async function loadDashboard() {
@@ -2650,151 +2492,6 @@ async function loadDashboard() {
   }
 }
 
-// ===== Profile =====
-const AVATARS = [
-  '🐱', '🐶', '🐰', '🦊', '🐼', '🐨',
-  '🐯', '🦁', '🐸', '🐵', '🐷', '🐻',
-  '🌸', '💐', '🌺', '🌻', '🍎', '🍓',
-  '👧', '👦', '👩', '👨', '👵', '👴',
-  '🎀', '🎈', '⭐', '🌙', '☀️', '🎨'
-];
-
-let selectedAvatar = null;
-
-async function loadProfile() {
-  if (!User.current) return;
-  document.getElementById('profile-username').value = User.current.username || '';
-  document.getElementById('profile-nickname').value = User.current.nickname || User.current.username || '';
-  document.getElementById('profile-avatar').value = User.current.avatar || '';
-  selectedAvatar = User.current.avatar || '';
-  updateAvatarPreview();
-  renderAvatarGrid();
-  const info = document.getElementById('profile-account-info');
-  if (info) {
-    const bits = [];
-    bits.push(`角色：${User.current.role === 'admin' ? '👑 管理員' : '🧒 學生'}`);
-    if (User.current.createdAt) bits.push('建立：' + new Date(User.current.createdAt).toLocaleDateString('zh-HK'));
-    info.textContent = bits.join('　|　');
-  }
-}
-
-function renderAvatarGrid() {
-  const grid = document.getElementById('avatar-grid');
-  if (!grid) return;
-  grid.innerHTML = AVATARS.map(avatar => `
-    <div class="avatar-option ${selectedAvatar === avatar ? 'selected' : ''}" data-avatar="${avatar}">
-      ${avatar}
-    </div>
-  `).join('');
-
-  grid.querySelectorAll('.avatar-option').forEach(option => {
-    option.onclick = () => {
-      grid.querySelectorAll('.avatar-option').forEach(o => o.classList.remove('selected'));
-      option.classList.add('selected');
-      selectedAvatar = option.dataset.avatar;
-      document.getElementById('profile-avatar').value = selectedAvatar;
-      updateAvatarPreview();
-    };
-  });
-}
-
-function updateAvatarPreview() {
-  const avatar = document.getElementById('profile-avatar')?.value || selectedAvatar;
-  const preview = document.getElementById('avatar-preview');
-  if (!preview) return;
-  if (avatar && avatar.trim() && !avatar.startsWith('http')) {
-    preview.innerHTML = `<span style="font-size:48px">${avatar}</span>`;
-  } else if (avatar && avatar.trim()) {
-    preview.innerHTML = `<img src="${avatar}" alt="avatar" style="width:100%;height:100%;object-fit:cover;border-radius:50%" onerror="this.parentElement.innerHTML='<span style=\\'font-size:48px\\'>${(User.current?.nickname || User.current?.username || '?')[0].toUpperCase()}</span>'">`;
-  } else {
-    const name = User.current?.nickname || User.current?.username || '?';
-    preview.innerHTML = `<span style="font-size:48px">${name[0].toUpperCase()}</span>`;
-  }
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-  // 密碼強度提示
-  document.getElementById('profile-new-password')?.addEventListener('input', (e) => {
-    const el = document.getElementById('password-strength');
-    if (!el) return;
-    const v = e.target.value || '';
-    if (!v) { el.textContent = ''; el.className = 'password-strength'; return; }
-    let score = 0;
-    if (v.length >= 4) score++;
-    if (v.length >= 8) score++;
-    if (/[a-z]/.test(v) && /[A-Z]/.test(v)) score++;
-    if (/\d/.test(v)) score++;
-    if (/[^\w]/.test(v)) score++;
-    const labels = ['太短', '弱', '一般', '唔錯', '好', '好強'];
-    const names = ['weak', 'weak', 'fair', 'good', 'good', 'strong'];
-    el.textContent = `密碼強度：${labels[score]}`;
-    el.className = 'password-strength ' + names[score];
-  });
-
-  document.getElementById('profile-avatar')?.addEventListener('input', () => {
-    selectedAvatar = document.getElementById('profile-avatar').value;
-    updateAvatarPreview();
-    const grid = document.getElementById('avatar-grid');
-    grid?.querySelectorAll('.avatar-option').forEach(o => o.classList.remove('selected'));
-    if (selectedAvatar && AVATARS.includes(selectedAvatar)) {
-      grid?.querySelector(`[data-avatar="${selectedAvatar}"]`)?.classList.add('selected');
-    }
-  });
-
-  document.getElementById('save-profile-btn')?.addEventListener('click', async () => {
-    const nickname = document.getElementById('profile-nickname').value.trim();
-    const avatar = document.getElementById('profile-avatar').value.trim();
-    try {
-      const res = await fetch('/api/profile', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nickname, avatar })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || '保存失敗');
-      User.current.nickname = data.nickname;
-      User.current.avatar = data.avatar;
-      User.updateUI();
-      document.getElementById('user-info').textContent = `👤 ${data.nickname}`;
-      toast('資料已保存');
-    } catch (e) {
-      toast('保存失敗: ' + e.message);
-    }
-  });
-
-  document.getElementById('save-password-btn')?.addEventListener('click', async () => {
-    const currentPassword = document.getElementById('profile-current-password').value;
-    const newPassword = document.getElementById('profile-new-password').value;
-    const confirmPassword = document.getElementById('profile-confirm-password')?.value;
-    if (!currentPassword || !newPassword) {
-      toast('請填寫所有欄位');
-      return;
-    }
-    try {
-      const res = await fetch('/api/password', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ currentPassword, newPassword })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || '更新失敗');
-      toast('密碼已更新');
-      if (newPassword !== confirmPassword) {
-        toast('❌ 兩次輸入嘅新密碼唔一樣');
-        return;
-      }
-      document.getElementById('profile-current-password').value = '';
-      document.getElementById('profile-new-password').value = '';
-      const cf = document.getElementById('profile-confirm-password');
-      if (cf) cf.value = '';
-      const st = document.getElementById('password-strength');
-      if (st) st.textContent = '';
-    } catch (e) {
-      toast('更新失敗: ' + e.message);
-    }
-  });
-});
-
 // ===== Admin Panel =====
 async function loadAdminPanel() {
   if (!User.current || User.current.role !== 'admin') return;
@@ -2804,46 +2501,8 @@ async function loadAdminPanel() {
     console.warn('載入任務數據失敗:', e);
   }
   try {
-    const users = await AdminAPI.getUsers();
-    document.getElementById('admin-users').textContent = users.length;
-
     const charStats = await AdminAPI.getCharStats();
     document.getElementById('admin-chars').textContent = charStats.length;
-
-    document.getElementById('admin-user-list').innerHTML = users.map(u => `
-      <div class="user-item" data-id="${u.id}">
-        <span class="user-avatar-mini">${u.avatar && u.avatar.startsWith('http') ? `<img src="${u.avatar}">` : (u.avatar || (u.nickname || u.username || '?')[0].toUpperCase())}</span>
-        <span class="user-name">${u.nickname || u.username} <span class="role-badge ${u.role}">${u.role === 'admin' ? '👑 管理員' : '🧒 學生'}</span></span>
-        <span class="user-stats">
-          已學: ${u.charsKnown} 字 | 練習: ${u.totalAttempts || 0} 次
-          ${u.taskCount ? ` | 任務: ${u.taskDoneCount}/${u.taskCount} 個完成（共 ${u.taskCharCount} 字）` : ' | 未布置任務'}
-          ${u.lastLogin ? ` | 最後登入 ${new Date(u.lastLogin).toLocaleDateString('zh-HK')}` : ' | 未登入過'}
-        </span>
-        <div class="user-actions">
-          <button class="btn-small btn-view" data-id="${u.id}">查看</button>
-          <button class="btn-small btn-edit-user" data-id="${u.id}">✏️ 編輯</button>
-          <button class="btn-small btn-toggle-role" data-id="${u.id}" data-role="${u.role === 'admin' ? 'user' : 'admin'}">${u.role === 'admin' ? '降級' : '升級'}</button>
-          <button class="btn-small btn-danger btn-delete" data-id="${u.id}">刪除</button>
-        </div>
-      </div>
-    `).join('') || '<p>暫無用戶</p>';
-
-    // Bind events
-    document.querySelectorAll('.btn-view').forEach(btn => {
-      btn.onclick = () => showUserDetail(btn.dataset.id);
-    });
-    document.querySelectorAll('.btn-edit-user').forEach(btn => {
-      btn.onclick = () => {
-        const u = users.find(x => x.id == btn.dataset.id);
-        if (u) UserEditor.open(u);
-      };
-    });
-    document.querySelectorAll('.btn-toggle-role').forEach(btn => {
-      btn.onclick = () => toggleUserRole(btn.dataset.id, btn.dataset.role);
-    });
-    document.querySelectorAll('.btn-delete').forEach(btn => {
-      btn.onclick = () => deleteUser(btn.dataset.id);
-    });
 
     document.getElementById('char-stats-list').innerHTML = charStats.slice(0, 50).map(c => `
       <div class="char-stat-item">
@@ -2851,34 +2510,6 @@ async function loadAdminPanel() {
         <span class="char-stat-info">練習人數: ${c.usersPracticed || 0} | 總次數: ${c.totalAttempts || 0} | 平均時間: ${c.avgTime ? (c.avgTime/1000).toFixed(1) + 's' : '-'}</span>
       </div>
     `).join('') || '<p>暫無數據</p>';
-
-    // Load char lib
-    const chars = await AdminAPI.getChars();
-    document.getElementById('char-lib-count').textContent = chars.length;
-    document.getElementById('char-lib-list').innerHTML = chars.map(c => `
-      <div class="char-lib-item">
-        <span class="char-lib-char">${c.char}</span>
-        <div class="char-lib-info">
-          <div class="char-lib-components">${c.components?.join(' + ') || ''}</div>
-          <div class="char-lib-layout">${c.layout}</div>
-        </div>
-        <div class="char-lib-actions">
-          <button class="btn-small btn-danger btn-char-delete" data-id="${c.id}">刪除</button>
-        </div>
-      </div>
-    `).join('') || '<p>暫無字符</p>';
-
-    document.querySelectorAll('.btn-char-delete').forEach(btn => {
-      btn.onclick = async () => {
-        if (!confirm('確定刪除？')) return;
-        try {
-          await AdminAPI.deleteChar(btn.dataset.id);
-          loadAdminPanel();
-        } catch (e) {
-          toast('刪除失敗: ' + e.message);
-        }
-      };
-    });
   } catch (e) {
     console.warn('載入管理員數據失敗:', e);
   }
@@ -2924,7 +2555,7 @@ const AdminAssignments = {
     const el = document.getElementById('assign-user-picker');
     if (!el) return;
     if (this.users.length === 0) {
-      el.innerHTML = '<span style="color:#b2bec3;font-size:13px">（冇小孩帳號，先去用戶管理開個）</span>';
+      el.innerHTML = '<span style="color:#b2bec3;font-size:13px">（仲未有小孩帳號，請去學習工具台的用戶管理新增）</span>';
       this._updateUserHint();
       return;
     }
@@ -3427,109 +3058,6 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
-async function showUserDetail(userId) {
-  try {
-    const data = await AdminAPI.getUserDetail(userId);
-    document.getElementById('user-detail-title').textContent = `用戶：${data.user.nickname || data.user.username}`;
-    document.getElementById('user-detail-stats').innerHTML = `
-      <div class="user-detail-stats">
-        <div class="stat-mini">
-          <span class="stat-mini-val">${data.progress.length}</span>
-          <span class="stat-mini-label">已學字</span>
-        </div>
-        <div class="stat-mini">
-          <span class="stat-mini-val">${data.progress.reduce((s, p) => s + (p.attempts || 0), 0)}</span>
-          <span class="stat-mini-label">總練習</span>
-        </div>
-        <div class="stat-mini">
-          <span class="stat-mini-val">${data.user.role}</span>
-          <span class="stat-mini-label">角色</span>
-        </div>
-      </div>
-    `;
-    document.getElementById('user-detail-records').innerHTML = `
-      <h4>練習記錄（最近50條）</h4>
-      <div class="records-list">
-        ${data.progress.slice(0, 20).map(p => `
-          <div class="record-item">
-            <span class="record-char">${p.char}</span>
-            <span class="record-stats">次: ${p.attempts} | 平均: ${p.avgTime ? (p.avgTime/1000).toFixed(1) + 's' : '-'} | 最佳: ${p.bestTime ? (p.bestTime/1000).toFixed(1) + 's' : '-'}</span>
-            <span class="record-date">${p.lastPracticed ? new Date(p.lastPracticed).toLocaleDateString() : '-'}</span>
-          </div>
-        `).join('') || '<p>暫無記錄</p>'}
-      </div>
-      <div class="form-actions" style="margin-top:14px">
-        <button class="btn btn-secondary" id="clear-user-progress-btn">🧹 清除此用戶進度</button>
-      </div>
-    `;
-
-    // 任務進度
-    const assignments = data.assignments || [];
-    const assignBox = document.getElementById('user-detail-records');
-    const taskHtml = assignments.length ? assignments.map(a => {
-      const pct = a.total ? Math.round((a.completedCount / a.total) * 100) : 0;
-      const chips = (a.charDetails || []).map(d => `
-        <span class="char-status ${d.done ? 'done' : ''}" title="${d.done
-          ? `做咗 ${d.attempts} 次，答啱 ${d.correctCount} 次` : '未做'}">
-          ${d.char}<sub>${d.done ? d.correctCount + '/' + d.attempts : '—'}</sub>
-        </span>`).join('');
-      return `<div class="user-task">
-        <div class="user-task-head">
-          <span class="user-task-name">${escapeHtml(a.name)}</span>
-          ${a.allDone ? '<span class="assignment-badge">✅ 已完成</span>' : '<span class="assignment-badge pending">📖 進行中</span>'}
-          <span class="user-task-count">${a.completedCount}/${a.total}</span>
-        </div>
-        <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
-        <div class="assignment-chars-detail">${chips}</div>
-        <div class="assignment-meta">嘗試 ${a.attemptsTotal} 次 · 答啱 ${a.correctTotal} 次</div>
-      </div>`;
-    }).join('') : '<p>未布置任務</p>';
-
-    const taskSection = document.createElement('div');
-    taskSection.className = 'user-task-section';
-    taskSection.innerHTML = `<h4>📋 任務進度（${assignments.length} 個）</h4>${taskHtml}`;
-    assignBox.appendChild(taskSection);
-
-    document.getElementById('user-detail-panel').style.display = 'block';
-    document.getElementById('user-detail-panel').scrollIntoView();
-    document.getElementById('clear-user-progress-btn').onclick = async () => {
-      if (!confirm(`確定清除「${data.user.nickname || data.user.username}」嘅所有學習進度？`)) return;
-      try {
-        await AdminAPI.clearUserProgress(userId);
-        toast('已清除進度');
-        showUserDetail(userId);
-        loadAdminPanel();
-      } catch (e) {
-        toast('清除失敗: ' + e.message);
-      }
-    };
-  } catch (e) {
-    toast('載入用戶詳情失敗: ' + e.message);
-  }
-}
-
-async function toggleUserRole(userId, newRole) {
-  if (!confirm(`確定要將此用戶${newRole === 'admin' ? '升級為管理員' : '降級為普通用戶'}嗎？`)) return;
-  try {
-    await AdminAPI.updateUser(userId, newRole);
-    toast('更新成功');
-    loadAdminPanel();
-  } catch (e) {
-    toast('更新失敗: ' + e.message);
-  }
-}
-
-async function deleteUser(userId) {
-  if (!confirm('確定要刪除此用戶嗎？此操作不可撤銷！')) return;
-  try {
-    await AdminAPI.deleteUser(userId);
-    toast('刪除成功');
-    loadAdminPanel();
-  } catch (e) {
-    toast('刪除失敗: ' + e.message);
-  }
-}
-
 // Tab switching
 document.addEventListener('DOMContentLoaded', () => {
   // Dashboard tabs
@@ -3539,10 +3067,6 @@ document.addEventListener('DOMContentLoaded', () => {
       document.querySelectorAll('.dashboard-tab').forEach(t => t.classList.remove('active'));
       btn.classList.add('active');
       document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
-      if (btn.dataset.tab === 'profile') {
-        await User.checkSession();
-        loadProfile();
-      }
     };
   });
 
@@ -3553,18 +3077,10 @@ document.addEventListener('DOMContentLoaded', () => {
       document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
       btn.classList.add('active');
       document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
-      if (btn.dataset.tab === 'profile') {
-        await User.checkSession();
-        loadProfile();
-      }
       if (btn.dataset.tab === 'assignments') {
         AdminAssignments.load();
       }
     };
-  });
-
-  document.getElementById('close-user-detail')?.addEventListener('click', () => {
-    document.getElementById('user-detail-panel').style.display = 'none';
   });
 });
 
@@ -3578,12 +3094,4 @@ document.addEventListener('DOMContentLoaded', () => {
     try { toast('⚠️ 有錯誤：' + ((e.error && e.error.message) || e.message)); } catch (_) {}
   });
 
-  // ===== 管理員編輯用戶（全域綁定，唔好放喺 Admin.init）=====
-  document.getElementById('user-edit-close')?.addEventListener('click', () => UserEditor.close());
-  document.getElementById('user-edit-cancel')?.addEventListener('click', () => UserEditor.close());
-  document.getElementById('user-edit-save')?.addEventListener('click', () => UserEditor.save());
-  document.getElementById('user-edit-avatar-url')?.addEventListener('input', () => UserEditor.updatePreview());
-  document.getElementById('user-edit-modal')?.addEventListener('click', (e) => {
-    if (e.target.id === 'user-edit-modal') UserEditor.close();
-  });
 });

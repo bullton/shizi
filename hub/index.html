@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>學習工具台 · 識字樂</title>
+<style>
+/* OD-LAYOUT-PRIMITIVES v1 — structure only: display, flex/grid, overflow, wrapping, ratio, geometry.
+   Put this @layer first; product CSS outside the layer wins ordinary layout rules.
+   Native hidden and closed-dialog states take precedence over component display rules. */
+@layer od-layout {
+  [hidden]:not([hidden="until-found" i]) { display: none !important; }
+  dialog:not([open]) { display: none !important; }
+
+  :where(.od-stack,.od-row,.od-row-top,.od-cluster,.od-grid,.od-field,.od-stat,.od-cell,.od-tile) > :where(*) { min-width: 0; }
+
+  .od-stack   { display: flex; flex-direction: column; gap: var(--od-gap, 8px); }
+  .od-row     { display: flex; align-items: center; gap: var(--od-gap, 8px); }
+  .od-row-top { display: flex; align-items: flex-start; gap: var(--od-gap, 8px); }
+  .od-cluster { display: flex; flex-wrap: wrap; align-items: center; gap: var(--od-gap, 8px); }
+  .od-fill    { flex: 1 1 0; min-width: 0; }
+  .od-fixed   { flex: none; }
+  .od-grid    { display: grid; gap: var(--od-gap, 12px); grid-template-columns: repeat(var(--od-cols, 3), minmax(0, 1fr)); }
+
+  .od-stat, .od-field, .od-cell { display: grid; gap: var(--od-gap, 2px); }
+  :where(.od-stat,.od-field,.od-cell) > :where(*) { display: block; }
+  .od-tile { display: grid; grid-template-rows: auto 1fr; }
+  :where(.od-tile) > :where(*) { display: block; }
+
+  .od-media { display: block; width: 100%; height: auto; aspect-ratio: var(--od-ratio, auto); }
+  .od-media-cover { object-fit: cover; }
+
+  .od-icon { display: inline-block; inline-size: var(--od-icon-size, 1em); block-size: var(--od-icon-size, 1em); flex: none; }
+
+  .od-truncate { display: block; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .od-clamp-2, .od-clamp-3 { display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+  .od-clamp-2 { -webkit-line-clamp: 2; }
+  .od-clamp-3 { -webkit-line-clamp: 3; }
+  .od-lines-2 { min-height: calc(2 * 1.4em); }
+  .od-nowrap  { white-space: nowrap; }
+  .od-keep    { word-break: keep-all; overflow-wrap: anywhere; }
+
+  .od-screen { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; height: 100%; }
+  .od-scroll { overflow-y: auto; overscroll-behavior: contain; min-height: 0; }
+
+  .od-rail { display: flex; gap: var(--od-gap, 8px); overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: none;
+             padding-inline: var(--od-rail-pad, 16px); scroll-padding-inline: var(--od-rail-pad, 16px); }
+  .od-rail::-webkit-scrollbar { display: none; }
+  :where(.od-rail) > :where(*) { flex: none; scroll-snap-align: start; }
+  :where(.od-rail) > :where(:last-child) { margin-inline-end: var(--od-rail-pad, 16px); }
+
+  .od-spacer { flex: none; visibility: hidden; pointer-events: none; }
+  .od-touch  { min-width: 44px; min-height: 44px; }
+}
+:root [hidden]:where(:not([hidden="until-found" i])) { display: none; }
+/* /OD-LAYOUT-PRIMITIVES v1 */
+</style>
+<link rel="stylesheet" href="/hub/hub.css">
+</head>
+<body>
+<a class="skip-link" href="#main">跳至主要內容</a>
+
+<div class="boot-screen" id="boot-screen">
+  <span class="brand-seal brand-seal-lg" aria-hidden="true">學</span>
+  <p>正在載入學習工具台…</p>
+  <small>如果停在這裡，請確認識字樂服務正在運行。</small>
+</div>
+
+<div class="auth-root" id="auth-root" hidden>
+  <div class="auth-card">
+    <div class="auth-brand">
+      <span class="brand-seal" aria-hidden="true">學</span>
+      <span class="auth-brand-text"><strong>識字樂</strong><span>學習工具台</span></span>
+    </div>
+    <div class="auth-copy">
+      <p class="eyebrow">公用帳戶</p>
+      <h1 id="auth-title">登入</h1>
+      <p id="auth-subtitle">同一個帳戶，共用識字樂的進度與排行榜。</p>
+    </div>
+    <form id="auth-form" novalidate>
+      <label class="field">
+        <span class="field-label">用戶名</span>
+        <input id="auth-username" name="username" type="text" autocomplete="username" maxlength="20" required>
+      </label>
+      <label class="field">
+        <span class="field-label">密碼</span>
+        <input id="auth-password" name="password" type="password" autocomplete="current-password" maxlength="50" required>
+      </label>
+      <p class="form-error" id="auth-error" hidden></p>
+      <button class="btn btn-primary btn-block" id="auth-submit" type="submit">登入</button>
+    </form>
+    <button class="auth-switch" id="auth-switch" type="button">還沒有帳戶？立即註冊</button>
+    <p class="auth-note">帳戶、進度與排行榜直接使用識字樂原有服務。</p>
+  </div>
+</div>
+
+<div class="app" id="app-root" hidden>
+  <aside class="sidebar" id="sidebar" aria-label="主要導覽">
+    <div class="brand">
+      <span class="brand-seal" aria-hidden="true">學</span>
+      <span class="brand-text"><strong>識字樂</strong><span>學習工具台</span></span>
+      <button class="icon-btn drawer-close" id="drawer-close" type="button" aria-label="關閉選單">
+        <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true" style="--od-icon-size:18px"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+
+    <nav class="sidebar-nav" aria-label="工具與公用頁面">
+      <div class="nav-group">
+        <p class="nav-label">學習工具</p>
+        <div class="nav-list" id="tool-nav"></div>
+      </div>
+      <div class="nav-group">
+        <p class="nav-label">公用</p>
+        <div class="nav-list" id="shared-nav"></div>
+      </div>
+    </nav>
+
+    <div class="sidebar-foot">
+      <div class="sidebar-account">
+        <button class="account-btn" id="account-btn" type="button" title="查看學習檔案">
+          <span id="top-avatar"></span>
+          <span class="account-text">
+            <span class="account-name" id="top-name"></span>
+            <span class="account-meta">
+              <span class="role-badge" id="top-role">學生</span>
+              <span class="account-username" id="top-username"></span>
+            </span>
+          </span>
+        </button>
+        <button class="icon-btn sidebar-logout" id="logout-btn" type="button" aria-label="登出" title="登出">
+          <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="--od-icon-size:18px"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"/><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/></svg>
+        </button>
+      </div>
+      <button class="collapse-btn" id="collapse-btn" type="button" aria-label="收起側邊欄" aria-expanded="true">
+        <svg class="od-icon collapse-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="--od-icon-size:17px"><path d="M15 5l-7 7 7 7"/></svg>
+        <span class="collapse-label">收起側邊欄</span>
+      </button>
+    </div>
+  </aside>
+
+  <div class="app-main">
+    <button class="icon-btn menu-btn edge-menu" id="menu-btn" type="button" aria-label="打開選單" aria-expanded="false" aria-controls="sidebar" title="打開選單">
+      <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true" style="--od-icon-size:18px"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    </button>
+    <main class="main" id="main" tabindex="-1"></main>
+  </div>
+</div>
+
+<div class="nav-overlay" id="nav-overlay" hidden></div>
+
+<dialog class="dialog" id="user-dialog" aria-labelledby="user-dialog-title">
+  <div class="dialog-head">
+    <div>
+      <p class="eyebrow">用戶管理</p>
+      <h2 id="user-dialog-title">編輯用戶</h2>
+    </div>
+    <button class="icon-btn" id="user-dialog-close" type="button" aria-label="關閉">
+      <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true" style="--od-icon-size:18px"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+  </div>
+  <div class="dialog-body">
+    <div class="dialog-user" id="user-dialog-summary"></div>
+    <form id="user-form" novalidate>
+      <label class="field">
+        <span class="field-label">暱稱</span>
+        <input id="user-nickname" type="text" maxlength="20" required>
+      </label>
+      <p class="field-error" id="user-nickname-error" hidden></p>
+      <label class="field">
+        <span class="field-label">頭像（表情符號或圖片網址）</span>
+        <input id="user-avatar" type="text" maxlength="300" placeholder="例如 🐰 或 https://…">
+      </label>
+      <div class="avatar-picks" id="user-avatar-picks"></div>
+      <div class="profile-preview">
+        <span class="field-label">預覽</span>
+        <span id="user-avatar-preview"></span>
+      </div>
+      <label class="field">
+        <span class="field-label">角色</span>
+        <select id="user-role">
+          <option value="user">學生</option>
+          <option value="admin">管理員</option>
+        </select>
+      </label>
+      <p class="field-hint" id="user-role-hint" hidden>不能將自己降級為學生。</p>
+      <label class="field">
+        <span class="field-label">重設密碼（留空不改）</span>
+        <input id="user-password" type="text" maxlength="50" placeholder="至少 4 字">
+      </label>
+      <p class="field-error" id="user-form-error" hidden></p>
+      <div class="dialog-actions">
+        <button class="btn btn-ghost" id="user-cancel" type="button">取消</button>
+        <button class="btn btn-primary" id="user-save" type="submit">保存</button>
+      </div>
+    </form>
+  </div>
+</dialog>
+
+<dialog class="dialog dialog-sm" id="confirm-dialog" aria-labelledby="confirm-title">
+  <div class="dialog-head">
+    <div>
+      <p class="eyebrow">請確認</p>
+      <h2 id="confirm-title">確認操作</h2>
+    </div>
+    <button class="icon-btn" id="confirm-close" type="button" aria-label="關閉">
+      <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true" style="--od-icon-size:18px"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+  </div>
+  <div class="dialog-body">
+    <p class="confirm-message" id="confirm-message"></p>
+    <p class="field-error" id="confirm-error" hidden></p>
+    <div class="dialog-actions">
+      <button class="btn btn-ghost" id="confirm-cancel" type="button">取消</button>
+      <button class="btn btn-danger" id="confirm-accept" type="button">確認</button>
+    </div>
+  </div>
+</dialog>
+
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+<div class="sr-only" id="live" role="status" aria-live="polite"></div>
+
+<script src="/hub/hub.js" defer></script>
+</body>
+</html>
