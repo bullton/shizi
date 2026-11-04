@@ -6,6 +6,7 @@ const { sendFile, jsonResponse, mimeTypes } = require('./core/http');
 const { createStore } = require('./core/store');
 const { createAuth, PUBLIC_API } = require('./core/auth');
 const { readTools } = require('./core/tools');
+const { buildRanking } = require('./core/ranking');
 
 const rootDir = path.join(__dirname, '..');
 const legacyDataFile = path.join(rootDir, 'shizi-data.json');
@@ -147,6 +148,15 @@ const server = http.createServer(async (req, res) => {
     const user = auth.requireAuth(req);
     if (!user) {
       jsonResponse(res, 401, { error: '請先登入' });
+      return;
+    }
+
+    if (pathname === '/api/platform/ranking' && req.method === 'GET') {
+      jsonResponse(res, 200, buildRanking({
+        db: store.data,
+        tools: readTools(rootDir),
+        modules: toolModules
+      }));
       return;
     }
 

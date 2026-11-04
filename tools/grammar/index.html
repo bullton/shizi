@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>文法花園 · Grammar Garden</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app" id="app">
+  <header class="topbar">
+    <a class="brand" href="/" target="_top" title="返回學習平台">
+      <span class="brand-mark">文</span>
+      <span class="brand-text">
+        <strong>文法花園</strong>
+        <em>Grammar Garden</em>
+      </span>
+    </a>
+    <div class="top-actions">
+      <span class="user-chip" id="user-chip" hidden></span>
+      <div class="mode-switch" role="tablist" aria-label="切換模式">
+        <button type="button" data-mode="child" class="is-active" role="tab" aria-selected="true">練習</button>
+        <button type="button" data-mode="parent" role="tab" aria-selected="false">家長</button>
+      </div>
+      <button type="button" class="icon-btn" id="sound-btn" title="開關音效" aria-label="開關音效">♪</button>
+    </div>
+  </header>
+
+  <main class="main">
+    <section class="locked" id="locked" hidden>
+      <div class="locked-card">
+        <span class="locked-mark">文</span>
+        <h1>請先登入學習平台</h1>
+        <p>文法花園與識字樂共用同一份帳戶、進度和排名。請先回到學習平台登入，再回來開始練習。</p>
+        <a class="btn btn-primary" href="/" target="_top">前往學習平台</a>
+      </div>
+    </section>
+
+    <section class="view" id="child-view" hidden>
+      <section id="hall-view">
+        <header class="hero">
+          <div class="hero-copy">
+            <p class="eyebrow">Grammar Garden</p>
+            <h1><span id="hello-name">你好</span>，今天想練哪一關？</h1>
+            <p class="hero-sub">每個任務都是一個小花圃。答錯的題會回到隊尾，直到你真正掌握為止。</p>
+            <div class="hero-rank" id="hero-rank" hidden></div>
+          </div>
+          <div class="hero-art" aria-hidden="true">
+            <span class="leaf leaf-a"></span>
+            <span class="leaf leaf-b"></span>
+            <span class="leaf leaf-c"></span>
+            <span class="hero-ring"></span>
+            <span class="hero-seal">文</span>
+          </div>
+        </header>
+
+        <div class="section-head">
+          <div>
+            <h2>任務花圃</h2>
+            <p>完成任務，把每一道題練到「已掌握」。</p>
+          </div>
+          <button type="button" class="btn btn-soft" id="hall-parent-btn">家長設定</button>
+        </div>
+        <div class="task-grid" id="task-grid"></div>
+      </section>
+
+      <section id="round-view" class="round-view" hidden>
+        <div class="round-top">
+          <button type="button" class="text-btn" id="quit-round">← 返回任務</button>
+          <div class="round-progress">
+            <span id="round-progress-text">1 / 10</span>
+            <span class="progress-track"><span id="round-progress-bar"></span></span>
+          </div>
+          <span class="combo-pill" id="combo-pill" hidden>連對 0</span>
+        </div>
+
+        <div class="question-stage">
+          <p class="node-label" id="question-node"></p>
+          <h2 class="question-stem" id="question-stem"></h2>
+          <p class="retry-note" id="retry-note" hidden>這題剛才答錯了，留意題眼，再試一次。</p>
+          <div class="options" id="options"></div>
+        </div>
+
+        <div class="feedback" id="feedback" hidden>
+          <div class="feedback-head">
+            <span class="feedback-icon" id="feedback-icon">✓</span>
+            <div>
+              <h3 id="feedback-title">答對了</h3>
+              <p id="feedback-answer"></p>
+            </div>
+          </div>
+          <p class="rule-tip" id="feedback-tip"></p>
+          <p class="explain" id="feedback-explain"></p>
+          <button type="button" class="btn btn-primary" id="feedback-continue">繼續</button>
+        </div>
+      </section>
+
+      <section id="summary-view" class="summary-view" hidden>
+        <div class="summary-card">
+          <p class="eyebrow">Round Complete</p>
+          <h1 id="summary-title">這一輪完成了</h1>
+          <div class="summary-stats" id="summary-stats"></div>
+          <div class="summary-progress" id="summary-progress"></div>
+          <div class="summary-wrong" id="summary-wrong"></div>
+          <div class="summary-actions">
+            <button type="button" class="btn btn-primary" id="summary-again">再練一輪</button>
+            <button type="button" class="btn btn-ghost" id="summary-back">返回任務花圃</button>
+          </div>
+        </div>
+      </section>
+    </section>
+
+    <section class="view" id="parent-view" hidden>
+      <header class="parent-head">
+        <div>
+          <p class="eyebrow">家長操作台</p>
+          <h1>文法花園設定</h1>
+          <p>在這裡建立任務、整理題庫，或把 AI 生成的一批題目貼進來。</p>
+        </div>
+        <button type="button" class="btn btn-ghost" id="parent-child-btn">回到練習</button>
+      </header>
+
+      <div class="parent-stats" id="parent-stats"></div>
+
+      <div class="parent-layout">
+        <aside class="tree-panel">
+          <div class="panel-head">
+            <h2>語法樹</h2>
+            <span id="tree-question-count"></span>
+          </div>
+          <div class="grammar-tree" id="grammar-tree"></div>
+        </aside>
+
+        <div class="parent-main">
+          <div class="parent-tabs" role="tablist">
+            <button type="button" class="is-active" data-parent-tab="tasks" role="tab" aria-selected="true">任務看板</button>
+            <button type="button" data-parent-tab="bank" role="tab" aria-selected="false">題庫與匯入</button>
+          </div>
+
+          <div class="parent-panel" id="parent-tasks"></div>
+          <div class="parent-panel" id="parent-bank" hidden></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div class="toast" id="toast" hidden></div>
+</div>
+<script src="app.js" defer></script>
+</body>
+</html>

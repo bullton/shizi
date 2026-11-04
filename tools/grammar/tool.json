@@ -1,0 +1,14 @@
+{
+  "id": "grammar",
+  "name": "文法花園",
+  "short": "文法",
+  "entry": "/tools/grammar/",
+  "apiBase": "/api/grammar",
+  "data": "data/shizi.json",
+  "weight": 0.4,
+  "order": 2,
+  "active": true,
+  "accent": "#2f8f6b",
+  "icon": "leaf",
+  "desc": "由詞法到時態，用自適應練習把英文文法一步一步練成直覺。"
+}

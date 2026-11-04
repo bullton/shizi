@@ -131,6 +131,53 @@ db.config = db.config || { aiToken: '' };
   }
 })();
 
+// ===== 平台排名用統計 =====
+const SHIZI_HK_DATE = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Asia/Hong_Kong',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit'
+});
+function shiziDay(value) {
+  return SHIZI_HK_DATE.format(value ? new Date(value) : new Date());
+}
+
+function shiziRanks() {
+  const stats = db.users.map(user => ({
+    userId: user.id,
+    username: user.username,
+    nickname: user.nickname || user.username,
+    avatar: user.avatar || null,
+    charsKnown: 0,
+    totalAttempts: 0,
+    avgTime: 0,
+    recent7: 0
+  }));
+  const byId = new Map(stats.map(row => [String(row.userId), row]));
+  db.progress.forEach(progress => {
+    const row = byId.get(String(progress.userId));
+    if (!row) return;
+    row.charsKnown += 1;
+    row.totalAttempts += progress.attempts || 0;
+    row.avgTime += progress.avgTime || 0;
+  });
+  const days = new Set();
+  for (let i = 0; i < 7; i++) days.add(shiziDay(Date.now() - i * 24 * 60 * 60 * 1000));
+  db.attempts.forEach(attempt => {
+    const row = byId.get(String(attempt.userId));
+    if (!row || !attempt.practicedAt) return;
+    if (days.has(shiziDay(attempt.practicedAt))) row.recent7 += 1;
+  });
+  return stats
+    .map(row => ({
+      ...row,
+      score: row.charsKnown,
+      attempts: row.totalAttempts,
+      avgTime: row.charsKnown > 0 ? row.avgTime / row.charsKnown : 0
+    }))
+    .sort((a, b) => b.charsKnown - a.charsKnown || a.avgTime - b.avgTime);
+}
+
 // ===== AI 呼叫防護（只限手動單字，嚴禁批量）=====
 const AI_COOLDOWN_MS = 8000;
 let aiLastCallAt = 0;
@@ -379,34 +426,7 @@ async function handleAPI(req, res, parsedUrl) {
 
   // 排行榜（公開：全體用戶都上榜，只係統計數字，唔涉及個人練習記錄）
   if (pathname === '/api/leaderboard' && method === 'GET') {
-    const userStats = {};
-    // 先放晒所有用戶（未練習都上榜，排最後）
-    db.users.forEach(u => {
-      userStats[u.id] = {
-        userId: u.id,
-        username: u.username,
-        nickname: u.nickname || u.username,
-        avatar: u.avatar || null,
-        charsKnown: 0,
-        totalAttempts: 0,
-        avgTime: 0
-      };
-    });
-    // 再累計進度
-    db.progress.forEach(p => {
-      if (!userStats[p.userId]) return;
-      userStats[p.userId].charsKnown++;
-      userStats[p.userId].totalAttempts += p.attempts || 0;
-      userStats[p.userId].avgTime += p.avgTime || 0;
-    });
-    const leaderboard = Object.values(userStats)
-      .map(u => ({
-        ...u,
-        avgTime: u.charsKnown > 0 ? u.avgTime / u.charsKnown : 0
-      }))
-      .sort((a, b) => b.charsKnown - a.charsKnown || a.avgTime - b.avgTime)
-      .slice(0, 50);
-    jsonResponse(res, 200, leaderboard);
+    jsonResponse(res, 200, shiziRanks().slice(0, 50));
     return;
   }
 
@@ -1200,7 +1220,7 @@ async function handleAPI(req, res, parsedUrl) {
   jsonResponse(res, 404, { error: 'API Not Found' });
 }
 
-  return { handleAPI };
+  return { handleAPI, stats: shiziRanks };
 }
 
 module.exports = { id: 'shizi', create: createShiziTool };

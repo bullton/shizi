@@ -34,6 +34,7 @@ function readTools(rootDir) {
         short: manifest.short || manifest.name || id,
         entry,
         weight: Number.isFinite(Number(manifest.weight)) ? Number(manifest.weight) : 0.1,
+        order: Number.isFinite(Number(manifest.order)) ? Number(manifest.order) : 100,
         active: manifest.active !== false && available,
         available,
         accent: manifest.accent || '#5546b8',
@@ -45,7 +46,7 @@ function readTools(rootDir) {
     }
   }
 
-  return tools.sort((a, b) => b.weight - a.weight || a.id.localeCompare(b.id));
+  return tools.sort((a, b) => b.weight - a.weight || a.order - b.order || a.id.localeCompare(b.id));
 }
 
 module.exports = { readTools, entryExists };

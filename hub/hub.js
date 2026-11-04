@@ -12,6 +12,17 @@
       accent: '#5546b8',
       icon: 'book',
       desc: '拖動部件拼出漢字，保留原本的任務、語音與進度。'
+    },
+    {
+      id: 'grammar',
+      name: '文法花園',
+      short: '文法',
+      entry: '/tools/grammar/',
+      weight: 0.4,
+      active: true,
+      accent: '#2f8f6b',
+      icon: 'leaf',
+      desc: '由詞法到時態，用自適應練習把英文文法一步一步練成直覺。'
     }
   ];
 
@@ -41,6 +52,7 @@
     spark: '<path d="M12 3v4"></path><path d="M12 17v4"></path><path d="M3 12h4"></path><path d="M17 12h4"></path><path d="M5.6 5.6l2.8 2.8"></path><path d="M15.6 15.6l2.8 2.8"></path><path d="M18.4 5.6l-2.8 2.8"></path><path d="M8.4 15.6l-2.8 2.8"></path>',
     pen: '<path d="M4 20l4-1 10-10a2.1 2.1 0 0 0-3-3L5 16l-1 4Z"></path><path d="M14 6l4 4"></path>',
     calc: '<rect x="5" y="3" width="14" height="18" rx="2"></rect><path d="M8 7h8"></path><path d="M8 11h2"></path><path d="M14 11h2"></path><path d="M8 15h2"></path><path d="M14 15h2"></path><path d="M8 19h2"></path><path d="M14 19h2"></path>',
+    leaf: '<path d="M20 4c-7 0-12 4-12 10a5 5 0 0 0 5 5c6 0 7-8 7-15Z"></path><path d="M4 20c2-6 7-9 13-11"></path>',
     arrowRight: '<path d="M5 12h14"></path><path d="M13 6l6 6-6 6"></path>',
     arrowLeft: '<path d="M19 12H5"></path><path d="M11 6l-6 6 6 6"></path>',
     refresh: '<path d="M20 11a8 8 0 1 0-2.3 6.3"></path><path d="M20 5v6h-6"></path>',
@@ -54,7 +66,7 @@
   const state = {
     user: null,
     stats: null,
-    leaderboard: [],
+    ranking: [],
     adminUsers: null,
     view: 'overview',
     rankTab: 'overall',
@@ -134,6 +146,54 @@
         "'": '&#39;'
       }[char];
     });
+  }
+
+  function hexToRgb(hex) {
+    let value = String(hex || '').replace('#', '');
+    if (value.length === 3) value = value.split('').map(function (part) { return part + part; }).join('');
+    if (!/^[0-9a-f]{6}$/i.test(value)) return null;
+    return [
+      parseInt(value.slice(0, 2), 16),
+      parseInt(value.slice(2, 4), 16),
+      parseInt(value.slice(4, 6), 16)
+    ];
+  }
+
+  function mixHex(first, second, firstWeight) {
+    const a = hexToRgb(first);
+    const b = hexToRgb(second);
+    if (!a || !b) return first;
+    const weight = Math.max(0, Math.min(1, firstWeight));
+    return '#' + a.map(function (channel, index) {
+      return Math.round(channel * weight + b[index] * (1 - weight)).toString(16).padStart(2, '0');
+    }).join('');
+  }
+
+  function rgba(hex, alpha) {
+    const rgb = hexToRgb(hex);
+    if (!rgb) return 'rgba(255, 255, 255, ' + alpha + ')';
+    return 'rgba(' + rgb.join(', ') + ', ' + alpha + ')';
+  }
+
+  function applySidebarTheme(tool) {
+    const root = document.documentElement;
+    const properties = [
+      '--sidebar', '--sidebar-2', '--sidebar-muted', '--sidebar-accent',
+      '--sidebar-icon', '--sidebar-brand', '--sidebar-hover', '--sidebar-active'
+    ];
+    if (!tool || !tool.accent) {
+      properties.forEach(function (name) { root.style.removeProperty(name); });
+      return;
+    }
+    const accent = tool.accent;
+    root.style.setProperty('--sidebar', mixHex(accent, '#0f171b', 0.30));
+    root.style.setProperty('--sidebar-2', mixHex(accent, '#10181c', 0.40));
+    root.style.setProperty('--sidebar-muted', mixHex(accent, '#93a5a2', 0.18));
+    root.style.setProperty('--sidebar-accent', mixHex(accent, '#ffffff', 0.35));
+    root.style.setProperty('--sidebar-icon', mixHex(accent, '#ffffff', 0.55));
+    root.style.setProperty('--sidebar-brand', accent);
+    root.style.setProperty('--sidebar-hover', rgba(accent, 0.14));
+    root.style.setProperty('--sidebar-active', rgba(accent, 0.22));
   }
 
   function icon(name, size) {
@@ -272,9 +332,9 @@
   }
 
   async function loadWorkspaceData() {
-    const results = await Promise.all([api('/stats'), api('/leaderboard')]);
+    const results = await Promise.all([api('/stats'), api('/platform/ranking')]);
     state.stats = results[0] || null;
-    state.leaderboard = Array.isArray(results[1]) ? results[1] : [];
+    state.ranking = Array.isArray(results[1]) ? results[1] : [];
   }
 
   /* ===== Toast & errors ===== */
@@ -329,7 +389,7 @@
     const isLogin = mode === 'login';
     els.authTitle.textContent = isLogin ? '登入' : '註冊';
     els.authSubtitle.textContent = isLogin
-      ? '同一個帳戶，共用識字樂的進度與排行榜。'
+      ? '同一個帳戶，共用識字樂與文法花園的進度與綜合排名。'
       : '建立帳戶後會自動登入；第一次註冊的帳戶會成為管理員。';
     els.authSubmit.textContent = isLogin ? '登入' : '註冊';
     els.authSwitch.textContent = isLogin ? '還沒有帳戶？立即註冊' : '已有帳戶？返回登入';
@@ -342,10 +402,11 @@
     destroyToolFrame();
     state.user = null;
     state.stats = null;
-    state.leaderboard = [];
+    state.ranking = [];
     state.adminUsers = null;
     state.view = 'overview';
     state.rankTab = 'overall';
+    applySidebarTheme(null);
     els.boot.hidden = true;
     els.appRoot.hidden = true;
     els.authRoot.hidden = false;
@@ -365,19 +426,41 @@
   }
 
   /* ===== Data helpers ===== */
-  function myLeaderboardRow() {
+  function myRankingRow() {
     if (!state.user) return null;
-    return state.leaderboard.find(function (row) {
+    return state.ranking.find(function (row) {
       return String(row.userId) === String(state.user.id);
     }) || null;
   }
 
   function myRank() {
     if (!state.user) return null;
-    const index = state.leaderboard.findIndex(function (row) {
-      return String(row.userId) === String(state.user.id);
+    const row = myRankingRow();
+    if (!row || !(Number(row.combined) > 0)) return null;
+    const index = state.ranking.findIndex(function (item) {
+      return String(item.userId) === String(state.user.id);
     });
     return index >= 0 ? index + 1 : null;
+  }
+
+  function toolStats(toolId) {
+    const row = myRankingRow();
+    return row && row.tools ? (row.tools[toolId] || null) : null;
+  }
+
+  function toolRank(toolId) {
+    if (!state.user) return null;
+    const rows = state.ranking.slice().sort(function (a, b) {
+      const aScore = a.tools && a.tools[toolId] ? Number(a.tools[toolId].score) || 0 : 0;
+      const bScore = b.tools && b.tools[toolId] ? Number(b.tools[toolId].score) || 0 : 0;
+      return bScore - aScore;
+    });
+    const index = rows.findIndex(function (row) {
+      return String(row.userId) === String(state.user.id);
+    });
+    if (index < 0) return null;
+    const detail = rows[index].tools && rows[index].tools[toolId];
+    return detail && Number(detail.score) > 0 ? index + 1 : null;
   }
 
   function percentile(index, total) {
@@ -387,9 +470,11 @@
 
   function recentPracticeCount() {
     const days = state.stats && Array.isArray(state.stats.recentActivity) ? state.stats.recentActivity : [];
-    return days.reduce(function (sum, day) {
+    const shiziRecent = days.reduce(function (sum, day) {
       return sum + (Number(day.count) || 0);
     }, 0);
+    const grammar = toolStats('grammar');
+    return shiziRecent + (grammar ? Number(grammar.recent7) || 0 : 0);
   }
 
   /* ===== Chrome ===== */
@@ -435,6 +520,7 @@
   }
 
   function renderAll() {
+    applySidebarTheme(state.user ? currentTool() : null);
     if (!state.user) return;
     renderNav();
     renderAccount();
@@ -478,13 +564,17 @@
         '<div class="tool-card-foot"><span>接入後沿用同一份帳戶</span><span>權重 ' + Math.round(tool.weight * 100) + '%</span></div>' +
         '</article>';
     }
-    const rank = myRank();
-    const chars = state.stats ? state.stats.totalChars : 0;
+    const detail = toolStats(tool.id) || {};
+    const rank = toolRank(tool.id);
+    const isGrammar = tool.id === 'grammar';
+    const value = isGrammar ? (detail.mastered || 0) : (detail.charsKnown || detail.score || 0);
+    const label = isGrammar ? '已掌握' : '已學';
+    const unit = isGrammar ? '題' : '字';
     return '<a class="tool-card" href="#/tool/' + tool.id + '" data-nav="tool/' + tool.id + '" style="--tool:' + tool.accent + '">' +
       '<div class="tool-card-top"><span class="tool-icon">' + icon(tool.icon, 20) + '</span><span class="tool-badge is-live">已接入</span></div>' +
       '<h3>' + esc(tool.name) + '</h3>' +
       '<p>' + esc(tool.desc) + '</p>' +
-      '<div class="tool-card-foot"><span>已學 <strong>' + fmtInt(chars) + '</strong> 字</span><span>' + (rank ? '第 ' + rank + ' 名' : '尚未上榜') + '</span></div>' +
+      '<div class="tool-card-foot"><span>' + label + ' <strong>' + fmtInt(value) + '</strong> ' + unit + '</span><span>' + (rank ? '第 ' + rank + ' 名' : '尚未上榜') + '</span></div>' +
       '</a>';
   }
 
@@ -493,23 +583,23 @@
       '<span class="mini-no">' + rank + '</span>' +
       avatarHTML(row, 'xs') +
       '<span class="mini-name">' + esc(row.nickname || row.username) + (isMe ? '<span class="you">你</span>' : '') + '</span>' +
-      '<span class="mini-score">' + fmtInt(row.charsKnown) + ' 字</span>' +
+      '<span class="mini-score">' + fmtPct(row.combined) + ' 分</span>' +
       '</li>';
   }
 
   function miniRankHTML() {
-    if (!state.leaderboard.length) {
-      return emptyHTML('尚未有排名', '完成一局識字樂，就會出現在這裡。');
+    if (!state.ranking.length) {
+      return emptyHTML('尚未有排名', '完成一局識字樂或文法花園，就會出現在這裡。');
     }
-    const rows = state.leaderboard.slice(0, 5).map(function (row, index) {
+    const rows = state.ranking.slice(0, 5).map(function (row, index) {
       return miniRowHTML(row, index + 1, String(row.userId) === String(state.user.id));
     });
-    const myIndex = state.leaderboard.findIndex(function (row) {
+    const myIndex = state.ranking.findIndex(function (row) {
       return String(row.userId) === String(state.user.id);
     });
     if (myIndex >= 5) {
       rows.push('<li class="mini-sep" aria-hidden="true"></li>');
-      rows.push(miniRowHTML(state.leaderboard[myIndex], myIndex + 1, true));
+      rows.push(miniRowHTML(state.ranking[myIndex], myIndex + 1, true));
     }
     return '<ol class="mini-rank">' + rows.join('') + '</ol>';
   }
@@ -537,27 +627,35 @@
   }
 
   function overviewHTML() {
-    const stats = state.stats || { totalChars: 0, totalAttempts: 0, avgTime: 0, recentActivity: [] };
+    const shizi = toolStats('shizi') || { charsKnown: 0, totalAttempts: 0, avgTime: 0 };
+    const grammar = toolStats('grammar') || { mastered: 0, attempts: 0, recent7: 0 };
     const rank = myRank();
     const recent = recentPracticeCount();
-    const primary = TOOLS.find(function (tool) { return tool.active; }) || TOOLS[0];
+    const shiziTool = toolById('shizi');
+    const grammarTool = toolById('grammar');
+    const preferGrammar = !(Number(shizi.charsKnown) > 0) && Number(grammar.mastered) > 0 && grammarTool && grammarTool.active;
+    const primary = preferGrammar ? grammarTool : (shiziTool && shiziTool.active ? shiziTool : (TOOLS.find(function (tool) { return tool.active; }) || TOOLS[0]));
     const primaryLabel = primary ? primary.name : '識字樂';
-    const startLabel = stats.totalChars > 0 ? '繼續' + primaryLabel : '開始' + primaryLabel;
+    const startLabel = (Number(shizi.charsKnown) > 0 || preferGrammar) ? '繼續' + primaryLabel : '開始' + primaryLabel;
     const activeCount = TOOLS.filter(function (tool) { return tool.active; }).length;
+    const totalAttempts = (Number(shizi.totalAttempts) || 0) + (Number(grammar.attempts) || 0);
+    const shiziRecent = state.stats && Array.isArray(state.stats.recentActivity)
+      ? state.stats.recentActivity.reduce(function (sum, day) { return sum + (Number(day.count) || 0); }, 0)
+      : 0;
     return '<section class="view">' +
       '<header class="page-head">' +
         '<div>' +
           '<p class="eyebrow">' + esc(todayLabel()) + '</p>' +
           '<h1 class="page-title">' + greeting() + '，' + esc(state.user.nickname || state.user.username) + '</h1>' +
-          '<p class="page-sub">你的識字樂進度、工具排名與公用帳戶都在這裡。工具保持原本的介面與玩法，工具台只負責把帳戶和排名放在一起。</p>' +
+          '<p class="page-sub">識字樂與文法花園共用同一份帳戶；工具內各自保留進度，工具台則把兩邊的表現折算成綜合排名。</p>' +
         '</div>' +
         '<div class="page-actions"><button class="btn btn-primary" type="button" data-nav="tool/' + (primary ? primary.id : 'shizi') + '">' + startLabel + ' ' + icon('arrowRight', 16) + '</button></div>' +
       '</header>' +
       '<div class="stat-strip">' +
-        statHTML(fmtInt(stats.totalChars), '字', '已學字數', '來自識字樂進度') +
-        statHTML(fmtInt(stats.totalAttempts), '次', '總練習次數', '所有作答累計') +
-        statHTML(avgTimeText(stats.avgTime), '', '平均答題', '每字平均用時') +
-        statHTML(fmtInt(recent), '次', '近七日練習', '最近七天的作答') +
+        statHTML(fmtInt(shizi.charsKnown), '字', '識字樂已學', '來自識字樂進度') +
+        statHTML(fmtInt(grammar.mastered), '題', '文法已掌握', '已達到 Level 3 的題目') +
+        statHTML(rank ? String(rank) : '—', '', '綜合名次', '按工具百分位折算') +
+        statHTML(fmtInt(recent), '次', '近七日練習', '兩個工具的作答合計') +
       '</div>' +
       '<div class="overview-grid">' +
         '<div class="overview-main">' +
@@ -566,12 +664,12 @@
         '</div>' +
         '<aside class="overview-rail">' +
           '<section class="panel">' +
-            '<div class="panel-head"><h2 class="panel-title">識字樂榜</h2><button class="text-link" type="button" data-nav="ranking">完整排名 ' + icon('arrowRight', 14) + '</button></div>' +
+            '<div class="panel-head"><h2 class="panel-title">綜合榜</h2><button class="text-link" type="button" data-nav="ranking">完整排名 ' + icon('arrowRight', 14) + '</button></div>' +
             miniRankHTML() +
-            '<p class="panel-note">' + (rank ? '你目前第 ' + rank + ' 名。' : '完成一局練習就會上榜。') + ' 工具內也保留自己的排行榜。</p>' +
+            '<p class="panel-note">' + (rank ? '你目前綜合第 ' + rank + ' 名。' : '完成一局練習就會上榜。') + ' 總練習 ' + fmtInt(totalAttempts) + ' 次。</p>' +
           '</section>' +
           '<section class="panel">' +
-            '<div class="panel-head"><h2 class="panel-title">近七日練習</h2><span class="panel-meta">' + recent + ' 次</span></div>' +
+            '<div class="panel-head"><h2 class="panel-title">識字樂近七日</h2><span class="panel-meta">' + shiziRecent + ' 次</span></div>' +
             activityHTML() +
           '</section>' +
         '</aside>' +
@@ -581,42 +679,54 @@
 
   /* ===== Ranking ===== */
   function rankRowHTML(row, index, tab) {
-    const total = state.leaderboard.length;
-    const pct = percentile(index, total);
+    const total = state.ranking.length;
     const isMe = String(row.userId) === String(state.user.id);
     const isTop = index < 3;
-    const maxChars = state.leaderboard.length ? Number(state.leaderboard[0].charsKnown) || 0 : 0;
-    const width = tab === 'overall'
-      ? pct
-      : (maxChars ? Math.min(100, ((Number(row.charsKnown) || 0) / maxChars) * 100) : 0);
-    const sub = tab === 'overall'
-      ? '已學 ' + fmtInt(row.charsKnown) + ' 字 · 百分位 ' + fmtPct(pct)
-      : '練習 ' + fmtInt(row.totalAttempts) + ' 次 · 平均 ' + avgTimeText(row.avgTime);
+    const overall = tab === 'overall';
+    const detail = row.tools && row.tools[tab] ? row.tools[tab] : {};
+    const tool = toolById(tab);
+    const score = overall ? Number(row.combined) || 0 : Number(detail.score) || 0;
+    const max = overall ? 100 : Math.max.apply(null, [1].concat(state.ranking.map(function (item) {
+      const itemDetail = item.tools && item.tools[tab] ? item.tools[tab] : {};
+      return Number(itemDetail.score) || 0;
+    })));
+    const width = overall ? Math.min(100, score) : Math.min(100, (score / max) * 100);
+    const pct = overall ? score : Number(detail.percentile) || 0;
+    const shizi = row.tools && row.tools.shizi ? row.tools.shizi : {};
+    const grammar = row.tools && row.tools.grammar ? row.tools.grammar : {};
+    const sub = overall
+      ? '識字樂 ' + fmtInt(shizi.charsKnown) + ' 字 · 文法 ' + fmtInt(grammar.mastered) + ' 題'
+      : tool && tool.id === 'grammar'
+        ? '掌握 ' + fmtInt(detail.mastered) + ' 題 · 正確率 ' + fmtPct(detail.accuracy) + '% · 練習 ' + fmtInt(detail.attempts) + ' 次'
+        : '已學 ' + fmtInt(detail.charsKnown) + ' 字 · 練習 ' + fmtInt(detail.attempts) + ' 次 · 平均 ' + avgTimeText(detail.avgTime);
+    const unit = overall ? '分' : tool && tool.id === 'grammar' ? '題' : '字';
     return '<li class="rank-row' + (isTop ? ' is-top' : '') + (isMe ? ' is-me' : '') + '">' +
       '<span class="rank-no">' + (index + 1) + '</span>' +
       avatarHTML(row, 'md') +
       '<span class="rank-person">' +
         '<span class="rank-name">' + esc(row.nickname || row.username) + (isMe ? '<span class="you">你</span>' : '') + '</span>' +
-        '<span class="rank-sub">' + sub + '</span>' +
+        '<span class="rank-sub">' + sub + ' · 百分位 ' + fmtPct(pct) + '</span>' +
         '<span class="rank-bar"><span style="width:' + width + '%"></span></span>' +
       '</span>' +
-      '<span class="rank-score"><strong>' + (tab === 'overall' ? fmtPct(pct) : fmtInt(row.charsKnown)) + '</strong><span>' + (tab === 'overall' ? '分' : '字') + '</span></span>' +
+      '<span class="rank-score"><strong>' + (overall ? fmtPct(score) : fmtInt(score)) + '</strong><span>' + unit + '</span></span>' +
       '</li>';
   }
 
   function weightsPanelHTML() {
-    const activeCount = TOOLS.filter(function (tool) { return tool.active; }).length;
+    const active = TOOLS.filter(function (tool) { return tool.active; });
+    const activeWeight = active.reduce(function (sum, tool) { return sum + (Number(tool.weight) || 0); }, 0) || 1;
     const rows = TOOLS.map(function (tool) {
+      const pct = tool.active ? Math.round(((Number(tool.weight) || 0) / activeWeight) * 100) : Math.round((Number(tool.weight) || 0) * 100);
       return '<div class="weight-row' + (tool.active ? ' is-active' : ' is-muted') + '">' +
         '<span class="weight-name"><span class="weight-dot" style="background:' + (tool.active ? tool.accent : 'var(--line-strong)') + '"></span>' + esc(tool.short) + '</span>' +
-        '<span class="weight-track"><span style="width:' + Math.round(tool.weight * 100) + '%;background:' + (tool.active ? tool.accent : 'var(--line-strong)') + '"></span></span>' +
-        '<span class="weight-val">' + Math.round(tool.weight * 100) + '%</span>' +
+        '<span class="weight-track"><span style="width:' + pct + '%;background:' + (tool.active ? tool.accent : 'var(--line-strong)') + '"></span></span>' +
+        '<span class="weight-val">' + (tool.active ? pct + '%' : '—') + '</span>' +
         '</div>';
     }).join('');
     return '<section class="panel">' +
-      '<div class="panel-head"><h2 class="panel-title">換算權重</h2><span class="panel-meta">已接入 ' + activeCount + ' / ' + TOOLS.length + '</span></div>' +
+      '<div class="panel-head"><h2 class="panel-title">換算權重</h2><span class="panel-meta">已接入 ' + active.length + ' / ' + TOOLS.length + '</span></div>' +
       '<div class="weight-list">' + rows + '</div>' +
-      '<p class="panel-note">成語、古詩、口算尚未接入，不參與本次總分；接入後可按上列權重折算。</p>' +
+      '<p class="panel-note">只有已接入工具參與綜合分；權重會按已接入工具的總和歸一化。目前識字樂與文法花園各佔 50%。</p>' +
       '</section>';
   }
 
@@ -628,40 +738,50 @@
         '<li>百分位乘以該工具的權重。</li>' +
         '<li>加總後除以已接入工具的權重總和。</li>' +
       '</ol>' +
-      '<p class="panel-note">目前只接入識字樂，所以綜合分等於識字樂百分位。其他工具接入後會按同一套規則折算，工具自己的排行榜仍然保留。</p>' +
+      '<p class="panel-note">識字樂按已學字數計分，文法花園按已掌握題數計分；同分時各工具按自己的規則排序。工具自己的排行榜仍然保留。</p>' +
       '</section>';
   }
 
   function rankingHTML() {
-    const tab = state.rankTab;
-    const rows = state.leaderboard.map(function (row, index) {
+    const active = TOOLS.filter(function (tool) { return tool.active; });
+    let tab = state.rankTab;
+    if (tab !== 'overall' && !active.some(function (tool) { return tool.id === tab; })) {
+      tab = 'overall';
+      state.rankTab = tab;
+    }
+    const rows = state.ranking.map(function (row, index) {
       return rankRowHTML(row, index, tab);
     }).join('');
     const tabs = [
-      '<button class="tab' + (tab === 'overall' ? ' is-active' : '') + '" type="button" role="tab" aria-selected="' + (tab === 'overall') + '" data-rank-tab="overall">綜合</button>',
-      '<button class="tab' + (tab === 'shizi' ? ' is-active' : '') + '" type="button" role="tab" aria-selected="' + (tab === 'shizi') + '" data-rank-tab="shizi">識字樂</button>'
-    ].concat(TOOLS.filter(function (tool) { return !tool.active; }).map(function (tool) {
+      '<button class="tab' + (tab === 'overall' ? ' is-active' : '') + '" type="button" role="tab" aria-selected="' + (tab === 'overall') + '" data-rank-tab="overall">綜合</button>'
+    ].concat(active.map(function (tool) {
+      return '<button class="tab' + (tab === tool.id ? ' is-active' : '') + '" type="button" role="tab" aria-selected="' + (tab === tool.id) + '" data-rank-tab="' + tool.id + '">' + esc(tool.short) + '</button>';
+    })).concat(TOOLS.filter(function (tool) { return !tool.active; }).map(function (tool) {
       return '<span class="tab is-disabled" aria-disabled="true" title="待接入">' + esc(tool.short) + '</span>';
     })).join('');
+
+    const note = tab === 'overall'
+      ? '綜合分＝各工具百分位 × 權重後相加，再除以已接入工具的權重總和。'
+      : tab === 'grammar'
+        ? '文法花園榜按已掌握題數排序；同分比較正確率與練習次數。'
+        : '識字樂榜按已學字數排序；它同時是綜合榜中識字樂的原始排名。';
 
     return '<section class="view">' +
       '<header class="page-head">' +
         '<div>' +
           '<p class="eyebrow">公用排名</p>' +
           '<h1 class="page-title">綜合排名</h1>' +
-          '<p class="page-sub">工具內先各自排名，再按權重折算成一個總分。識字樂自己的排行榜仍然保留在工具裡。</p>' +
+          '<p class="page-sub">工具內先各自排名，再按權重折算成一個總分。識字樂與文法花園的原始排行榜都保留在工具裡。</p>' +
         '</div>' +
         '<div class="page-actions"><button class="btn btn-ghost" type="button" data-reload>' + icon('refresh', 16) + '更新數據</button></div>' +
       '</header>' +
       '<div class="ranking-layout">' +
         '<section class="panel ranking-panel">' +
           '<div class="tabs" role="tablist" aria-label="排名類型">' + tabs + '</div>' +
-          (state.leaderboard.length
+          (state.ranking.length
             ? '<ol class="rank-list">' + rows + '</ol>'
-            : emptyHTML('尚未有排名', '完成一局識字樂，就會出現在這裡。')) +
-          '<p class="panel-note">' + (tab === 'overall'
-            ? '綜合分＝各工具百分位 × 權重後相加，再除以已接入工具的權重總和。'
-            : '識字樂榜按已學字數排序；它同時是綜合榜中識字樂的原始排名。') + '</p>' +
+            : emptyHTML('尚未有排名', '完成一局識字樂或文法花園，就會出現在這裡。')) +
+          '<p class="panel-note">' + note + '</p>' +
         '</section>' +
         '<aside class="ranking-rail">' + weightsPanelHTML() + formulaPanelHTML() + '</aside>' +
       '</div>' +
@@ -676,13 +796,15 @@
   function profileHTML() {
     const user = state.user;
     const stats = state.stats || { totalChars: 0, totalAttempts: 0 };
+    const grammar = toolStats('grammar') || { mastered: 0, attempts: 0 };
+    const rank = myRank();
     const joined = user.createdAt ? new Date(user.createdAt).toLocaleDateString('zh-HK') : '—';
     return '<section class="view">' +
       '<header class="page-head">' +
         '<div>' +
           '<p class="eyebrow">帳戶</p>' +
           '<h1 class="page-title">學習檔案</h1>' +
-          '<p class="page-sub">這份資料由識字樂服務提供，也是工具台共用的帳戶資料。修改後會同步到工具內。</p>' +
+          '<p class="page-sub">這份資料由學習平台提供，所有工具共用。修改後會同步到識字樂與文法花園。</p>' +
         '</div>' +
       '</header>' +
       '<div class="profile-grid">' +
@@ -697,8 +819,9 @@
           '</div>' +
           '<dl class="profile-meta">' +
             '<div><dt>加入日期</dt><dd>' + esc(joined) + '</dd></div>' +
-            '<div><dt>已學字數</dt><dd>' + fmtInt(stats.totalChars) + '</dd></div>' +
-            '<div><dt>總練習次數</dt><dd>' + fmtInt(stats.totalAttempts) + '</dd></div>' +
+            '<div><dt>識字樂已學</dt><dd>' + fmtInt(stats.totalChars) + ' 字</dd></div>' +
+            '<div><dt>文法已掌握</dt><dd>' + fmtInt(grammar.mastered) + ' 題</dd></div>' +
+            '<div><dt>綜合名次</dt><dd>' + (rank ? '第 ' + rank + ' 名' : '尚未上榜') + '</dd></div>' +
           '</dl>' +
         '</section>' +
         '<section class="panel">' +
@@ -1298,7 +1421,7 @@
     destroyToolFrame();
     state.user = null;
     state.stats = null;
-    state.leaderboard = [];
+    state.ranking = [];
     state.adminUsers = null;
     state.view = 'overview';
     state.rankTab = 'overall';
