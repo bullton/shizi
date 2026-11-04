@@ -1,6 +1,6 @@
 /**
  * IDS（Ideographic Description Sequence）解析工具
- * 供 server.js 同 tools/ 共用
+ * 供 server.js 同 scripts/dict/ 共用
  *
  * Unicode IDS 用操作符描述字形結構，例如：
  *   看 = ⿱龵目   （⿱ = 上下）

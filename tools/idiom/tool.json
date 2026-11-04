@@ -1,0 +1,11 @@
+{
+  "id": "idiom",
+  "name": "成語接龍",
+  "short": "成語",
+  "entry": null,
+  "weight": 0.25,
+  "active": false,
+  "accent": "#a8452f",
+  "icon": "spark",
+  "desc": "用成語接龍練習詞彙，接入後沿用同一份帳戶。"
+}

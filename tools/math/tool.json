@@ -1,0 +1,11 @@
+{
+  "id": "math",
+  "name": "口算",
+  "short": "口算",
+  "entry": null,
+  "weight": 0.15,
+  "active": false,
+  "accent": "#8a5a00",
+  "icon": "calc",
+  "desc": "每日口算練習，接入後按自己的節奏計分。"
+}

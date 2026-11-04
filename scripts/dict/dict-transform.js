@@ -6,11 +6,11 @@
  *    chaizi-unique.js 係唯一權威來源，可以直接手改，或者用呢個工具改。
  *
  * 用法：
- *   node tools/dict-transform.js --check            檢查 CSV 記錄同字典是否一致
- *   node tools/dict-transform.js --diff <舊檔>      對比舊快照，自動記錄差異落 CSV
- *   node tools/dict-transform.js --dry              預覽規則會改乜
- *   node tools/dict-transform.js                    套用 rules 並記錄
- *   node tools/dict-transform.js --rule 0           只套用第 0 條規則
+ *   node scripts/dict/dict-transform.js --check            檢查 CSV 記錄同字典是否一致
+ *   node scripts/dict/dict-transform.js --diff <舊檔>      對比舊快照，自動記錄差異落 CSV
+ *   node scripts/dict/dict-transform.js --dry              預覽規則會改乜
+ *   node scripts/dict/dict-transform.js                    套用 rules 並記錄
+ *   node scripts/dict/dict-transform.js --rule 0           只套用第 0 條規則
  *
  * 規矩：每次改字典（無論手改定用工具）之後，都應該跑一次 --diff 或手動加 CSV，
  *       再用 --check 確認冇漏記。
@@ -22,10 +22,10 @@
 const fs = require('fs');
 const path = require('path');
 
-const ROOT = path.join(__dirname, '..');
-const DICT_FILE = path.join(ROOT, 'chaizi-unique.js');
-const RULES_FILE = path.join(ROOT, 'tools', 'dict-rules.json');
-const CSV_FILE = path.join(ROOT, 'dict-changes.csv');
+const ROOT = path.join(__dirname, '..', '..');
+const DICT_FILE = path.join(ROOT, 'tools', 'shizi', 'lib', 'chaizi-unique.js');
+const RULES_FILE = path.join(ROOT, 'scripts', 'dict', 'dict-rules.json');
+const CSV_FILE = path.join(ROOT, 'tools', 'shizi', 'data', 'dict-changes.csv');
 const CSV_HEADER = '文字；原拆分；新拆分';
 const DELIM = '；';
 

@@ -1,0 +1,11 @@
+{
+  "id": "poetry",
+  "name": "古詩詞",
+  "short": "古詩",
+  "entry": null,
+  "weight": 0.2,
+  "active": false,
+  "accent": "#33466f",
+  "icon": "pen",
+  "desc": "讀詩、記詩、默寫，保留自己的靛青氣質。"
+}

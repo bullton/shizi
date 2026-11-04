@@ -7,8 +7,8 @@
  * 小朋友拎唔到、砌唔返。所以唔會出現喺練習字庫，亦唔會喺布置任務時出現。
  *
  * 用法：
- *   node tools/dict-atomic.js          # 生成 chaizi-atomic.js
- *   node tools/dict-atomic.js --check  # 檢查有冇過時（字典改咗但冇重生成）
+ *   node scripts/dict/dict-atomic.js          # 生成 chaizi-atomic.js
+ *   node scripts/dict/dict-atomic.js --check  # 檢查有冇過時（字典改咗但冇重生成）
  *
  * 判定規則：所有部件都係「筆畫字」→ 原子字
  * 注意：呢個係由字典推導出嚟嘅衍生檔案，唔使記錄落 dict-changes.csv
@@ -18,9 +18,9 @@
 const fs = require('fs');
 const path = require('path');
 
-const ROOT = path.join(__dirname, '..');
-const DICT_FILE = path.join(ROOT, 'chaizi-unique.js');
-const OUT_FILE = path.join(ROOT, 'chaizi-atomic.js');
+const ROOT = path.join(__dirname, '..', '..');
+const DICT_FILE = path.join(ROOT, 'tools', 'shizi', 'lib', 'chaizi-unique.js');
+const OUT_FILE = path.join(ROOT, 'tools', 'shizi', 'lib', 'chaizi-atomic.js');
 
 const CHECK_ONLY = process.argv.includes('--check');
 
@@ -54,15 +54,15 @@ function main() {
   atomic.sort();
 
   const content = `// 原子字庫（拆開只剩筆畫嘅字，唔會出現喺練習字庫／布置任務）
-// 由 tools/dict-atomic.js 根據 chaizi-unique.js 自動生成，唔好手改。
-// 重新生成：node tools/dict-atomic.js
-// 驗證：  node tools/dict-atomic.js --check
+// 由 scripts/dict/dict-atomic.js 根據 chaizi-unique.js 自動生成，唔好手改。
+// 重新生成：node scripts/dict/dict-atomic.js
+// 驗證：  node scripts/dict/dict-atomic.js --check
 window.ChaiziAtomic = globalThis.ChaiziAtomic = ${JSON.stringify(atomic)};
 `;
 
   if (CHECK_ONLY) {
     if (!fs.existsSync(OUT_FILE)) {
-      console.log('❌ 搵唔到 chaizi-atomic.js，請先執行 node tools/dict-atomic.js');
+      console.log('❌ 搵唔到 chaizi-atomic.js，請先執行 node scripts/dict/dict-atomic.js');
       process.exitCode = 1;
       return;
     }
@@ -78,7 +78,7 @@ window.ChaiziAtomic = globalThis.ChaiziAtomic = ${JSON.stringify(atomic)};
       console.log(`❌ 原子字庫過時：`);
       if (missing.length) console.log(`   缺少: ${missing.join('')}`);
       if (extra.length) console.log(`   多餘: ${extra.join('')}`);
-      console.log('   請執行 node tools/dict-atomic.js 重新生成');
+      console.log('   請執行 node scripts/dict/dict-atomic.js 重新生成');
       process.exitCode = 1;
     }
     return;

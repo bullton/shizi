@@ -1,4 +1,4 @@
-# 識字樂 - 中文拼字遊戲
+# 識字樂學習平台
 
 幫助香港小朋友認字記字的拖拽拼字遊戲，把漢字拆解成部件，拖入正確位置組成完整漢字。
 
@@ -10,7 +10,7 @@
 - **口訣提示**：每個字都有粵語口訣幫助記憶
 - **進度 / 得分系統**：拼對 +10 分，完成全部顯示結算
 - **後台管理**：可新增 / 編輯 / 刪除字庫
-- **localStorage 持久化**：字庫儲存在瀏覽器本地
+- **共用帳戶與進度**：字庫、任務、進度儲存在 `data/shizi.json`，由學習平台統一登入
 
 ## 字庫結構
 
@@ -36,40 +36,66 @@
 ## 開始使用
 
 ```bash
-# 任選一個本地 HTTP server，例如：
-python -m http.server 8080
+npm start
+# 或
+node server.js
 
 # 然後打開
-http://localhost:8080/
+http://localhost:3000/
 ```
+
+`/` 是學習平台（工具大廳），識字樂位於 `/tools/shizi/`。舊的 `/index.html` 會自動跳轉到新位置。
+
+> 舊版 `shizi-data.json` 只作首次遷移來源；新資料會寫入 `data/shizi.json`。
 
 ## 文件結構
 
 ```
-識字樂/
-├── index.html            # 主頁面（遊戲 + 管理）
-├── style.css             # 樣式
-├── app.js                # 所有邏輯（數據 + 遊戲 + 管理）
-├── server.js             # 後端 API（登入、字庫、任務、進度）
-├── chaizi-data.js        # 原始拆字字典（kfcd/chaizi，CC BY 3.0）
-├── chaizi-unique.js      # 每字唯一拆法字典（由原始字典 + 規則生成）
-├── dict-changes.csv      # ⚠️ 字典變更記錄（文字；原拆分；新拆分）
+識字樂平台/
+├── server.js                 # 入口（載入 server/index.js）
+├── server/
+│   ├── index.js              # HTTP、靜態檔案、平台工具清單
+│   ├── core/
+│   │   ├── auth.js           # 註冊、登入、Session
+│   │   ├── http.js           # 請求／回應工具
+│   │   ├── ids.js            # 唯一 ID
+│   │   ├── store.js          # JSON 數據讀寫
+│   │   └── tools.js          # 讀取 tools/*/tool.json
+│   └── tools/
+│       └── shizi.js          # 識字樂 API（字庫、任務、進度）
+├── hub/                      # 學習平台入口（工具大廳）
 ├── tools/
-│   ├── dict-transform.js # 字典變更工具（套用規則 + 自動記錄）
-│   └── dict-rules.json   # 變更規則 + 基準算法定義
-├── shizi-data.json       # 運行時數據（用戶、字庫、任務、進度）
-└── README.md             # 本文件
+│   ├── shizi/
+│   │   ├── tool.json         # 工具登記資料（名稱、入口、權重、圖示）
+│   │   ├── index.html        # 遊戲 + 管理介面
+│   │   ├── style.css
+│   │   ├── app.js
+│   │   ├── lib/
+│   │   │   ├── chaizi-data.js    # 原始拆字字典（kfcd/chaizi，CC BY 3.0）
+│   │   │   ├── chaizi-unique.js  # 每字唯一拆法字典
+│   │   │   ├── chaizi-atomic.js  # 原子字庫
+│   │   │   ├── chaizi-ids.js     # Unicode IDS 結構表
+│   │   │   └── ids.js
+│   │   └── data/
+│   │       └── dict-changes.csv  # ⚠️ 字典變更記錄
+│   ├── idiom/tool.json       # 待接入
+│   ├── poetry/tool.json      # 待接入
+│   └── math/tool.json        # 待接入
+├── scripts/dict/             # 字典維護工具
+├── data/                     # 運行時數據（不納入 Git）
+│   └── shizi.json            # 用戶、字庫、任務、進度
+└── README.md
 ```
 
 ## ⚠️ 修改字典的規矩（重要）
 
-**所有字典修改必須經 `tools/dict-transform.js`，唔可以手改 `chaizi-unique.js`。**
-每次改動都會自動記錄到 `dict-changes.csv`，方便檢查同訂正。
+**所有字典修改必須經 `scripts/dict/dict-transform.js`，唔可以手改 `tools/shizi/lib/chaizi-unique.js`。**
+每次改動都會自動記錄到 `tools/shizi/data/dict-changes.csv`，方便檢查同訂正。
 
 ### 步驟
 
 ```bash
-# 1. 去 tools/dict-rules.json 加一條新規則
+# 1. 去 scripts/dict/dict-rules.json 加一條新規則
 #    {
 #      "name": "規則名",
 #      "from": "水", "to": "氵",
@@ -80,16 +106,16 @@ http://localhost:8080/
 #    }
 
 # 2. 預覽會改咗乜（唔會寫檔）
-node tools/dict-transform.js --dry
+node scripts/dict/dict-transform.js --dry
 
 # 3. 套用 + 自動寫入 dict-changes.csv
-node tools/dict-transform.js
+node scripts/dict/dict-transform.js
 
 # 4. 驗證：字典 = 基準 + 所有規則，冇未記錄嘅改動
-node tools/dict-transform.js --check
+node scripts/dict/dict-transform.js --check
 ```
 
-### `dict-changes.csv` 格式
+### `tools/shizi/data/dict-changes.csv` 格式
 
 UTF-8 with BOM，`；` 分隔，Excel 直接開得：
 
@@ -103,11 +129,11 @@ UTF-8 with BOM，`；` 分隔，Excel 直接開得：
 ### 其他指令
 
 ```bash
-node tools/dict-transform.js --rule 0   # 只套用第 0 條規則
-node tools/dict-transform.js --baseline # 用原始字典重建基準（會還原所有規則，慎用）
+node scripts/dict/dict-transform.js --rule 0   # 只套用第 0 條規則
+node scripts/dict/dict-transform.js --baseline # 用原始字典重建基準（會還原所有規則，慎用）
 ```
 
-`--check` 會用「原始字典 + 全部規則」重算一次，同 `chaizi-unique.js` 比對。
+`--check` 會用「原始字典 + 全部規則」重算一次，同 `tools/shizi/lib/chaizi-unique.js` 比對。
 如果有出入就會列出係邊啲字、期望值同實際值，並以 exit code 1 結束 —— 即係有人手改咗字典但冇記錄。
 
 ### 已有規則記錄
@@ -121,7 +147,7 @@ node tools/dict-transform.js --baseline # 用原始字典重建基準（會還�
 - 純 HTML / CSS / JavaScript，無框架
 - Web Speech API（粵語發音）
 - HTML5 Drag and Drop API
-- localStorage（字庫持久化）
+- Server JSON（`data/shizi.json` 持久化）
 ## 自動判斷結構（上下／左右）
 
 `app.js` 的 `autoLayout()` 會用左偏旁表判斷 2 部件字係左右定上下：
@@ -142,7 +168,7 @@ node tools/dict-transform.js --baseline # 用原始字典重建基準（會還�
 
 ## 原子字庫（拆開只剩筆畫嘅字）
 
-`chaizi-atomic.js` 列出所有「拆開之後只剩筆畫」嘅字（78 個），例如：
+`tools/shizi/lib/chaizi-atomic.js` 列出所有「拆開之後只剩筆畫」嘅字（78 個），例如：
 
 ```
 水 = 乛 + 亅 + 丿 + 乀      口 = 丨 + 乛 + 一      人 = 丿 + 乀
@@ -161,11 +187,11 @@ node tools/dict-transform.js --baseline # 用原始字典重建基準（會還�
 ### 重新生成／驗證
 
 ```bash
-node tools/dict-atomic.js          # 由 chaizi-unique.js 重新生成
-node tools/dict-atomic.js --check  # 檢查有冇過時
+node scripts/dict/dict-atomic.js          # 由 tools/shizi/lib/chaizi-unique.js 重新生成
+node scripts/dict/dict-atomic.js --check  # 檢查有冇過時
 ```
 
-呢個係**衍生檔案**（由字典推導出嚟），唔使記錄落 `dict-changes.csv`——CSV 記錄嘅係「拆法改動」，呢度冇改過任何拆法。
+呢個係**衍生檔案**（由字典推導出嚟），唔使記錄落 `tools/shizi/data/dict-changes.csv`——CSV 記錄嘅係「拆法改動」，呢度冇改過任何拆法。
 
 ## 任務可以派畀多個小孩
 
@@ -190,9 +216,9 @@ node tools/dict-atomic.js --check  # 檢查有冇過時
 ### 生成／驗證
 
 ```bash
-node tools/build-ids.js --download   # 下載 ids.txt 並生成 chaizi-ids.js
-node tools/build-ids.js              # 用本機 tools/ids.txt 重新生成
-node tools/build-ids.js --check      # 檢查有冇過時
+node scripts/dict/build-ids.js --download   # 下載 ids.txt 並生成 chaizi-ids.js
+node scripts/dict/build-ids.js              # 用本機 scripts/dict/ids.txt 重新生成
+node scripts/dict/build-ids.js --check      # 檢查有冇過時
 ```
 
 - 覆蓋率：**17,366 / 17,936 字（96.8%）**，其餘 570 字回退到偏旁表
@@ -263,27 +289,27 @@ node tools/build-ids.js --check      # 檢查有冇過時
 
 ## 字典來源
 
-- **`chaizi-unique.js` 係唯一權威字典**（每字一個篩選好嘅拆法），遊戲、導入、深拆全部只用呢個。
-- **`chaizi-data.js` 已停用**（原始 kfcd/chaizi 有多種拆法、質量參差），唔會再被讀取。
+- **`tools/shizi/lib/chaizi-unique.js` 係唯一權威字典**（每字一個篩選好嘅拆法），遊戲、導入、深拆全部只用呢個。
+- **`tools/shizi/lib/chaizi-data.js` 已停用**（原始 kfcd/chaizi 有多種拆法、質量參差），唔會再被讀取。
   檔案仍然留喺 repo 只作歷史參考。
 
 ### 改字典嘅方法
 
 1. 管理字庫 → 編輯字 → 直接改「部件」（適合逐個改）
 2. 管理字庫 → 編輯字 → **🔍 深拆／換方案**（多方案對比，手動選）
-3. 批量：直接改 `chaizi-unique.js`，然後記錄差異：
+3. 批量：直接改 `tools/shizi/lib/chaizi-unique.js`，然後記錄差異：
    ```bash
-   node tools/dict-transform.js --diff <改之前嘅備份.js>   # 自動寫入 dict-changes.csv
-   node tools/dict-transform.js --check                    # 驗證記錄同字典一致
+   node scripts/dict/dict-transform.js --diff <改之前嘅備份.js>   # 自動寫入 dict-changes.csv
+   node scripts/dict/dict-transform.js --check                    # 驗證記錄同字典一致
    ```
 
 ### 深拆方案嘅來源
 
 | 來源 | 來自邊 |
 |------|--------|
-| 目前字典拆法 | `chaizi-unique.js`（你篩選好嘅） |
-| 字典深拆（生僻部件展開） | 用 `chaizi-unique.js` 把生僻部件再拆一層 |
-| IDS 字形樹 | Unicode IDS（`tools/ids.txt`），附精確位置 |
+| 目前字典拆法 | `tools/shizi/lib/chaizi-unique.js`（你篩選好嘅） |
+| 字典深拆（生僻部件展開） | 用 `tools/shizi/lib/chaizi-unique.js` 把生僻部件再拆一層 |
+| IDS 字形樹 | Unicode IDS（`scripts/dict/ids.txt`），附精確位置 |
 | AI 建議 | 手動點擊，單字、8 秒冷卻 |
 
 ## 練習功能

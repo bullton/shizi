@@ -11,9 +11,9 @@
  * 完全免費、離線、準確，唔使 AI。
  *
  * 用法：
- *   node tools/build-ids.js                  # 用本機 ids.txt 生成
- *   node tools/build-ids.js --download       # 先下載 ids.txt 再生成
- *   node tools/build-ids.js --check          # 檢查 chaizi-ids.js 有冇過時
+ *   node scripts/dict/build-ids.js                  # 用本機 ids.txt 生成
+ *   node scripts/dict/build-ids.js --download       # 先下載 ids.txt 再生成
+ *   node scripts/dict/build-ids.js --check          # 檢查 chaizi-ids.js 有冇過時
  *
  * 資料來源：https://github.com/cjkvi/cjkvi-ids （基於 CHISE IDS Database）
  */
@@ -21,10 +21,10 @@
 const fs = require('fs');
 const path = require('path');
 
-const ROOT = path.join(__dirname, '..');
-const IDS_FILE = path.join(ROOT, 'tools', 'ids.txt');
-const OUT_FILE = path.join(ROOT, 'chaizi-ids.js');
-const DICT_FILE = path.join(ROOT, 'chaizi-unique.js');
+const ROOT = path.join(__dirname, '..', '..');
+const IDS_FILE = path.join(ROOT, 'scripts', 'dict', 'ids.txt');
+const OUT_FILE = path.join(ROOT, 'tools', 'shizi', 'lib', 'chaizi-ids.js');
+const DICT_FILE = path.join(ROOT, 'tools', 'shizi', 'lib', 'chaizi-unique.js');
 const IDS_URL = 'https://raw.githubusercontent.com/cjkvi/cjkvi-ids/master/ids.txt';
 
 const CHECK_ONLY = process.argv.includes('--check');
@@ -204,16 +204,16 @@ function build() {
   console.log(`有 IDS 結構：${withIds} 字 | 冇（要用規則回退）：${noIds} 字`);
 
   const content = `// 由 Unicode IDS 生成嘅結構表（準確、離線、免費）
-// 由 tools/build-ids.js 自動生成，唔好手改。
+// 由 scripts/dict/build-ids.js 自動生成，唔好手改。
 // 資料來源：https://github.com/cjkvi/cjkvi-ids （基於 CHISE IDS Database）
-// 重新生成：node tools/build-ids.js --download
-// 驗證：  node tools/build-ids.js --check
+// 重新生成：node scripts/dict/build-ids.js --download
+// 驗證：  node scripts/dict/build-ids.js --check
 window.ChaiziIds = globalThis.ChaiziIds = ${JSON.stringify(out)};
 `;
 
   if (CHECK_ONLY) {
     if (!fs.existsSync(OUT_FILE)) {
-      console.log('❌ 搵唔到 chaizi-ids.js，請先執行 node tools/build-ids.js');
+      console.log('❌ 搵唔到 chaizi-ids.js，請先執行 node scripts/dict/build-ids.js');
       process.exitCode = 1;
       return;
     }
@@ -242,7 +242,7 @@ window.ChaiziIds = globalThis.ChaiziIds = ${JSON.stringify(out)};
   try {
     if (DOWNLOAD) await download();
     if (!fs.existsSync(IDS_FILE)) {
-      console.log('搵唔到 tools/ids.txt，請加 --download 參數先下載');
+      console.log('搵唔到 scripts/dict/ids.txt，請加 --download 參數先下載');
       process.exitCode = 1;
       return;
     }

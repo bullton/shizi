@@ -1,48 +1,21 @@
 (function () {
   'use strict';
 
-  const TOOLS = [
+  const FALLBACK_TOOLS = [
     {
       id: 'shizi',
       name: '識字樂',
       short: '識字樂',
+      entry: '/tools/shizi/',
       weight: 0.4,
       active: true,
       accent: '#5546b8',
       icon: 'book',
       desc: '拖動部件拼出漢字，保留原本的任務、語音與進度。'
-    },
-    {
-      id: 'idiom',
-      name: '成語接龍',
-      short: '成語',
-      weight: 0.25,
-      active: false,
-      accent: '#a8452f',
-      icon: 'spark',
-      desc: '用成語接龍練習詞彙，接入後沿用同一份帳戶。'
-    },
-    {
-      id: 'poetry',
-      name: '古詩詞',
-      short: '古詩',
-      weight: 0.2,
-      active: false,
-      accent: '#33466f',
-      icon: 'pen',
-      desc: '讀詩、記詩、默寫，保留自己的靛青氣質。'
-    },
-    {
-      id: 'math',
-      name: '口算',
-      short: '口算',
-      weight: 0.15,
-      active: false,
-      accent: '#8a5a00',
-      icon: 'calc',
-      desc: '每日口算練習，接入後按自己的節奏計分。'
     }
   ];
+
+  let TOOLS = FALLBACK_TOOLS.slice();
 
   const NAV_ITEMS = [
     { id: 'overview', label: '總覽', icon: 'grid' },
@@ -266,7 +239,7 @@
     try {
       response = await fetch('/api' + path, options);
     } catch (error) {
-      const offline = new Error('連不上伺服器，請確認識字樂服務正在運行');
+      const offline = new Error('連不上伺服器，請確認學習平台服務正在運行');
       offline.offline = true;
       throw offline;
     }
@@ -287,6 +260,15 @@
       throw failure;
     }
     return data;
+  }
+
+  async function loadTools() {
+    try {
+      const tools = await api('/platform/tools');
+      if (Array.isArray(tools) && tools.length) TOOLS = tools;
+    } catch (error) {
+      TOOLS = FALLBACK_TOOLS.slice();
+    }
   }
 
   async function loadWorkspaceData() {
@@ -461,7 +443,7 @@
 
   function renderMain() {
     if (!state.user) return;
-    const isTool = state.view === 'tool/shizi';
+    const isTool = state.view.indexOf('tool/') === 0;
     els.main.classList.toggle('is-tool', isTool);
     if (isTool) {
       renderToolView();
@@ -558,7 +540,10 @@
     const stats = state.stats || { totalChars: 0, totalAttempts: 0, avgTime: 0, recentActivity: [] };
     const rank = myRank();
     const recent = recentPracticeCount();
-    const startLabel = stats.totalChars > 0 ? '繼續識字樂' : '開始識字樂';
+    const primary = TOOLS.find(function (tool) { return tool.active; }) || TOOLS[0];
+    const primaryLabel = primary ? primary.name : '識字樂';
+    const startLabel = stats.totalChars > 0 ? '繼續' + primaryLabel : '開始' + primaryLabel;
+    const activeCount = TOOLS.filter(function (tool) { return tool.active; }).length;
     return '<section class="view">' +
       '<header class="page-head">' +
         '<div>' +
@@ -566,7 +551,7 @@
           '<h1 class="page-title">' + greeting() + '，' + esc(state.user.nickname || state.user.username) + '</h1>' +
           '<p class="page-sub">你的識字樂進度、工具排名與公用帳戶都在這裡。工具保持原本的介面與玩法，工具台只負責把帳戶和排名放在一起。</p>' +
         '</div>' +
-        '<div class="page-actions"><button class="btn btn-primary" type="button" data-nav="tool/shizi">' + startLabel + ' ' + icon('arrowRight', 16) + '</button></div>' +
+        '<div class="page-actions"><button class="btn btn-primary" type="button" data-nav="tool/' + (primary ? primary.id : 'shizi') + '">' + startLabel + ' ' + icon('arrowRight', 16) + '</button></div>' +
       '</header>' +
       '<div class="stat-strip">' +
         statHTML(fmtInt(stats.totalChars), '字', '已學字數', '來自識字樂進度') +
@@ -576,7 +561,7 @@
       '</div>' +
       '<div class="overview-grid">' +
         '<div class="overview-main">' +
-          '<div class="section-head"><h2 class="section-title">學習工具</h2><span class="section-sub">目前已接入 1 個，其餘工具會沿用同一份帳戶</span></div>' +
+          '<div class="section-head"><h2 class="section-title">學習工具</h2><span class="section-sub">目前已接入 ' + activeCount + ' 個，其餘工具會沿用同一份帳戶</span></div>' +
           '<div class="tool-grid">' + TOOLS.map(toolCardHTML).join('') + '</div>' +
         '</div>' +
         '<aside class="overview-rail">' +
@@ -847,7 +832,14 @@
     toolFrame = null;
   }
 
+  function currentTool() {
+    const id = state.view.indexOf('tool/') === 0 ? state.view.slice(5) : '';
+    return toolById(id);
+  }
+
   function renderToolView() {
+    const tool = currentTool();
+    if (!tool) return;
     els.main.innerHTML = '<section class="view tool-view">' +
       '<div class="tool-frame-wrap" id="tool-frame-wrap"></div>' +
       '</section>';
@@ -855,17 +847,21 @@
     if (!toolFrame) {
       toolFrame = document.createElement('iframe');
       toolFrame.className = 'tool-frame';
-      toolFrame.title = '識字樂';
-      toolFrame.src = '/index.html';
+      toolFrame.title = tool.name;
+      toolFrame.src = tool.entry;
+    } else {
+      toolFrame.title = tool.name;
+      if (toolFrame.getAttribute('src') !== tool.entry) toolFrame.src = tool.entry;
     }
     const wrap = $('#tool-frame-wrap');
     if (wrap) wrap.appendChild(toolFrame);
   }
 
   function refreshTool() {
-    if (!toolFrame) return;
-    toolFrame.src = '/index.html?refresh=' + Date.now();
-    toast('正在重新整理識字樂');
+    const tool = currentTool();
+    if (!toolFrame || !tool) return;
+    toolFrame.src = tool.entry + (tool.entry.indexOf('?') >= 0 ? '&' : '?') + 'refresh=' + Date.now();
+    toast('正在重新整理' + tool.name);
   }
 
   /* ===== Navigation ===== */
@@ -905,8 +901,8 @@
     window.scrollTo({ top: 0, behavior: 'auto' });
     els.main.focus({ preventScroll: true });
     if (view === 'admin') ensureAdminData();
-    if (view === 'tool/shizi' && previous === view) refreshTool();
-    if (previous === 'tool/shizi' && view !== 'tool/shizi') silentReload();
+    if (view.indexOf('tool/') === 0 && previous === view) refreshTool();
+    if (previous.indexOf('tool/') === 0 && view !== previous) silentReload();
   }
 
   async function silentReload() {
@@ -1336,7 +1332,7 @@
         if (state.view === 'admin' && user.role === 'admin') {
           state.adminUsers = await api('/admin/users');
         }
-        if (state.view === 'tool/shizi') {
+        if (state.view.indexOf('tool/') === 0) {
           renderNav();
           renderAccount();
         } else {
@@ -1550,6 +1546,8 @@
     } catch (error) {
       state.collapsed = false;
     }
+
+    await loadTools();
 
     let authError = null;
     try {
