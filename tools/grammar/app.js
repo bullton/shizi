@@ -12,6 +12,10 @@
     users: [],
     selectedUsers: new Set(),
     adminTasks: [],
+    adminStats: null,
+    statsLoading: false,
+    statsError: '',
+    statsUserId: null,
     allQuestions: [],
     questionsLoaded: false,
     editingQuestion: null,
@@ -21,7 +25,6 @@
     round: null,
     answer: null,
     feedback: null,
-    advanceTimer: null,
     advancing: false,
     summary: null,
     sound: true,
@@ -50,6 +53,7 @@
     treeCount: $('#tree-question-count'),
     parentTasks: $('#parent-tasks'),
     parentBank: $('#parent-bank'),
+    parentAnalytics: $('#parent-analytics'),
     roundProgressText: $('#round-progress-text'),
     roundProgressBar: $('#round-progress-bar'),
     comboPill: $('#combo-pill'),
@@ -252,6 +256,7 @@
       });
       renderParent();
       ensureQuestions().then(renderParent).catch(error => toast(error.message));
+      if (state.parentTab === 'stats') loadAdminStats();
       return;
     }
     state.mode = 'child';
@@ -277,6 +282,7 @@
       els.childView.hidden = true;
       els.parentView.hidden = false;
       renderParent();
+      if (state.parentTab === 'stats') loadAdminStats();
     } else {
       els.parentView.hidden = true;
       els.childView.hidden = false;
@@ -391,7 +397,7 @@
       els.feedbackExplain.textContent = highlight + (feedback.explanation || '');
       els.feedbackExplain.hidden = !els.feedbackExplain.textContent;
       els.feedbackContinue.hidden = false;
-      els.feedbackContinue.textContent = feedback.correct ? '下一題' : '我知道了，繼續';
+      els.feedbackContinue.textContent = '下一題';
     } else {
       els.feedback.hidden = true;
     }
@@ -399,7 +405,6 @@
 
   async function startTask(taskId) {
     try {
-      window.clearTimeout(state.advanceTimer);
       const round = await api('/tasks/' + encodeURIComponent(taskId) + '/start', { method: 'POST' });
       state.round = round;
       state.answer = null;
@@ -425,11 +430,7 @@
       state.round.combo = feedback.combo;
       renderRound();
       playTone(feedback.correct);
-      if (feedback.correct) {
-        state.advanceTimer = window.setTimeout(advanceRound, 1050);
-      } else {
-        els.feedback.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      }
+      els.feedback.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     } catch (error) {
       toast(error.message);
       $$('[data-option]').forEach(button => { button.disabled = false; });
@@ -439,7 +440,6 @@
   async function advanceRound() {
     if (!state.round || !state.answer || state.advancing) return;
     state.advancing = true;
-    window.clearTimeout(state.advanceTimer);
     try {
       const next = await api('/rounds/' + encodeURIComponent(state.round.roundId) + '/next', { method: 'POST' });
       state.answer = null;
@@ -620,6 +620,18 @@
       '</div>';
   }
 
+  function importResultHTML(result) {
+    if (!result) return '';
+    if (result.mode === 'replace') {
+      return '<div class="import-result">全量覆蓋完成：共 ' + result.total + ' 題（沿用 ' + result.reused + ' 題，新增 ' + result.added + ' 題，移除 ' + result.removed + ' 題）' +
+        (result.masteryRemoved ? '；清除 ' + result.masteryRemoved + ' 條熟練度記錄' : '') +
+        (result.tasksUpdated ? '；更新 ' + result.tasksUpdated + ' 個任務' : '') +
+        (result.tasksArchived ? '；歸檔 ' + result.tasksArchived + ' 個空任務' : '') + '。</div>';
+    }
+    return '<div class="import-result' + (result.errors && result.errors.length ? ' has-error' : '') + '">已新增 ' + result.added + ' 題，略過 ' + result.skipped + ' 題' +
+      (result.errors && result.errors.length ? '；' + result.errors.slice(0, 3).map(item => '第 ' + item.row + ' 行：' + item.error).join('；') : '') + '</div>';
+  }
+
   function renderBank() {
     if (!state.overview) return;
     const nodes = state.overview.nodes || [];
@@ -630,14 +642,12 @@
       return '<option value="' + esc(node.node_id) + '"' + (node.node_id === filter ? ' selected' : '') + '>' + esc(node.category) + ' · ' + esc(node.title) + '</option>';
     }).join('');
     const nodeOptions = nodes.map(node => '<option value="' + esc(node.node_id) + '"' + (editing && editing.node_id === node.node_id ? ' selected' : '') + '>' + esc(node.title) + '</option>').join('');
-    const result = state.importResult
-      ? '<div class="import-result' + (state.importResult.errors && state.importResult.errors.length ? ' has-error' : '') + '">已新增 ' + state.importResult.added + ' 題，略過 ' + state.importResult.skipped + ' 題' + (state.importResult.errors && state.importResult.errors.length ? '；' + state.importResult.errors.slice(0, 3).map(item => '第 ' + item.row + ' 行：' + item.error).join('；') : '') + '</div>'
-      : '';
+    const result = importResultHTML(state.importResult);
 
     els.parentBank.innerHTML = '<section class="panel-section">' +
       '<h2>題庫</h2>' +
       '<p>題目按語法點共享；熟練度按目前登入的帳戶分開記錄。</p>' +
-      '<div class="question-toolbar"><select class="select" id="bank-node-filter">' + filterOptions + '</select><span class="muted">' + list.length + ' 題</span><button type="button" class="btn btn-soft btn-sm" data-copy-prompt>複製 AI 出題提示詞</button></div>' +
+      '<div class="question-toolbar"><select class="select" id="bank-node-filter">' + filterOptions + '</select><span class="muted">' + list.length + ' 題</span><button type="button" class="btn btn-soft btn-sm" data-export-bank="json">匯出 JSON</button><button type="button" class="btn btn-soft btn-sm" data-export-bank="csv">匯出 CSV</button><button type="button" class="btn btn-soft btn-sm" data-copy-prompt>複製 AI 出題提示詞</button></div>' +
       '<div class="question-list">' + (list.length ? list.map(questionRowHTML).join('') : '<div class="empty-state"><h3>這個語法點還沒有題目</h3><p>可在下方新增，或使用批量匯入。</p></div>') + '</div>' +
       '</section>' +
       '<section class="panel-section">' +
@@ -660,9 +670,10 @@
       '</section>' +
       '<section class="panel-section import-box">' +
       '<h2>批量匯入</h2>' +
-      '<p>貼上 JSON 陣列或 CSV。欄位：node_id、stem、highlight_word、correct_option、distractor_1、distractor_2、distractor_3、explanation。</p>' +
+      '<p>貼上 JSON 陣列或 CSV。欄位：node_id、stem、highlight_word、correct_option、distractor_1、distractor_2、distractor_3、explanation。可先匯出題庫交給 AI，要求避開已存在的 node_id 與題幹。</p>' +
       '<textarea class="textarea code" id="import-text" placeholder=\'[{"node_id":"TENSE_01","stem":"She ____ every day.","correct_option":"goes","distractor_1":"go","distractor_2":"going","explanation":"三單動詞加 -es。"}]\'></textarea>' +
-      '<div class="import-actions"><button type="button" class="btn btn-primary" data-import>匯入題目</button><button type="button" class="btn btn-ghost" data-copy-prompt>複製 AI 提示詞</button></div>' +
+      '<div class="import-actions"><button type="button" class="btn btn-primary" data-import>追加匯入</button><button type="button" class="btn btn-danger" data-import-replace>全量覆蓋題庫</button><button type="button" class="btn btn-ghost" data-copy-prompt>複製 AI 提示詞</button></div>' +
+      '<p class="muted">全量覆蓋會用貼上的題庫取代整個題庫；未保留題目的熟練度與錯題記錄會移除，失去題目的任務會歸檔。建議先匯出備份。</p>' +
       result +
       '</section>';
   }
@@ -685,6 +696,191 @@
     }).join('');
   }
 
+  function formatStatDate(value) {
+    if (!value) return '—';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '—';
+    return date.toLocaleString('zh-HK', {
+      timeZone: 'Asia/Hong_Kong',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  }
+
+  function statBar(value) {
+    const width = Math.max(0, Math.min(100, Number(value) || 0));
+    return '<span class="progress-track"><span style="width:' + width + '%"></span></span>';
+  }
+
+  function renderAnalytics() {
+    if (!els.parentAnalytics) return;
+    if (!state.adminStats) {
+      els.parentAnalytics.innerHTML = '<section class="panel-section">' +
+        '<div class="stats-head"><div><h2>學習統計</h2><p>按用戶查看覆蓋率、薄弱語法點與最近練習。</p></div>' +
+        (state.statsLoading ? '<span class="muted">載入中…</span>' : '<button type="button" class="btn btn-soft btn-sm" data-refresh-stats>重新載入</button>') +
+        '</div>' +
+        (state.statsError ? '<div class="stats-error">載入失敗：' + esc(state.statsError) + '</div>' : '<div class="stats-empty">統計載入中…</div>') +
+        '</section>';
+      return;
+    }
+
+    const users = state.adminStats.users || [];
+    if (!users.length) {
+      els.parentAnalytics.innerHTML = '<section class="panel-section"><h2>學習統計</h2><div class="stats-empty">還沒有用戶資料。</div></section>';
+      return;
+    }
+
+    const preferred = users.find(user => {
+      return state.user && String(user.id) === String(state.user.id) && user.stats && user.stats.totalAttempts > 0;
+    }) || users.find(user => user.stats && user.stats.totalAttempts > 0) || users[0];
+    const selected = users.find(user => String(user.id) === String(state.statsUserId)) || preferred;
+    state.statsUserId = selected.id;
+    const meta = state.adminStats.meta || {};
+    const weakNodeIds = new Set((selected.weakNodes || []).map(node => node.node_id));
+
+    const overview = users.map(user => {
+      const stats = user.stats || {};
+      const accuracy = Number(stats.totalAttempts || 0) ? Number(stats.accuracy || 0) + '%' : '—';
+      return '<tr' + (String(user.id) === String(selected.id) ? ' class="is-active"' : '') + '>' +
+        '<td><button type="button" class="stats-user-link" data-stats-user="' + esc(user.id) + '">' + esc(user.nickname || user.username) + '</button>' +
+        '<small>@' + esc(user.username) + (user.role === 'admin' ? ' · 管理員' : '') + '</small></td>' +
+        '<td class="num">' + Number(stats.attempted || 0) + ' / ' + Number(stats.total || 0) + '<small>' + Number(stats.coverage || 0) + '%</small></td>' +
+        '<td class="num">' + Number(stats.mastered || 0) + '<small>' + Number(stats.mastery || 0) + '%</small></td>' +
+        '<td class="num">' + accuracy + '</td>' +
+        '<td class="num">' + Number(stats.totalAttempts || 0) + '</td>' +
+        '<td class="num">' + Number(stats.wrongQuestionCount || 0) + '</td>' +
+        '<td class="num">' + Number(stats.recent7 || 0) + '</td>' +
+        '<td>' + esc(formatStatDate(stats.lastPracticed)) + '</td>' +
+        '</tr>';
+    }).join('');
+
+    const matrixNodes = users[0].nodes || [];
+    const matrixHead = matrixNodes.map(node => {
+      const label = (node.category ? node.category + ' · ' : '') + node.title;
+      return '<th class="num" title="' + esc(label) + '">' + esc(node.title) + '</th>';
+    }).join('');
+    const matrixRows = users.map(user => {
+      const byNode = new Map((user.nodes || []).map(node => [node.node_id, node]));
+      return '<tr' + (String(user.id) === String(selected.id) ? ' class="is-active"' : '') + '>' +
+        '<td><button type="button" class="stats-user-link" data-stats-user="' + esc(user.id) + '">' + esc(user.nickname || user.username) + '</button>' +
+        '<small>@' + esc(user.username) + '</small></td>' +
+        matrixNodes.map(node => {
+          const row = byNode.get(node.node_id) || {};
+          const attempted = Number(row.attempted || 0);
+          return '<td class="num' + (attempted ? '' : ' is-zero') + '"><strong class="stats-matrix-value">' + Number(row.coverage || 0) + '%</strong><small>' + attempted + '/' + Number(row.total || 0) + '</small></td>';
+        }).join('') +
+        '</tr>';
+    }).join('');
+
+    const nodeRows = (selected.nodes || []).map(node => {
+      const weak = weakNodeIds.has(node.node_id);
+      const accuracy = Number(node.totalAttempts || 0) ? Number(node.accuracy || 0) + '%' : '—';
+      return '<tr>' +
+        '<td><strong>' + esc(node.title) + '</strong>' + (weak ? '<span class="stats-tag">薄弱</span>' : '') + '<small>' + esc(node.category) + '</small></td>' +
+        '<td class="num"><div class="stats-coverage">' + statBar(node.coverage) + '<em>' + Number(node.attempted || 0) + '/' + Number(node.total || 0) + ' · ' + Number(node.coverage || 0) + '%</em></div></td>' +
+        '<td class="num">' + Number(node.mastered || 0) + '<small>' + Number(node.mastery || 0) + '%</small></td>' +
+        '<td class="num">' + Number(node.wrongQuestions || 0) + '</td>' +
+        '<td class="num">' + Number(node.totalAttempts || 0) + '</td>' +
+        '<td class="num">' + accuracy + '</td>' +
+        '</tr>';
+    }).join('');
+
+    const weakNodes = (selected.weakNodes || []).map(node => {
+      return '<li><strong>' + esc(node.title) + '</strong><small>覆蓋 ' + Number(node.attempted || 0) + '/' + Number(node.total || 0) + ' · 正確率 ' + Number(node.accuracy || 0) + '% · 薄弱題 ' + Number(node.wrongQuestions || 0) + '</small></li>';
+    }).join('');
+
+    const weakQuestions = (selected.weakQuestions || []).map(question => {
+      return '<li><strong>' + esc(question.stem) + '</strong><small>' + esc(question.node_title) + ' · 錯 ' + Number(question.total_wrong || 0) + ' 次 / 練 ' + Number(question.total_attempts || 0) + ' 次 · 盒子 ' + Number(question.box_level || 0) + '</small></li>';
+    }).join('');
+
+    const recentAttempts = (selected.recentAttempts || []).map(attempt => {
+      return '<li><span class="stats-result ' + (attempt.correct ? 'is-correct' : 'is-wrong') + '">' + (attempt.correct ? '✓' : '✕') + '</span>' +
+        '<div><strong>' + esc(attempt.stem) + '</strong><small>' + esc(attempt.node_title) + ' · ' + esc(formatStatDate(attempt.practicedAt)) + '</small></div></li>';
+    }).join('');
+
+    const daily = (selected.daily || []).map(day => {
+      const dayAccuracy = Number(day.attempts || 0) ? Number(day.accuracy || 0) + '%' : '—';
+      return '<div class="stats-day"><span>' + esc(String(day.date || '').slice(5)) + '</span><strong>' + Number(day.attempts || 0) + '</strong><em>' + dayAccuracy + '</em></div>';
+    }).join('');
+
+    const stats = selected.stats || {};
+    const accuracy = Number(stats.totalAttempts || 0) ? Number(stats.accuracy || 0) + '%' : '—';
+    const loading = state.statsLoading ? '<span class="muted">更新中…</span>' : '';
+    const error = state.statsError ? '<div class="stats-error">更新失敗：' + esc(state.statsError) + '</div>' : '';
+
+    els.parentAnalytics.innerHTML =
+      '<section class="panel-section">' +
+        '<div class="stats-head"><div><h2>學習統計</h2><p>共 ' + Number(meta.users || users.length) + ' 位用戶 · ' + Number(meta.questions || 0) + ' 道題 · ' + Number(meta.nodes || 0) + ' 個語法點</p></div>' +
+        '<div class="stats-head-actions">' + loading + '<button type="button" class="btn btn-soft btn-sm" data-refresh-stats' + (state.statsLoading ? ' disabled' : '') + '>重新整理</button></div></div>' +
+        error +
+        '<div class="stats-table-wrap"><table class="stats-table">' +
+          '<thead><tr><th>用戶</th><th class="num">覆蓋</th><th class="num">掌握</th><th class="num">正確率</th><th class="num">練習次數</th><th class="num">薄弱題</th><th class="num">近 7 天</th><th>最後練習</th></tr></thead>' +
+          '<tbody>' + overview + '</tbody>' +
+        '</table></div>' +
+        '<p class="muted">點擊用戶名可查看該用戶的每個語法點覆蓋、薄弱點與最近作答。覆蓋 = 練過的題目 / 總題目；薄弱題 = 未掌握且曾答錯的題目。</p>' +
+      '</section>' +
+      '<section class="panel-section">' +
+        '<h2>每人 × 語法點覆蓋</h2><p>每格為覆蓋率，下方小字為已練 / 總題數；可橫向滑動查看全部語法點，點擊用戶名可切換下方詳情。</p>' +
+        '<div class="stats-table-wrap"><table class="stats-table stats-matrix">' +
+          '<thead><tr><th>用戶</th>' + matrixHead + '</tr></thead>' +
+          '<tbody>' + matrixRows + '</tbody>' +
+        '</table></div>' +
+      '</section>' +
+      '<section class="panel-section" id="stats-detail">' +
+        '<div class="stats-head"><div><h2>' + esc(selected.nickname || selected.username) + ' 的詳情</h2>' +
+          '<p>最後練習：' + esc(formatStatDate(stats.lastPracticed)) + ' · 更新於 ' + esc(formatStatDate(state.adminStats.generatedAt)) + '</p></div></div>' +
+        '<div class="stats-summary">' +
+          '<div class="stats-stat"><strong>' + Number(stats.attempted || 0) + '/' + Number(stats.total || 0) + '</strong><span>覆蓋題目</span><small>' + Number(stats.coverage || 0) + '%</small></div>' +
+          '<div class="stats-stat"><strong>' + Number(stats.mastered || 0) + '</strong><span>已掌握</span><small>' + Number(stats.mastery || 0) + '%</small></div>' +
+          '<div class="stats-stat"><strong>' + Number(stats.totalAttempts || 0) + '</strong><span>練習次數</span></div>' +
+          '<div class="stats-stat"><strong>' + accuracy + '</strong><span>正確率</span><small>答錯 ' + Number(stats.totalWrong || 0) + ' 次</small></div>' +
+          '<div class="stats-stat"><strong>' + Number(stats.wrongQuestionCount || 0) + '</strong><span>薄弱題</span><small>未掌握且曾答錯</small></div>' +
+          '<div class="stats-stat"><strong>' + Number(stats.recent7 || 0) + '</strong><span>近 7 天作答</span></div>' +
+        '</div>' +
+        '<div class="stats-days">' + daily + '</div>' +
+      '</section>' +
+      '<section class="panel-section">' +
+        '<h2>語法點覆蓋</h2><p>按語法點查看覆蓋、掌握、薄弱題與正確率。</p>' +
+        '<div class="stats-table-wrap"><table class="stats-table">' +
+          '<thead><tr><th>語法點</th><th class="num">覆蓋</th><th class="num">掌握</th><th class="num">薄弱題</th><th class="num">練習次數</th><th class="num">正確率</th></tr></thead>' +
+          '<tbody>' + nodeRows + '</tbody>' +
+        '</table></div>' +
+      '</section>' +
+      '<section class="panel-section">' +
+        '<div class="stats-columns">' +
+          '<div class="stats-card"><h3>薄弱語法點</h3><p>按正確率與覆蓋率排序；只列練過至少一題的語法點。</p>' +
+            (weakNodes ? '<ul class="stats-list">' + weakNodes + '</ul>' : '<div class="stats-empty">暫無足夠練習數據。</div>') + '</div>' +
+          '<div class="stats-card"><h3>頑固錯題</h3><p>未掌握且曾答錯，按錯誤次數排序，最多顯示 10 題。</p>' +
+            (weakQuestions ? '<ul class="stats-list">' + weakQuestions + '</ul>' : '<div class="stats-empty">目前沒有未掌握的錯題。</div>') + '</div>' +
+        '</div>' +
+      '</section>' +
+      '<section class="panel-section">' +
+        '<h2>最近練習</h2><p>最近 12 次作答紀錄。</p>' +
+        (recentAttempts ? '<ul class="stats-attempts">' + recentAttempts + '</ul>' : '<div class="stats-empty">還沒有作答紀錄。</div>') +
+      '</section>';
+  }
+
+  async function loadAdminStats() {
+    if (!isAdmin() || state.statsLoading) return;
+    state.statsLoading = true;
+    state.statsError = '';
+    if (state.parentTab === 'stats') renderAnalytics();
+    try {
+      state.adminStats = await api('/admin/stats');
+    } catch (error) {
+      if (error.status === 401) {
+        showLocked();
+        return;
+      }
+      state.statsError = error.message;
+    } finally {
+      state.statsLoading = false;
+      if (state.parentTab === 'stats') renderAnalytics();
+    }
+  }
+
   function renderParent() {
     if (!state.overview) return;
     const stats = state.overview.stats || { mastered: 0, totalAttempts: 0, accuracy: 0 };
@@ -700,6 +896,7 @@
     renderTree();
     renderParentTasks();
     renderBank();
+    renderAnalytics();
     syncParentTabs();
   }
 
@@ -711,6 +908,7 @@
     });
     els.parentTasks.hidden = state.parentTab !== 'tasks';
     els.parentBank.hidden = state.parentTab !== 'bank';
+    if (els.parentAnalytics) els.parentAnalytics.hidden = state.parentTab !== 'stats';
   }
 
   async function createTask(form) {
@@ -770,15 +968,67 @@
     }
   }
 
-  async function importQuestions() {
+  async function importQuestions(mode) {
     const textarea = $('#import-text');
     if (!textarea || !textarea.value.trim()) return toast('請先貼上 JSON 或 CSV');
+    const replace = mode === 'replace';
+    if (replace) {
+      const count = state.allQuestions.length;
+      const message = '確定用貼上的題庫完全覆蓋現有 ' + count + ' 道題目嗎？\n\n' +
+        '未保留題目的熟練度與錯題記錄會一併移除，失去題目的任務會被歸檔。\n\n' +
+        '建議先匯出目前題庫備份。';
+      if (!window.confirm(message)) return;
+    }
     try {
-      const result = await api('/questions/import', { method: 'POST', body: { text: textarea.value } });
+      const result = await api('/questions/import', {
+        method: 'POST',
+        body: {
+          text: textarea.value,
+          mode: replace ? 'replace' : 'append',
+          confirm: replace ? true : undefined
+        }
+      });
       state.importResult = result;
       textarea.value = '';
       await refreshData();
-      toast('已匯入 ' + result.added + ' 題');
+      toast(replace ? '已覆蓋題庫，共 ' + result.total + ' 題' : '已追加 ' + result.added + ' 題');
+    } catch (error) {
+      toast(error.message);
+    }
+  }
+
+  async function exportBank(format) {
+    try {
+      const response = await fetch('/api/grammar/questions/export?format=' + encodeURIComponent(format), {
+        credentials: 'include'
+      });
+      if (response.status === 401) {
+        showLocked();
+        return;
+      }
+      if (!response.ok) {
+        let message = '匯出失敗（' + response.status + '）';
+        try {
+          const data = await response.json();
+          if (data && data.error) message = data.error;
+        } catch (error) {
+          // Keep the status message.
+        }
+        throw new Error(message);
+      }
+      const blob = await response.blob();
+      const disposition = response.headers.get('Content-Disposition') || '';
+      const match = disposition.match(/filename="?([^";]+)"?/);
+      const filename = match ? match[1] : 'grammar-questions.' + format;
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      toast('已匯出題庫（' + format.toUpperCase() + '）');
     } catch (error) {
       toast(error.message);
     }
@@ -861,6 +1111,10 @@
   function switchParentTab(tab) {
     state.parentTab = tab;
     syncParentTabs();
+    if (tab === 'stats') {
+      renderAnalytics();
+      loadAdminStats();
+    }
   }
 
   async function init() {
@@ -896,6 +1150,20 @@
     const parentTab = event.target.closest('[data-parent-tab]');
     if (parentTab) {
       switchParentTab(parentTab.getAttribute('data-parent-tab'));
+      return;
+    }
+
+    const statsUser = event.target.closest('[data-stats-user]');
+    if (statsUser) {
+      state.statsUserId = statsUser.getAttribute('data-stats-user');
+      renderAnalytics();
+      const detail = $('#stats-detail');
+      if (detail) detail.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return;
+    }
+
+    if (event.target.closest('[data-refresh-stats]')) {
+      loadAdminStats();
       return;
     }
 
@@ -946,7 +1214,6 @@
     }
 
     if (event.target.closest('#quit-round') || event.target.closest('#summary-back')) {
-      window.clearTimeout(state.advanceTimer);
       state.round = null;
       state.answer = null;
       state.summary = null;
@@ -1004,8 +1271,19 @@
       return;
     }
 
+    const exportButton = event.target.closest('[data-export-bank]');
+    if (exportButton) {
+      exportBank(exportButton.getAttribute('data-export-bank'));
+      return;
+    }
+
+    if (event.target.closest('[data-import-replace]')) {
+      importQuestions('replace');
+      return;
+    }
+
     if (event.target.closest('[data-import]')) {
-      importQuestions();
+      importQuestions('append');
       return;
     }
 
@@ -1051,10 +1329,6 @@
         event.preventDefault();
         answerQuestion(button.getAttribute('data-option'));
       }
-    }
-    if (event.key === 'Enter' && state.answer && !state.answer.feedback.correct) {
-      event.preventDefault();
-      advanceRound();
     }
   });
 

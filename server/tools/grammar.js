@@ -1,7 +1,7 @@
 const { jsonResponse, parseBody } = require('../core/http');
 const { generateId } = require('../core/ids');
 const { NODES, QUESTIONS } = require('./grammar-seed');
-const { resolveUserIds } = require('../core/delegation');
+const { listUsers, resolveUserIds } = require('../core/delegation');
 
 const HK_DATE = new Intl.DateTimeFormat('en-CA', {
   timeZone: 'Asia/Hong_Kong',
@@ -20,6 +20,11 @@ function recentSevenDays() {
     days.add(hkDate(Date.now() - i * 24 * 60 * 60 * 1000));
   }
   return days;
+}
+
+function percent(part, total) {
+  if (!total) return 0;
+  return Math.round((part / total) * 1000) / 10;
 }
 
 function shuffle(items) {
@@ -91,6 +96,11 @@ function parseImportText(text) {
     // Not JSON: fall through to CSV.
   }
   return parseCsv(source);
+}
+
+function csvCell(value) {
+  const text = String(value == null ? '' : value);
+  return /[",\r\n]/.test(text) ? '"' + text.replace(/"/g, '""') + '"' : text;
 }
 
 function createGrammarTool({ rootDir, toolDir, db, saveData: storeSave, dataExists, auth }) {
@@ -232,6 +242,202 @@ function createGrammarTool({ rootDir, toolDir, db, saveData: storeSave, dataExis
     });
   }
 
+  function buildAdminStats() {
+    const questions = grammar.questions.filter(question => question.status !== false);
+    const questionById = new Map(questions.map(question => [String(question.question_id), question]));
+    const nodes = grammar.nodes.slice().sort((a, b) => (a.order || 0) - (b.order || 0));
+    const nodeById = new Map(nodes.map(node => [node.node_id, node]));
+    const nodeTotals = new Map();
+    questions.forEach(question => {
+      nodeTotals.set(question.node_id, (nodeTotals.get(question.node_id) || 0) + 1);
+    });
+
+    const masteryByUser = new Map();
+    grammar.mastery.forEach(record => {
+      const key = String(record.userId);
+      let records = masteryByUser.get(key);
+      if (!records) {
+        records = new Map();
+        masteryByUser.set(key, records);
+      }
+      records.set(String(record.question_id), record);
+    });
+
+    const attemptsByUser = new Map();
+    grammar.attempts.forEach(attempt => {
+      if (!questionById.has(String(attempt.question_id))) return;
+      const key = String(attempt.userId);
+      let list = attemptsByUser.get(key);
+      if (!list) {
+        list = [];
+        attemptsByUser.set(key, list);
+      }
+      list.push(attempt);
+    });
+
+    const days = [];
+    for (let i = 6; i >= 0; i -= 1) {
+      days.push(hkDate(Date.now() - i * 24 * 60 * 60 * 1000));
+    }
+
+    const users = listUsers(db).map(user => {
+      const mastery = masteryByUser.get(String(user.id)) || new Map();
+      const rows = nodes.map(node => ({
+        node_id: node.node_id,
+        title: node.title,
+        category: node.category,
+        order: node.order || 0,
+        total: nodeTotals.get(node.node_id) || 0,
+        attempted: 0,
+        mastered: 0,
+        wrongQuestions: 0,
+        totalAttempts: 0,
+        totalWrong: 0
+      }));
+      const rowById = new Map(rows.map(row => [row.node_id, row]));
+      let lastPracticed = null;
+
+      questions.forEach(question => {
+        const record = mastery.get(String(question.question_id));
+        if (!record || !record.total_attempts) return;
+        const row = rowById.get(question.node_id);
+        if (!row) return;
+        row.attempted += 1;
+        row.totalAttempts += record.total_attempts || 0;
+        row.totalWrong += record.total_wrong || 0;
+        if (record.box_level === 3) row.mastered += 1;
+        if ((record.total_wrong || 0) > 0 && record.box_level !== 3) row.wrongQuestions += 1;
+        if (record.last_practiced_at && (!lastPracticed || String(record.last_practiced_at) > String(lastPracticed))) {
+          lastPracticed = record.last_practiced_at;
+        }
+      });
+
+      let totalAttempts = 0;
+      let totalWrong = 0;
+      let attempted = 0;
+      let mastered = 0;
+      let wrongQuestionCount = 0;
+      rows.forEach(row => {
+        row.coverage = percent(row.attempted, row.total);
+        row.mastery = percent(row.mastered, row.total);
+        row.accuracy = percent(row.totalAttempts - row.totalWrong, row.totalAttempts);
+        totalAttempts += row.totalAttempts;
+        totalWrong += row.totalWrong;
+        attempted += row.attempted;
+        mastered += row.mastered;
+        wrongQuestionCount += row.wrongQuestions;
+      });
+
+      const weakNodes = rows
+        .filter(row => row.total > 0 && row.attempted > 0)
+        .sort((a, b) => a.accuracy - b.accuracy || a.coverage - b.coverage || b.wrongQuestions - a.wrongQuestions)
+        .slice(0, 5)
+        .map(row => ({
+          node_id: row.node_id,
+          title: row.title,
+          category: row.category,
+          total: row.total,
+          attempted: row.attempted,
+          mastered: row.mastered,
+          wrongQuestions: row.wrongQuestions,
+          totalAttempts: row.totalAttempts,
+          totalWrong: row.totalWrong,
+          coverage: row.coverage,
+          accuracy: row.accuracy
+        }));
+
+      const weakQuestions = [];
+      mastery.forEach((record, questionId) => {
+        const question = questionById.get(questionId);
+        if (!question || !(record.total_wrong > 0) || record.box_level === 3) return;
+        const node = nodeById.get(question.node_id) || {};
+        weakQuestions.push({
+          question_id: question.question_id,
+          stem: question.stem,
+          node_id: question.node_id,
+          node_title: node.title || question.node_id,
+          total_wrong: record.total_wrong || 0,
+          total_attempts: record.total_attempts || 0,
+          box_level: record.box_level || 0,
+          last_practiced_at: record.last_practiced_at || null
+        });
+      });
+      weakQuestions.sort((a, b) => b.total_wrong - a.total_wrong || b.total_attempts - a.total_attempts);
+      const weakQuestionList = weakQuestions.slice(0, 10);
+
+      const attempts = (attemptsByUser.get(String(user.id)) || [])
+        .slice()
+        .sort((a, b) => String(b.practicedAt).localeCompare(String(a.practicedAt)));
+      const recentAttempts = attempts.slice(0, 12).map(attempt => {
+        const question = questionById.get(String(attempt.question_id)) || {};
+        const node = nodeById.get(question.node_id) || {};
+        return {
+          id: attempt.id,
+          question_id: attempt.question_id,
+          stem: question.stem || '（題目已刪除）',
+          node_id: question.node_id || '',
+          node_title: node.title || question.node_id || '',
+          correct: !!attempt.correct,
+          practicedAt: attempt.practicedAt
+        };
+      });
+
+      const dailyMap = new Map(days.map(day => [day, { date: day, attempts: 0, correct: 0 }]));
+      attempts.forEach(attempt => {
+        const row = dailyMap.get(hkDate(attempt.practicedAt));
+        if (!row) return;
+        row.attempts += 1;
+        if (attempt.correct) row.correct += 1;
+      });
+      const daily = days.map(day => {
+        const row = dailyMap.get(day);
+        return {
+          date: day,
+          attempts: row.attempts,
+          correct: row.correct,
+          accuracy: percent(row.correct, row.attempts)
+        };
+      });
+      const recent7 = daily.reduce((sum, row) => sum + row.attempts, 0);
+
+      return {
+        id: user.id,
+        username: user.username,
+        nickname: user.nickname,
+        role: user.role,
+        avatar: user.avatar,
+        stats: {
+          total: questions.length,
+          attempted,
+          mastered,
+          coverage: percent(attempted, questions.length),
+          mastery: percent(mastered, questions.length),
+          totalAttempts,
+          totalWrong,
+          accuracy: percent(totalAttempts - totalWrong, totalAttempts),
+          wrongQuestionCount,
+          recent7,
+          lastPracticed
+        },
+        nodes: rows,
+        weakNodes,
+        weakQuestions: weakQuestionList,
+        recentAttempts,
+        daily
+      };
+    });
+
+    return {
+      generatedAt: new Date().toISOString(),
+      meta: {
+        users: users.length,
+        nodes: nodes.length,
+        questions: questions.length
+      },
+      users
+    };
+  }
+
   function taskProgress(task, userId) {
     const questions = taskQuestions(task);
     const mastered = questions.filter(question => {
@@ -346,6 +552,37 @@ function createGrammarTool({ rootDir, toolDir, db, saveData: storeSave, dataExis
     };
     grammar.questions.push(question);
     return question;
+  }
+
+  function exportRows() {
+    const nodes = nodeMap();
+    return grammar.questions.map(question => {
+      const node = nodes.get(question.node_id) || {};
+      return {
+        node_id: question.node_id,
+        node_title: node.title || '',
+        node_category: node.category || '',
+        stem: question.stem,
+        highlight_word: question.highlight_word || '',
+        correct_option: question.correct_option,
+        distractor_1: (question.distractors || [])[0] || '',
+        distractor_2: (question.distractors || [])[1] || '',
+        distractor_3: (question.distractors || [])[2] || '',
+        explanation: question.explanation || ''
+      };
+    });
+  }
+
+  function exportCsv(rows) {
+    const headers = [
+      'node_id', 'node_title', 'node_category', 'stem', 'highlight_word',
+      'correct_option', 'distractor_1', 'distractor_2', 'distractor_3', 'explanation'
+    ];
+    const lines = [headers.join(',')];
+    rows.forEach(row => {
+      lines.push(headers.map(header => csvCell(row[header])).join(','));
+    });
+    return '\uFEFF' + lines.join('\r\n') + '\r\n';
   }
 
   function optionPayload(question) {
@@ -534,6 +771,115 @@ function createGrammarTool({ rootDir, toolDir, db, saveData: storeSave, dataExis
     };
   }
 
+  function replaceQuestions(items, userId) {
+    const oldByKey = new Map();
+    grammar.questions.forEach(question => {
+      const key = question.node_id + '|' + String(question.stem).trim().toLowerCase();
+      const list = oldByKey.get(key) || [];
+      list.push(question);
+      oldByKey.set(key, list);
+    });
+
+    const errors = [];
+    const prepared = [];
+    const usedIds = new Set();
+    const usedKeys = new Set();
+    const nowIso = new Date().toISOString();
+    let added = 0;
+    let reused = 0;
+
+    items.forEach((raw, index) => {
+      const result = normalizeQuestion(raw, []);
+      if (result.error) {
+        errors.push({ row: index + 1, error: result.error });
+        return;
+      }
+      const value = result.value;
+      const key = value.node_id + '|' + value.stem.toLowerCase();
+      if (usedKeys.has(key)) {
+        errors.push({ row: index + 1, error: '同一語法點已有相同題幹' });
+        return;
+      }
+      usedKeys.add(key);
+
+      let base = null;
+      const candidates = oldByKey.get(key) || [];
+      if (candidates.length === 1 && !usedIds.has(String(candidates[0].question_id))) {
+        base = candidates[0];
+      }
+
+      let questionId;
+      if (base) {
+        questionId = String(base.question_id);
+        reused += 1;
+      } else {
+        do {
+          questionId = 'GQ_' + generateId();
+        } while (usedIds.has(questionId));
+        added += 1;
+      }
+      usedIds.add(questionId);
+      prepared.push({
+        question_id: questionId,
+        ...value,
+        createdBy: base ? base.createdBy : userId,
+        createdAt: base ? base.createdAt : nowIso,
+        updatedAt: nowIso
+      });
+    });
+
+    if (errors.length) {
+      const head = errors.slice(0, 3).map(item => '第 ' + item.row + ' 行：' + item.error).join('；');
+      return {
+        error: head + (errors.length > 3 ? '（共 ' + errors.length + ' 個錯誤）' : ''),
+        errors
+      };
+    }
+
+    const newIds = new Set(prepared.map(question => String(question.question_id)));
+    const newNodeIds = new Set(prepared.map(question => question.node_id));
+    const oldTotal = grammar.questions.length;
+    const removed = grammar.questions.filter(question => !newIds.has(String(question.question_id))).length;
+    const masteryBefore = grammar.mastery.length;
+
+    grammar.questions = prepared;
+    grammar.mastery = grammar.mastery.filter(record => newIds.has(String(record.question_id)));
+    const masteryRemoved = masteryBefore - grammar.mastery.length;
+
+    let tasksUpdated = 0;
+    let tasksArchived = 0;
+    grammar.tasks.forEach(task => {
+      const before = Array.isArray(task.question_ids) ? task.question_ids : [];
+      const after = before.filter(id => newIds.has(String(id)));
+      if (after.length !== before.length) {
+        task.question_ids = after;
+        task.updatedAt = nowIso;
+        tasksUpdated += 1;
+      }
+      const nodesHaveQuestions = (task.target_nodes || []).some(id => newNodeIds.has(id));
+      const hasQuestions = after.length > 0 || nodesHaveQuestions;
+      if (!hasQuestions && !task.is_archived) {
+        task.is_archived = true;
+        task.updatedAt = nowIso;
+        tasksArchived += 1;
+      }
+    });
+
+    rounds.clear();
+
+    return {
+      mode: 'replace',
+      total: prepared.length,
+      added,
+      reused,
+      removed,
+      oldTotal,
+      masteryRemoved,
+      tasksUpdated,
+      tasksArchived
+    };
+  }
+
   async function handleAPI(req, res, parsedUrl) {
     const pathname = parsedUrl.pathname;
     const method = req.method;
@@ -563,6 +909,23 @@ function createGrammarTool({ rootDir, toolDir, db, saveData: storeSave, dataExis
         .map(question => ({ ...question, mastery: findMastery(userId, question.question_id) }))
         .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
       jsonResponse(res, 200, list);
+      return;
+    }
+
+    if (pathname === '/api/questions/export' && method === 'GET') {
+      if (user.role !== 'admin') return jsonResponse(res, 403, { error: '需要管理員權限' });
+      const format = String(parsedUrl.query.format || 'json').toLowerCase();
+      if (format !== 'json' && format !== 'csv') {
+        return jsonResponse(res, 400, { error: '不支援的匯出格式' });
+      }
+      const rows = exportRows();
+      const body = format === 'csv' ? exportCsv(rows) : JSON.stringify(rows, null, 2);
+      res.writeHead(200, {
+        'Content-Type': format === 'csv' ? 'text/csv; charset=utf-8' : 'application/json; charset=utf-8',
+        'Content-Disposition': 'attachment; filename="grammar-questions-' + hkDate() + '.' + format + '"',
+        'Cache-Control': 'no-store'
+      });
+      res.end(body);
       return;
     }
 
@@ -609,16 +972,33 @@ function createGrammarTool({ rootDir, toolDir, db, saveData: storeSave, dataExis
     }
 
     if (pathname === '/api/questions/import' && method === 'POST') {
+      if (user.role !== 'admin') return jsonResponse(res, 403, { error: '需要管理員權限' });
       try {
         const body = await parseBody(req);
+        const mode = body.mode === 'replace' ? 'replace' : 'append';
         const items = Array.isArray(body.items) ? body.items : parseImportText(body.text);
         if (!Array.isArray(items) || !items.length) {
           return jsonResponse(res, 400, { error: '找不到可匯入的題目' });
         }
+        if (mode === 'replace') {
+          if (body.confirm !== true) {
+            return jsonResponse(res, 400, { error: '全量覆蓋需要確認' });
+          }
+          if (items.length > 2000) {
+            return jsonResponse(res, 400, { error: '一次最多覆蓋 2000 道題目' });
+          }
+          const result = replaceQuestions(items, userId);
+          if (result.error) {
+            return jsonResponse(res, 400, { error: result.error, errors: result.errors });
+          }
+          await saveData();
+          jsonResponse(res, 200, result);
+          return;
+        }
         if (items.length > 500) {
           return jsonResponse(res, 400, { error: '一次最多匯入 500 道題目' });
         }
-        const results = { added: 0, skipped: 0, errors: [] };
+        const results = { mode: 'append', added: 0, skipped: 0, errors: [] };
         const seen = new Set(grammar.questions.map(question => question.node_id + '|' + String(question.stem).trim().toLowerCase()));
         items.forEach((raw, index) => {
           const result = normalizeQuestion(raw);
@@ -666,6 +1046,12 @@ function createGrammarTool({ rootDir, toolDir, db, saveData: storeSave, dataExis
     if (pathname === '/api/admin/tasks' && method === 'GET') {
       if (user.role !== 'admin') return jsonResponse(res, 403, { error: '需要管理員權限' });
       jsonResponse(res, 200, adminTaskList());
+      return;
+    }
+
+    if (pathname === '/api/admin/stats' && method === 'GET') {
+      if (user.role !== 'admin') return jsonResponse(res, 403, { error: '需要管理員權限' });
+      jsonResponse(res, 200, buildAdminStats());
       return;
     }
 

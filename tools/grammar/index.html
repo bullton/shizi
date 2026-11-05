@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>文法花園 · Grammar Garden</title>
-<link rel="stylesheet" href="style.css?v=20261105-4">
+<link rel="stylesheet" href="style.css?v=20261105-6">
 </head>
 <body>
 <div class="app" id="app">
@@ -91,7 +91,7 @@
           </div>
           <p class="rule-tip" id="feedback-tip"></p>
           <p class="explain" id="feedback-explain"></p>
-          <button type="button" class="btn btn-primary" id="feedback-continue">繼續</button>
+          <button type="button" class="btn btn-primary" id="feedback-continue">下一題</button>
         </div>
       </section>
 
@@ -134,10 +134,12 @@
         <div class="parent-main">
           <div class="parent-tabs" role="tablist">
             <button type="button" class="is-active" data-parent-tab="tasks" role="tab" aria-selected="true">任務看板</button>
+            <button type="button" data-parent-tab="stats" role="tab" aria-selected="false">學習統計</button>
             <button type="button" data-parent-tab="bank" role="tab" aria-selected="false">題庫與匯入</button>
           </div>
 
           <div class="parent-panel" id="parent-tasks"></div>
+          <div class="parent-panel" id="parent-analytics" hidden></div>
           <div class="parent-panel" id="parent-bank" hidden></div>
         </div>
       </div>
@@ -146,6 +148,6 @@
 
   <div class="toast" id="toast" hidden></div>
 </div>
-<script src="app.js?v=20261105-4" defer></script>
+<script src="app.js?v=20261105-8" defer></script>
 </body>
 </html>
