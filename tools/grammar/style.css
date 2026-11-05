@@ -541,6 +541,7 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 700; letter-spacing:
 .summary-stat span { color: var(--muted); font-size: 11px; }
 .summary-progress { margin-bottom: 22px; text-align: left; }
 .summary-progress p { display: flex; justify-content: space-between; margin: 0 0 8px; color: var(--muted); font-size: 12px; }
+.summary-progress .summary-note { display: block; margin: 10px 0 0; color: var(--muted); font-size: 11px; text-align: left; }
 .summary-wrong { margin-bottom: 24px; text-align: left; }
 .summary-wrong h3 { margin: 0 0 10px; font-size: 16px; }
 .summary-wrong ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }

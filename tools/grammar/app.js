@@ -310,8 +310,10 @@
         '<span class="task-badge' + (done ? ' is-done' : '') + '">' + (done ? '已掌握' : '進行中') + '</span>' +
       '</div>' +
       '<div class="task-card-foot">' +
-        '<span class="progress-ring" style="--p:' + Number(task.progress || 0) + '"><strong>' + Math.round(Number(task.progress || 0)) + '%</strong></span>' +
-        '<span class="task-meta"><strong>' + task.mastered + ' / ' + task.total + ' 題</strong><span>每輪 ' + task.batch_size + ' 題 · 連對 ' + task.pass_streak + ' 次通關</span></span>' +
+        '<span class="progress-ring" title="掌握進度" style="--p:' + Number(task.progress || 0) + '"><strong>' + Math.round(Number(task.progress || 0)) + '%</strong></span>' +
+        '<span class="task-meta"><strong>掌握 ' + task.mastered + ' / ' + task.total + ' 題</strong><span>已練 ' + Number(task.attempted || 0) + ' / ' + task.total + ' · ' +
+          (Number(task.batch_size || 0) < Number(task.total || 0) ? '每輪 ' + task.batch_size + ' 題 · ' : '') +
+          '跨天連對 ' + Number(task.pass_streak || 3) + ' 次算掌握</span></span>' +
         '<button type="button" class="btn btn-primary btn-sm" data-start-task="' + esc(task.task_id) + '">開始</button>' +
       '</div>' +
       '</article>';
@@ -472,8 +474,10 @@
       '<div class="summary-stat"><strong>' + summary.answered + '</strong><span>作答次數</span></div>'
     ].join('');
     if (summary.task) {
-      els.summaryProgress.innerHTML = '<p><span>任務掌握進度</span><span>' + summary.task.mastered + ' / ' + summary.task.total + ' 題</span></p>' +
-        '<span class="progress-track"><span style="width:' + Number(summary.task.progress || 0) + '%"></span></span>';
+      els.summaryProgress.innerHTML = '<p><span>本輪完成</span><span>' + Number(summary.total || 0) + ' / ' + Number(summary.total || 0) + ' 題</span></p>' +
+        '<p><span>任務掌握</span><span>' + summary.task.mastered + ' / ' + summary.task.total + ' 題</span></p>' +
+        '<span class="progress-track"><span style="width:' + Number(summary.task.progress || 0) + '%"></span></span>' +
+        '<p class="summary-note">掌握需跨天連續答對 ' + Number(summary.task.pass_streak || 3) + ' 次；今天先練熟，下次再答對會繼續累積。</p>';
     } else {
       els.summaryProgress.innerHTML = '';
     }
@@ -539,16 +543,19 @@
 
     return '<section class="panel-section">' +
       '<h2>建立新任務</h2>' +
-      '<p>只有管理員可以建立任務。勾選語法點後，系統會自動把該節點下的題目匯入任務；也可以展開進階選項直接指定題目。</p>' +
+      '<p>只有管理員可以建立任務。勾選語法點後，系統會從中抽出指定題數，建立後題目固定；也可以展開進階選項直接指定題目。</p>' +
       '<form id="task-form">' +
         '<div class="form-grid">' +
           '<label class="field field-full"><span class="field-label">任務名稱</span><input class="input" name="task_name" maxlength="40" required placeholder="例如：三單動詞專項突破"></label>' +
           assignPickerHTML() +
-          '<label class="field"><span class="field-label">每輪題量</span><select class="select" name="batch_size"><option value="5">5 題</option><option value="10" selected>10 題</option><option value="15">15 題</option><option value="20">20 題</option></select></label>' +
-          '<label class="field"><span class="field-label">通關連對次數</span><select class="select" name="pass_streak"><option value="2">2 次</option><option value="3" selected>3 次</option><option value="4">4 次</option></select></label>' +
+          '<label class="field"><span class="field-label">任務題數</span><select class="select" name="batch_size"><option value="5">5 題</option><option value="10" selected>10 題</option><option value="15">15 題</option><option value="20">20 題</option></select></label>' +
+          '<label class="field"><span class="field-label">掌握連對次數</span><select class="select" name="pass_streak"><option value="2">2 次</option><option value="3" selected>3 次</option><option value="4">4 次</option></select></label>' +
           nodeOptions +
-          '<details class="field field-full"><summary class="text-link">進階：指定題目（可選）</summary><div class="node-picker" style="margin-top:8px">' + (pinned || '<p class="muted">題庫載入中…</p>') + '</div></details>' +
+          '<details class="field field-full"><summary class="text-link">進階：指定題目（可選）</summary>' +
+            '<p class="assign-hint">指定題目會全部納入任務；若多於任務題數，任務會以指定題目數為準。</p>' +
+            '<div class="node-picker" style="margin-top:8px">' + (pinned || '<p class="muted">題庫載入中…</p>') + '</div></details>' +
         '</div>' +
+        '<p class="assign-hint">任務題數建立後固定，之後新增題目不影響這個任務；所選題目不足時以實際題數建立；掌握需跨天連續答對指定次數。</p>' +
         '<button type="submit" class="btn btn-primary">建立任務</button>' +
       '</form>' +
       '</section>';
@@ -570,7 +577,7 @@
         : '';
       return '<div class="assignee-row">' +
           '<span class="assignee-name">' + (task.role === 'admin' ? '👑 ' : '👦 ') + esc(task.username || '') + '</span>' +
-          '<span class="assignee-score">' + task.mastered + ' / ' + task.total + ' 題</span>' +
+          '<span class="assignee-score">掌握 ' + task.mastered + ' / ' + task.total + ' · 已練 ' + Number(task.attempted || 0) + ' / ' + task.total + '</span>' +
           '<span class="assignee-progress"><span class="progress-track"><span style="width:' + Number(task.progress || 0) + '%"></span></span></span>' +
           '<button type="button" class="btn btn-ghost btn-sm" data-wrong-task="' + esc(task.task_id) + '">錯題 ' + Number(task.wrong || 0) + '</button>' +
         '</div>' + wrong;
@@ -581,7 +588,9 @@
         '<h3>' + esc(first.task_name) +
           (allScope ? '<span class="assign-scope">🌐 所有用戶</span>' : '') +
         '</h3>' +
-        '<div class="task-admin-meta"><span>' + esc(nodes || '指定題目') + '</span><span>每輪 ' + first.batch_size + ' 題</span><span>連對 ' + first.pass_streak + ' 次</span><span>👥 ' + items.length + ' 個帳戶</span></div>' +
+        '<div class="task-admin-meta"><span>' + esc(nodes || '指定題目') + '</span><span>任務 ' + Number((first.question_ids || []).length) + ' 題</span>' +
+          (Number(first.batch_size || 0) < Number((first.question_ids || []).length) ? '<span>每輪 ' + first.batch_size + ' 題</span>' : '') +
+          '<span>跨天連對 ' + Number(first.pass_streak || 3) + ' 次</span><span>👥 ' + items.length + ' 個帳戶</span></div>' +
         '<div class="assignee-list">' + rows + '</div>' +
       '</div>' +
       '<div class="task-admin-actions">' +
@@ -929,7 +938,11 @@
           pass_streak: parseInt(form.querySelector('[name="pass_streak"]').value, 10)
         }
       });
-      toast(result && result.created ? '已建立任務（' + result.created + ' 個帳戶）' : '已建立任務');
+      let message = '已建立任務';
+      if (result && result.created) message += '（' + result.created + ' 個帳戶）';
+      if (result && result.total) message += ' · ' + result.total + ' 題';
+      if (result && result.requested > result.total) message += '（所選題目不足 ' + result.requested + ' 題）';
+      toast(message);
       state.selectedUsers.clear();
       await refreshData();
       state.parentTab = 'tasks';

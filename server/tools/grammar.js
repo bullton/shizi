@@ -160,13 +160,128 @@ function createGrammarTool({ rootDir, toolDir, db, saveData: storeSave, dataExis
     return task.groupId || task.task_id;
   }
 
-  function taskQuestions(task) {
-    const nodes = new Set(task.target_nodes || []);
-    const pinned = new Set(task.question_ids || []);
+  function taskPool(nodes, pinned) {
+    const nodeIds = new Set((nodes || []).map(String));
+    const pinnedIds = new Set((pinned || []).map(String));
     return grammar.questions.filter(question => {
       if (question.status === false) return false;
-      return nodes.has(question.node_id) || pinned.has(question.question_id);
+      return nodeIds.has(String(question.node_id)) || pinnedIds.has(String(question.question_id));
     });
+  }
+
+  function chooseTaskQuestions(pool, pinned, desired, preferred) {
+    const byId = new Map(pool.map(question => [String(question.question_id), question]));
+    const chosen = [];
+    const used = new Set();
+
+    (pinned || []).forEach(id => {
+      const key = String(id);
+      const question = byId.get(key);
+      if (!question || used.has(key)) return;
+      used.add(key);
+      chosen.push(question);
+    });
+
+    if (chosen.length >= desired) return chosen.slice(0, desired);
+
+    const preferredIds = new Set((preferred || []).map(String));
+    pool.forEach(question => {
+      if (chosen.length >= desired) return;
+      const key = String(question.question_id);
+      if (used.has(key) || !preferredIds.has(key)) return;
+      used.add(key);
+      chosen.push(question);
+    });
+
+    if (chosen.length >= desired) return chosen;
+
+    const groups = new Map();
+    pool.forEach(question => {
+      const key = String(question.question_id);
+      if (used.has(key)) return;
+      const list = groups.get(question.node_id) || [];
+      list.push(question);
+      groups.set(question.node_id, list);
+    });
+
+    const lists = [...groups.values()];
+    let cursor = 0;
+    while (chosen.length < desired) {
+      let took = false;
+      lists.forEach(list => {
+        if (chosen.length >= desired) return;
+        if (cursor < list.length) {
+          chosen.push(list[cursor]);
+          took = true;
+        }
+      });
+      if (!took) break;
+      cursor += 1;
+    }
+    return chosen;
+  }
+
+  function taskQuestions(task) {
+    if (task.fixedQuestions) {
+      const pinned = new Set((task.question_ids || []).map(String));
+      return grammar.questions.filter(question => {
+        if (question.status === false) return false;
+        return pinned.has(String(question.question_id));
+      });
+    }
+    return taskPool(task.target_nodes || [], task.question_ids || []);
+  }
+
+  function migrateLegacyTasks() {
+    const groups = new Map();
+    grammar.tasks.forEach(task => {
+      if (task.fixedQuestions) return;
+      const key = String(taskGroupId(task));
+      const list = groups.get(key) || [];
+      list.push(task);
+      groups.set(key, list);
+    });
+    if (!groups.size) return;
+
+    const nowIso = new Date().toISOString();
+    const activeIds = new Set(grammar.questions.filter(question => question.status !== false).map(question => String(question.question_id)));
+    let changed = 0;
+
+    groups.forEach(items => {
+      const first = items[0];
+      const pinned = (first.question_ids || []).map(String).filter(id => activeIds.has(id));
+      const pool = taskPool(first.target_nodes || [], pinned);
+      const requested = Math.max(1, Math.min(30, parseInt(first.batch_size, 10) || 10));
+      const desired = Math.max(pinned.length, Math.min(requested, pool.length));
+      const userIds = new Set(items.map(item => String(item.userId)));
+      const practiced = new Set();
+
+      grammar.mastery.forEach(record => {
+        if (!userIds.has(String(record.userId)) || !(record.total_attempts > 0)) return;
+        practiced.add(String(record.question_id));
+      });
+      grammar.attempts.forEach(attempt => {
+        if (userIds.has(String(attempt.userId))) practiced.add(String(attempt.question_id));
+      });
+
+      const preferred = pool.filter(question => practiced.has(String(question.question_id))).map(question => String(question.question_id));
+      const chosen = chooseTaskQuestions(pool, pinned, desired, preferred);
+      const fixedIds = chosen.map(question => question.question_id);
+      const batchSize = Math.max(1, Math.min(requested, fixedIds.length || 1));
+
+      items.forEach(task => {
+        task.question_ids = fixedIds;
+        task.batch_size = batchSize;
+        task.fixedQuestions = true;
+        task.updatedAt = nowIso;
+        changed += 1;
+      });
+    });
+
+    if (changed) {
+      saveData().catch(error => console.warn('[grammar] 固定舊任務題目儲存失敗：' + error.message));
+      console.log('[grammar] 已固定 ' + changed + ' 個舊任務的題目數量');
+    }
   }
 
   function findMastery(userId, questionId) {
@@ -440,6 +555,10 @@ function createGrammarTool({ rootDir, toolDir, db, saveData: storeSave, dataExis
 
   function taskProgress(task, userId) {
     const questions = taskQuestions(task);
+    const attempted = questions.filter(question => {
+      const record = findMastery(userId, question.question_id);
+      return record && (record.total_attempts || 0) > 0;
+    }).length;
     const mastered = questions.filter(question => {
       const record = findMastery(userId, question.question_id);
       return record && record.box_level === 3;
@@ -451,9 +570,11 @@ function createGrammarTool({ rootDir, toolDir, db, saveData: storeSave, dataExis
     const total = questions.length;
     return {
       total,
+      attempted,
+      coverage: percent(attempted, total),
       mastered,
       wrong,
-      progress: total ? Math.round((mastered / total) * 1000) / 10 : 0
+      progress: percent(mastered, total)
     };
   }
 
@@ -471,7 +592,10 @@ function createGrammarTool({ rootDir, toolDir, db, saveData: storeSave, dataExis
       groupId: taskGroupId(task),
       userId: task.userId,
       scope: task.scope || 'selected',
+      fixedQuestions: !!task.fixedQuestions,
       total: progress.total,
+      attempted: progress.attempted,
+      coverage: progress.coverage,
       mastered: progress.mastered,
       wrong: progress.wrong,
       progress: progress.progress
@@ -856,7 +980,7 @@ function createGrammarTool({ rootDir, toolDir, db, saveData: storeSave, dataExis
         task.updatedAt = nowIso;
         tasksUpdated += 1;
       }
-      const nodesHaveQuestions = (task.target_nodes || []).some(id => newNodeIds.has(id));
+      const nodesHaveQuestions = !task.fixedQuestions && (task.target_nodes || []).some(id => newNodeIds.has(id));
       const hasQuestions = after.length > 0 || nodesHaveQuestions;
       if (!hasQuestions && !task.is_archived) {
         task.is_archived = true;
@@ -1067,12 +1191,18 @@ function createGrammarTool({ rootDir, toolDir, db, saveData: storeSave, dataExis
         const name = String(body.task_name || '').trim();
         if (!name || name.length > 40) return jsonResponse(res, 400, { error: '任務名稱需為 1-40 字' });
         const nodes = Array.isArray(body.target_nodes) ? body.target_nodes.filter(id => nodeMap().has(id)) : [];
-        const pinned = Array.isArray(body.question_ids) ? body.question_ids.filter(id => questionMap().has(id)) : [];
+        const pinned = Array.isArray(body.question_ids) ? Array.from(new Set(body.question_ids.filter(id => questionMap().has(id)))) : [];
         if (!nodes.length && !pinned.length) return jsonResponse(res, 400, { error: '請至少選擇一個語法點或指定題目' });
         const hasTargets = body.userIds !== undefined || body.userId !== undefined;
         const resolved = resolveUserIds(db, hasTargets ? (body.userIds !== undefined ? body.userIds : body.userId) : [userId]);
         if (resolved.error) return jsonResponse(res, 400, { error: resolved.error });
-        const batchSize = Math.max(1, Math.min(30, parseInt(body.batch_size, 10) || 10));
+        const requested = Math.max(1, Math.min(30, parseInt(body.batch_size, 10) || 10));
+        const pool = taskPool(nodes, pinned);
+        if (!pool.length) return jsonResponse(res, 400, { error: '所選語法點沒有可用題目' });
+        const taskSize = Math.max(pinned.length, Math.min(requested, pool.length));
+        const chosen = chooseTaskQuestions(pool, pinned, taskSize);
+        const fixedIds = chosen.map(question => question.question_id);
+        const batchSize = Math.max(1, Math.min(requested, fixedIds.length || 1));
         const passStreak = Math.max(2, Math.min(6, parseInt(body.pass_streak, 10) || 3));
         const groupId = generateId(new Set(grammar.tasks.map(item => taskGroupId(item))));
         const created = resolved.userIds.map(targetId => {
@@ -1084,7 +1214,8 @@ function createGrammarTool({ rootDir, toolDir, db, saveData: storeSave, dataExis
             createdBy: userId,
             task_name: name,
             target_nodes: Array.from(new Set(nodes)),
-            question_ids: Array.from(new Set(pinned)),
+            question_ids: fixedIds,
+            fixedQuestions: true,
             batch_size: batchSize,
             pass_streak: passStreak,
             is_archived: false,
@@ -1098,6 +1229,8 @@ function createGrammarTool({ rootDir, toolDir, db, saveData: storeSave, dataExis
           groupId,
           scope: resolved.all ? 'all' : 'selected',
           created: created.length,
+          requested,
+          total: fixedIds.length,
           tasks: created.map(task => serializeTask(task, task.userId))
         });
       } catch (error) {
@@ -1121,7 +1254,7 @@ function createGrammarTool({ rootDir, toolDir, db, saveData: storeSave, dataExis
           ? (Array.isArray(body.target_nodes) ? body.target_nodes.filter(id => nodeMap().has(id)) : [])
           : (task.target_nodes || []);
         const pinned = body.question_ids !== undefined
-          ? (Array.isArray(body.question_ids) ? body.question_ids.filter(id => questionMap().has(id)) : [])
+          ? (Array.isArray(body.question_ids) ? Array.from(new Set(body.question_ids.filter(id => questionMap().has(id)))) : [])
           : (task.question_ids || []);
         if (!nodes.length && !pinned.length) {
           return jsonResponse(res, 400, { error: '請至少保留一個語法點或指定題目' });
@@ -1143,7 +1276,12 @@ function createGrammarTool({ rootDir, toolDir, db, saveData: storeSave, dataExis
           targets.forEach(item => { item.is_archived = !!body.is_archived; });
         }
         const updatedAt = new Date().toISOString();
-        targets.forEach(item => { item.updatedAt = updatedAt; });
+        targets.forEach(item => {
+          item.fixedQuestions = true;
+          const count = (item.question_ids || []).length;
+          item.batch_size = Math.max(1, Math.min(item.batch_size || count || 1, count || 1));
+          item.updatedAt = updatedAt;
+        });
         await saveData();
         jsonResponse(res, 200, {
           updated: targets.length,
@@ -1334,6 +1472,8 @@ function createGrammarTool({ rootDir, toolDir, db, saveData: storeSave, dataExis
       };
     });
   }
+
+  migrateLegacyTasks();
 
   return { handleAPI, stats };
 }
