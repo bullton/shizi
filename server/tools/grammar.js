@@ -683,7 +683,8 @@ function createGrammarTool({ rootDir, toolDir, db, saveData: storeSave, dataExis
         const nodes = Array.isArray(body.target_nodes) ? body.target_nodes.filter(id => nodeMap().has(id)) : [];
         const pinned = Array.isArray(body.question_ids) ? body.question_ids.filter(id => questionMap().has(id)) : [];
         if (!nodes.length && !pinned.length) return jsonResponse(res, 400, { error: '請至少選擇一個語法點或指定題目' });
-        const resolved = resolveUserIds(db, body.userIds !== undefined ? body.userIds : body.userId);
+        const hasTargets = body.userIds !== undefined || body.userId !== undefined;
+        const resolved = resolveUserIds(db, hasTargets ? (body.userIds !== undefined ? body.userIds : body.userId) : [userId]);
         if (resolved.error) return jsonResponse(res, 400, { error: resolved.error });
         const batchSize = Math.max(1, Math.min(30, parseInt(body.batch_size, 10) || 10));
         const passStreak = Math.max(2, Math.min(6, parseInt(body.pass_streak, 10) || 3));
