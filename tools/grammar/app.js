@@ -311,7 +311,7 @@
       const pattern = new RegExp(escapeRegExp(esc(highlight)), 'gi');
       safe = safe.replace(pattern, match => '<mark>' + match + '</mark>');
     }
-    return safe.replace(/____/g, '<span class="blank">____</span>');
+    return safe.replace(/_{2,}/g, '<span class="blank" aria-label="空格">&nbsp;</span>');
   }
 
   function renderRound() {
