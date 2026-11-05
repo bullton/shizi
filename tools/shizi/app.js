@@ -2483,7 +2483,7 @@ async function loadDashboard() {
         <span class="leaderboard-rank ${i === 0 ? 'top-1' : i === 1 ? 'top-2' : i === 2 ? 'top-3' : ''}">${i + 1}</span>
         <span class="leaderboard-avatar">${u.avatar || u.nickname?.[0]?.toUpperCase() || '?'}</span>
         <span class="leaderboard-name">${u.nickname || u.username}${u.userId === User.current?.id ? ' (我)' : ''}</span>
-        <span class="leaderboard-stats">已學: ${u.charsKnown} 字 | 平均: ${u.avgTime ? (u.avgTime/1000).toFixed(1) + 's' : '-'}</span>
+        <span class="leaderboard-stats">已學: ${u.charsKnown} 字 | 正確率: ${Number(u.accuracy) || 0}% | 平均: ${u.avgTime ? (u.avgTime/1000).toFixed(1) + 's' : '-'}</span>
         <span class="leaderboard-badge">${u.charsKnown >= 10 ? '🌟' : ''}</span>
       </div>
     `).join('') || '<p>暫無其他同學，開始練習就會上榜！</p>';

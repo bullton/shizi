@@ -151,7 +151,11 @@ function shiziRanks() {
     avatar: user.avatar || null,
     charsKnown: 0,
     totalAttempts: 0,
-    avgTime: 0,
+    avgTimeSum: 0,
+    attemptCount: 0,
+    correctAttempts: 0,
+    timedAttempts: 0,
+    totalResponseTime: 0,
     recent7: 0
   }));
   const byId = new Map(stats.map(row => [String(row.userId), row]));
@@ -160,24 +164,50 @@ function shiziRanks() {
     if (!row) return;
     row.charsKnown += 1;
     row.totalAttempts += progress.attempts || 0;
-    row.avgTime += progress.avgTime || 0;
+    row.avgTimeSum += progress.avgTime || 0;
   });
   const days = new Set();
   for (let i = 0; i < 7; i++) days.add(shiziDay(Date.now() - i * 24 * 60 * 60 * 1000));
   db.attempts.forEach(attempt => {
     const row = byId.get(String(attempt.userId));
-    if (!row || !attempt.practicedAt) return;
-    if (days.has(shiziDay(attempt.practicedAt))) row.recent7 += 1;
+    if (!row) return;
+    row.attemptCount += 1;
+    if (attempt.correct) row.correctAttempts += 1;
+    const responseTime = Number(attempt.responseTime);
+    if (Number.isFinite(responseTime) && responseTime > 0) {
+      row.timedAttempts += 1;
+      row.totalResponseTime += responseTime;
+    }
+    if (attempt.practicedAt && days.has(shiziDay(attempt.practicedAt))) row.recent7 += 1;
   });
   return stats
-    .map(row => ({
-      ...row,
-      score: row.charsKnown,
-      attempts: row.totalAttempts,
-      avgTime: row.charsKnown > 0 ? row.avgTime / row.charsKnown : 0
-    }))
-    .sort((a, b) => b.charsKnown - a.charsKnown || a.avgTime - b.avgTime);
+    .map(row => {
+      const attempts = row.totalAttempts || row.attemptCount;
+      const fallbackTime = row.charsKnown > 0 ? row.avgTimeSum / row.charsKnown : 0;
+      return {
+        userId: row.userId,
+        username: row.username,
+        nickname: row.nickname,
+        avatar: row.avatar,
+        charsKnown: row.charsKnown,
+        score: row.charsKnown,
+        attempts,
+        accuracy: row.attemptCount > 0
+          ? Math.round((row.correctAttempts / row.attemptCount) * 1000) / 10
+          : 0,
+        avgTime: row.timedAttempts > 0 ? row.totalResponseTime / row.timedAttempts : fallbackTime,
+        recent7: row.recent7
+      };
+    })
+    .sort((a, b) =>
+      b.charsKnown - a.charsKnown ||
+      b.accuracy - a.accuracy ||
+      (a.avgTime || Infinity) - (b.avgTime || Infinity) ||
+      b.attempts - a.attempts ||
+      String(a.username).localeCompare(String(b.username))
+    );
 }
+
 
 // ===== AI 呼叫防護（只限手動單字，嚴禁批量）=====
 const AI_COOLDOWN_MS = 8000;

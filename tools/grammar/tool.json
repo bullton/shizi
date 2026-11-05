@@ -10,5 +10,6 @@
   "active": true,
   "accent": "#2f8f6b",
   "icon": "leaf",
+  "features": { "optionInspection": false },
   "desc": "由詞法到時態，用自適應練習把英文文法一步一步練成直覺。"
 }

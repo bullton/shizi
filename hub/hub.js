@@ -23,6 +23,17 @@
       accent: '#2f8f6b',
       icon: 'leaf',
       desc: '由詞法到時態，用自適應練習把英文文法一步一步練成直覺。'
+    },
+    {
+      id: 'idiom',
+      name: '成語天地',
+      short: '成語',
+      entry: '/tools/idiom/',
+      weight: 0.25,
+      active: true,
+      accent: '#a8452f',
+      icon: 'spark',
+      desc: '按場景練成語，從神態、心情到寫景，把表達詞彙一點一點累積起來。'
     }
   ];
 
@@ -450,22 +461,34 @@
 
   function toolRank(toolId) {
     if (!state.user) return null;
+    const mine = myRankingRow();
+    const detail = mine && mine.tools ? mine.tools[toolId] : null;
+    if (detail && detail.rank) return detail.rank;
     const rows = state.ranking.slice().sort(function (a, b) {
-      const aScore = a.tools && a.tools[toolId] ? Number(a.tools[toolId].score) || 0 : 0;
-      const bScore = b.tools && b.tools[toolId] ? Number(b.tools[toolId].score) || 0 : 0;
-      return bScore - aScore;
+      const at = a.tools && a.tools[toolId] ? a.tools[toolId] : {};
+      const bt = b.tools && b.tools[toolId] ? b.tools[toolId] : {};
+      if (toolId === 'grammar') {
+        return (Number(bt.masteryRate) || 0) - (Number(at.masteryRate) || 0) ||
+          (Number(bt.attempted) || 0) - (Number(at.attempted) || 0) ||
+          (Number(bt.accuracy) || 0) - (Number(at.accuracy) || 0) ||
+          (Number(at.avgTime) || Infinity) - (Number(bt.avgTime) || Infinity);
+      }
+      if (toolId === 'idiom') {
+        return (Number(bt.score) || 0) - (Number(at.score) || 0) ||
+          (Number(bt.attempted) || 0) - (Number(at.attempted) || 0) ||
+          (Number(bt.accuracy) || 0) - (Number(at.accuracy) || 0) ||
+          (Number(at.avgTime) || Infinity) - (Number(bt.avgTime) || Infinity);
+      }
+      return (Number(bt.charsKnown) || 0) - (Number(at.charsKnown) || 0) ||
+        (Number(bt.accuracy) || 0) - (Number(at.accuracy) || 0) ||
+        (Number(at.avgTime) || Infinity) - (Number(bt.avgTime) || Infinity);
     });
     const index = rows.findIndex(function (row) {
       return String(row.userId) === String(state.user.id);
     });
     if (index < 0) return null;
-    const detail = rows[index].tools && rows[index].tools[toolId];
-    return detail && Number(detail.score) > 0 ? index + 1 : null;
-  }
-
-  function percentile(index, total) {
-    if (!total) return 0;
-    return ((total - index) / total) * 100;
+    const fallback = rows[index].tools && rows[index].tools[toolId];
+    return fallback && Number(fallback.score) > 0 ? index + 1 : null;
   }
 
   function recentPracticeCount() {
@@ -474,7 +497,8 @@
       return sum + (Number(day.count) || 0);
     }, 0);
     const grammar = toolStats('grammar');
-    return shiziRecent + (grammar ? Number(grammar.recent7) || 0 : 0);
+    const idiom = toolStats('idiom');
+    return shiziRecent + (grammar ? Number(grammar.recent7) || 0 : 0) + (idiom ? Number(idiom.recent7) || 0 : 0);
   }
 
   /* ===== Chrome ===== */
@@ -566,10 +590,10 @@
     }
     const detail = toolStats(tool.id) || {};
     const rank = toolRank(tool.id);
-    const isGrammar = tool.id === 'grammar';
-    const value = isGrammar ? (detail.mastered || 0) : (detail.charsKnown || detail.score || 0);
-    const label = isGrammar ? '已掌握' : '已學';
-    const unit = isGrammar ? '題' : '字';
+    const isMastery = tool.id === 'grammar' || tool.id === 'idiom';
+    const value = isMastery ? (detail.masteryRate || 0) : (detail.charsKnown || detail.score || 0);
+    const label = isMastery ? '掌握率' : '已學';
+    const unit = isMastery ? '%' : '字';
     return '<a class="tool-card" href="#/tool/' + tool.id + '" data-nav="tool/' + tool.id + '" style="--tool:' + tool.accent + '">' +
       '<div class="tool-card-top"><span class="tool-icon">' + icon(tool.icon, 20) + '</span><span class="tool-badge is-live">已接入</span></div>' +
       '<h3>' + esc(tool.name) + '</h3>' +
@@ -583,7 +607,7 @@
       '<span class="mini-no">' + rank + '</span>' +
       avatarHTML(row, 'xs') +
       '<span class="mini-name">' + esc(row.nickname || row.username) + (isMe ? '<span class="you">你</span>' : '') + '</span>' +
-      '<span class="mini-score">' + fmtPct(row.combined) + ' 分</span>' +
+      '<span class="mini-score">' + fmtInt(row.combined) + ' 分</span>' +
       '</li>';
   }
 
@@ -629,6 +653,7 @@
   function overviewHTML() {
     const shizi = toolStats('shizi') || { charsKnown: 0, totalAttempts: 0, avgTime: 0 };
     const grammar = toolStats('grammar') || { mastered: 0, attempts: 0, recent7: 0 };
+    const idiom = toolStats('idiom') || { mastered: 0, attempts: 0, recent7: 0 };
     const rank = myRank();
     const recent = recentPracticeCount();
     const shiziTool = toolById('shizi');
@@ -638,7 +663,7 @@
     const primaryLabel = primary ? primary.name : '識字樂';
     const startLabel = (Number(shizi.charsKnown) > 0 || preferGrammar) ? '繼續' + primaryLabel : '開始' + primaryLabel;
     const activeCount = TOOLS.filter(function (tool) { return tool.active; }).length;
-    const totalAttempts = (Number(shizi.totalAttempts) || 0) + (Number(grammar.attempts) || 0);
+    const totalAttempts = (Number(shizi.totalAttempts) || 0) + (Number(grammar.attempts) || 0) + (Number(idiom.attempts) || 0);
     const shiziRecent = state.stats && Array.isArray(state.stats.recentActivity)
       ? state.stats.recentActivity.reduce(function (sum, day) { return sum + (Number(day.count) || 0); }, 0)
       : 0;
@@ -647,15 +672,15 @@
         '<div>' +
           '<p class="eyebrow">' + esc(todayLabel()) + '</p>' +
           '<h1 class="page-title">' + greeting() + '，' + esc(state.user.nickname || state.user.username) + '</h1>' +
-          '<p class="page-sub">識字樂與文法花園共用同一份帳戶；工具內各自保留進度，工具台則把兩邊的表現折算成綜合排名。</p>' +
+          '<p class="page-sub">識字樂、文法花園與成語天地共用同一份帳戶；工具內各自保留進度，工具台則把各邊的表現折算成綜合排名。</p>' +
         '</div>' +
         '<div class="page-actions"><button class="btn btn-primary" type="button" data-nav="tool/' + (primary ? primary.id : 'shizi') + '">' + startLabel + ' ' + icon('arrowRight', 16) + '</button></div>' +
       '</header>' +
       '<div class="stat-strip">' +
         statHTML(fmtInt(shizi.charsKnown), '字', '識字樂已學', '來自識字樂進度') +
-        statHTML(fmtInt(grammar.mastered), '題', '文法已掌握', '已達到 Level 3 的題目') +
-        statHTML(rank ? String(rank) : '—', '', '綜合名次', '按工具百分位折算') +
-        statHTML(fmtInt(recent), '次', '近七日練習', '兩個工具的作答合計') +
+        statHTML(fmtInt(Number(grammar.mastered) + Number(idiom.mastered)), '題', '文法＋成語已掌握', '兩個工具已達到 Level 3 的題目合計') +
+        statHTML(rank ? String(rank) : '—', '', '綜合名次', '按工具積分相加') +
+        statHTML(fmtInt(recent), '次', '近七日練習', '三個工具的作答合計') +
       '</div>' +
       '<div class="overview-grid">' +
         '<div class="overview-main">' +
@@ -678,6 +703,19 @@
   }
 
   /* ===== Ranking ===== */
+  function rankingRowsFor(tab) {
+    const rows = state.ranking.slice();
+    if (tab === 'overall') return rows;
+    return rows.sort(function (a, b) {
+      const at = a.tools && a.tools[tab] ? a.tools[tab] : {};
+      const bt = b.tools && b.tools[tab] ? b.tools[tab] : {};
+      const ar = at.rank ? Number(at.rank) : Infinity;
+      const br = bt.rank ? Number(bt.rank) : Infinity;
+      if (ar !== br) return ar - br;
+      return String(a.username).localeCompare(String(b.username));
+    });
+  }
+
   function rankRowHTML(row, index, tab) {
     const total = state.ranking.length;
     const isMe = String(row.userId) === String(state.user.id);
@@ -685,60 +723,71 @@
     const overall = tab === 'overall';
     const detail = row.tools && row.tools[tab] ? row.tools[tab] : {};
     const tool = toolById(tab);
-    const score = overall ? Number(row.combined) || 0 : Number(detail.score) || 0;
-    const max = overall ? 100 : Math.max.apply(null, [1].concat(state.ranking.map(function (item) {
+    const isMastery = tool && (tool.id === 'grammar' || tool.id === 'idiom');
+    const score = overall
+      ? Number(row.combined) || 0
+      : isMastery
+        ? Number(detail.mastered || detail.score) || 0
+        : Number(detail.score) || 0;
+    const max = Math.max.apply(null, [1].concat(state.ranking.map(function (item) {
       const itemDetail = item.tools && item.tools[tab] ? item.tools[tab] : {};
-      return Number(itemDetail.score) || 0;
+      if (overall) return Number(item.combined) || 0;
+      return isMastery ? Number(itemDetail.mastered || itemDetail.score) || 0 : Number(itemDetail.score) || 0;
     })));
-    const width = overall ? Math.min(100, score) : Math.min(100, (score / max) * 100);
-    const pct = overall ? score : Number(detail.percentile) || 0;
+    const width = Math.min(100, (score / max) * 100);
     const shizi = row.tools && row.tools.shizi ? row.tools.shizi : {};
     const grammar = row.tools && row.tools.grammar ? row.tools.grammar : {};
+    const idiom = row.tools && row.tools.idiom ? row.tools.idiom : {};
     const sub = overall
-      ? '識字樂 ' + fmtInt(shizi.charsKnown) + ' 字 · 文法 ' + fmtInt(grammar.mastered) + ' 題'
-      : tool && tool.id === 'grammar'
-        ? '掌握 ' + fmtInt(detail.mastered) + ' 題 · 正確率 ' + fmtPct(detail.accuracy) + '% · 練習 ' + fmtInt(detail.attempts) + ' 次'
-        : '已學 ' + fmtInt(detail.charsKnown) + ' 字 · 練習 ' + fmtInt(detail.attempts) + ' 次 · 平均 ' + avgTimeText(detail.avgTime);
-    const unit = overall ? '分' : tool && tool.id === 'grammar' ? '題' : '字';
+      ? '識字樂 ' + fmtInt(shizi.charsKnown) + ' 字 · 文法 ' + fmtInt(grammar.mastered) + ' 題 · 成語 ' + fmtInt(idiom.mastered) + ' 題'
+      : isMastery
+        ? '掌握 ' + fmtInt(detail.mastered || detail.score) + ' / ' + fmtInt(detail.totalQuestions) + ' 題（' + fmtPct(detail.masteryRate) + '%）· 做過 ' + fmtInt(detail.attempted) + ' 題 · 正確率 ' + fmtPct(detail.accuracy) + '% · 平均 ' + avgTimeText(detail.avgTime)
+        : '已學 ' + fmtInt(detail.charsKnown) + ' 字 · 正確率 ' + fmtPct(detail.accuracy) + '% · 平均 ' + avgTimeText(detail.avgTime) + ' · 練習 ' + fmtInt(detail.attempts) + ' 次';
+    const unit = overall ? '分' : isMastery ? '題' : '字';
+    const displayScore = fmtInt(score);
     return '<li class="rank-row' + (isTop ? ' is-top' : '') + (isMe ? ' is-me' : '') + '">' +
       '<span class="rank-no">' + (index + 1) + '</span>' +
       avatarHTML(row, 'md') +
       '<span class="rank-person">' +
         '<span class="rank-name">' + esc(row.nickname || row.username) + (isMe ? '<span class="you">你</span>' : '') + '</span>' +
-        '<span class="rank-sub">' + sub + ' · 百分位 ' + fmtPct(pct) + '</span>' +
+        '<span class="rank-sub">' + sub + '</span>' +
         '<span class="rank-bar"><span style="width:' + width + '%"></span></span>' +
       '</span>' +
-      '<span class="rank-score"><strong>' + (overall ? fmtPct(score) : fmtInt(score)) + '</strong><span>' + unit + '</span></span>' +
+      '<span class="rank-score"><strong>' + displayScore + '</strong><span>' + unit + '</span></span>' +
       '</li>';
   }
 
-  function weightsPanelHTML() {
-    const active = TOOLS.filter(function (tool) { return tool.active; });
-    const activeWeight = active.reduce(function (sum, tool) { return sum + (Number(tool.weight) || 0); }, 0) || 1;
+  function pointsPanelHTML() {
+    const mine = myRankingRow();
+    const total = Number(mine && mine.combined) || 0;
     const rows = TOOLS.map(function (tool) {
-      const pct = tool.active ? Math.round(((Number(tool.weight) || 0) / activeWeight) * 100) : Math.round((Number(tool.weight) || 0) * 100);
+      const detail = toolStats(tool.id) || {};
+      const mastery = tool.id === 'grammar' || tool.id === 'idiom';
+      const value = mastery ? Number(detail.mastered || detail.score) || 0 : Number(detail.charsKnown) || 0;
+      const pct = tool.active && total > 0 ? Math.min(100, Math.round((value / total) * 100)) : 0;
       return '<div class="weight-row' + (tool.active ? ' is-active' : ' is-muted') + '">' +
         '<span class="weight-name"><span class="weight-dot" style="background:' + (tool.active ? tool.accent : 'var(--line-strong)') + '"></span>' + esc(tool.short) + '</span>' +
         '<span class="weight-track"><span style="width:' + pct + '%;background:' + (tool.active ? tool.accent : 'var(--line-strong)') + '"></span></span>' +
-        '<span class="weight-val">' + (tool.active ? pct + '%' : '—') + '</span>' +
+        '<span class="weight-val">' + (tool.active ? fmtInt(value) + ' 分' : '—') + '</span>' +
         '</div>';
     }).join('');
     return '<section class="panel">' +
-      '<div class="panel-head"><h2 class="panel-title">換算權重</h2><span class="panel-meta">已接入 ' + active.length + ' / ' + TOOLS.length + '</span></div>' +
+      '<div class="panel-head"><h2 class="panel-title">積分來源</h2><span class="panel-meta">目前 ' + fmtInt(total) + ' 分</span></div>' +
       '<div class="weight-list">' + rows + '</div>' +
-      '<p class="panel-note">只有已接入工具參與綜合分；權重會按已接入工具的總和歸一化。目前識字樂與文法花園各佔 50%。</p>' +
+      '<p class="panel-note">識字樂每學 1 字 = 1 分；文法花園與成語天地每掌握 1 題 = 1 分。綜合積分直接相加。</p>' +
       '</section>';
   }
 
   function formulaPanelHTML() {
     return '<section class="panel">' +
-      '<div class="panel-head"><h2 class="panel-title">折算方式</h2></div>' +
+      '<div class="panel-head"><h2 class="panel-title">積分方式</h2></div>' +
       '<ol class="formula-list">' +
-        '<li>每個工具先按全體學習者計算百分位。</li>' +
-        '<li>百分位乘以該工具的權重。</li>' +
-        '<li>加總後除以已接入工具的權重總和。</li>' +
+        '<li>識字樂：每學 1 個字 = 1 分。</li>' +
+        '<li>文法花園：每掌握 1 道題 = 1 分。</li>' +
+        '<li>成語天地：每掌握 1 道題 = 1 分。</li>' +
+        '<li>綜合積分 = 各工具積分直接相加，不再換算百分位。</li>' +
       '</ol>' +
-      '<p class="panel-note">識字樂按已學字數計分，文法花園按已掌握題數計分；同分時各工具按自己的規則排序。工具自己的排行榜仍然保留。</p>' +
+      '<p class="panel-note">工具榜仍按各自規則排序：識字樂看字數 → 正確率 → 速度；文法花園看掌握率 → 做題量 → 正確率 → 速度；成語天地看掌握題數 → 做題量 → 正確率 → 速度。速度只影響工具內同分名次。</p>' +
       '</section>';
   }
 
@@ -749,7 +798,7 @@
       tab = 'overall';
       state.rankTab = tab;
     }
-    const rows = state.ranking.map(function (row, index) {
+    const rows = rankingRowsFor(tab).map(function (row, index) {
       return rankRowHTML(row, index, tab);
     }).join('');
     const tabs = [
@@ -761,17 +810,19 @@
     })).join('');
 
     const note = tab === 'overall'
-      ? '綜合分＝各工具百分位 × 權重後相加，再除以已接入工具的權重總和。'
+      ? '綜合積分＝識字樂已學字數＋文法已掌握題數＋成語已掌握題數，直接相加，不再換算百分位。'
       : tab === 'grammar'
-        ? '文法花園榜按已掌握題數排序；同分比較正確率與練習次數。'
-        : '識字樂榜按已學字數排序；它同時是綜合榜中識字樂的原始排名。';
+        ? '文法花園榜依次比較：題目掌握率 → 做題量 → 正確率 → 平均速度。'
+        : tab === 'idiom'
+          ? '成語天地榜依次比較：已掌握題數 → 做題量 → 正確率 → 平均速度。'
+          : '識字樂榜依次比較：已學字數 → 正確率 → 平均速度；它同時是綜合榜中識字樂的積分來源。';
 
     return '<section class="view">' +
       '<header class="page-head">' +
         '<div>' +
           '<p class="eyebrow">公用排名</p>' +
           '<h1 class="page-title">綜合排名</h1>' +
-          '<p class="page-sub">工具內先各自排名，再按權重折算成一個總分。識字樂與文法花園的原始排行榜都保留在工具裡。</p>' +
+          '<p class="page-sub">工具內先各自排名，綜合榜直接累加絕對積分。識字樂、文法花園與成語天地的原始排行榜都保留在工具裡。</p>' +
         '</div>' +
         '<div class="page-actions"><button class="btn btn-ghost" type="button" data-reload>' + icon('refresh', 16) + '更新數據</button></div>' +
       '</header>' +
@@ -780,10 +831,10 @@
           '<div class="tabs" role="tablist" aria-label="排名類型">' + tabs + '</div>' +
           (state.ranking.length
             ? '<ol class="rank-list">' + rows + '</ol>'
-            : emptyHTML('尚未有排名', '完成一局識字樂或文法花園，就會出現在這裡。')) +
+            : emptyHTML('尚未有排名', '完成一局識字樂、文法花園或成語天地，就會出現在這裡。')) +
           '<p class="panel-note">' + note + '</p>' +
         '</section>' +
-        '<aside class="ranking-rail">' + weightsPanelHTML() + formulaPanelHTML() + '</aside>' +
+        '<aside class="ranking-rail">' + pointsPanelHTML() + formulaPanelHTML() + '</aside>' +
       '</div>' +
       '</section>';
   }

@@ -1,11 +1,17 @@
 {
   "id": "idiom",
-  "name": "成語接龍",
+  "name": "成語天地",
   "short": "成語",
-  "entry": null,
+  "entry": "/tools/idiom/",
+  "apiBase": "/api/idiom",
+  "data": "data/shizi.json",
   "weight": 0.25,
-  "active": false,
+  "order": 3,
+  "active": true,
   "accent": "#a8452f",
   "icon": "spark",
-  "desc": "用成語接龍練習詞彙，接入後沿用同一份帳戶。"
+  "features": {
+    "optionInspection": true
+  },
+  "desc": "按場景練成語，從神態、心情到寫景，把表達詞彙一點一點累積起來。"
 }

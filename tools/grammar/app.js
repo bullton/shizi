@@ -8,6 +8,10 @@
     mode: 'child',
     childView: 'hall',
     parentTab: 'tasks',
+    taskFilter: 'active',
+    taskPage: 1,
+    expandedTaskId: null,
+    editingTaskId: null,
     selectedNode: '',
     users: [],
     selectedUsers: new Set(),
@@ -23,6 +27,7 @@
     wrongTaskId: null,
     wrongList: [],
     round: null,
+    questionShownAt: 0,
     answer: null,
     feedback: null,
     advancing: false,
@@ -154,15 +159,26 @@
 
   function toolRank(toolId) {
     if (!state.user || !Array.isArray(state.ranking)) return null;
+    const mine = myRankingRow();
+    const detail = mine && mine.tools ? mine.tools[toolId] : null;
+    if (detail && detail.rank) return detail.rank;
     const rows = state.ranking.slice().sort((a, b) => {
-      const at = a.tools && a.tools[toolId] ? Number(a.tools[toolId].score) || 0 : 0;
-      const bt = b.tools && b.tools[toolId] ? Number(b.tools[toolId].score) || 0 : 0;
-      return bt - at;
+      const at = a.tools && a.tools[toolId] ? a.tools[toolId] : {};
+      const bt = b.tools && b.tools[toolId] ? b.tools[toolId] : {};
+      if (toolId === 'grammar') {
+        return (Number(bt.masteryRate) || 0) - (Number(at.masteryRate) || 0) ||
+          (Number(bt.attempted) || 0) - (Number(at.attempted) || 0) ||
+          (Number(bt.accuracy) || 0) - (Number(at.accuracy) || 0) ||
+          (Number(at.avgTime) || Infinity) - (Number(bt.avgTime) || Infinity);
+      }
+      return (Number(bt.charsKnown) || 0) - (Number(at.charsKnown) || 0) ||
+        (Number(bt.accuracy) || 0) - (Number(at.accuracy) || 0) ||
+        (Number(at.avgTime) || Infinity) - (Number(bt.avgTime) || Infinity);
     });
     const index = rows.findIndex(row => String(row.userId) === String(state.user.id));
     if (index < 0) return null;
-    const detail = rows[index].tools && rows[index].tools[toolId];
-    if (!detail || Number(detail.score) <= 0) return null;
+    const fallback = rows[index].tools && rows[index].tools[toolId];
+    if (!fallback || Number(fallback.score) <= 0) return null;
     return index + 1;
   }
 
@@ -247,6 +263,7 @@
         return;
       }
       state.mode = 'parent';
+      syncRoundMode();
       els.childView.hidden = true;
       els.parentView.hidden = false;
       $$('[data-mode]').forEach(button => {
@@ -272,6 +289,7 @@
 
   function renderAll() {
     if (!state.user) return;
+    syncRoundMode();
     const admin = isAdmin();
     els.userChip.textContent = (state.user.nickname || state.user.username) + ' · @' + state.user.username;
     els.userChip.hidden = false;
@@ -290,7 +308,12 @@
     }
   }
 
+  function syncRoundMode() {
+    document.body.classList.toggle('is-round', state.mode === 'child' && state.childView === 'round');
+  }
+
   function renderChild() {
+    syncRoundMode();
     els.hall.hidden = state.childView !== 'hall';
     els.roundView.hidden = state.childView !== 'round';
     els.summaryView.hidden = state.childView !== 'summary';
@@ -304,16 +327,37 @@
     if ((task.target_nodes || []).length > 3) nodes.push('<span class="node-chip">+' + ((task.target_nodes || []).length - 3) + '</span>');
     if (!nodes.length && (task.question_ids || []).length) nodes.push('<span class="node-chip">指定題目</span>');
     const done = task.total > 0 && task.mastered >= task.total;
+    const answerCount = Number(task.answerCount || 0);
+    const total = Number(task.total || 0);
+    const mastered = Number(task.mastered || 0);
+    const unmastered = Math.max(0, total - mastered);
+    const todayAttempted = Number(task.todayAttempted || 0);
+    const todayDone = !!task.todayDone;
+    const todayStatus = todayDone ? '今天已練過' : (todayAttempted > 0 ? '今天沒練完' : '今天未練');
+    const todayClass = todayDone ? 'is-done' : (todayAttempted > 0 ? 'is-partial' : 'is-empty');
+    const masteryPercent = Math.max(0, Math.min(100, Number(task.progress || 0)));
     return '<article class="task-card' + (done ? ' is-done' : '') + '">' +
       '<div class="task-card-top">' +
         '<div><h3>' + esc(task.task_name) + '</h3><div class="task-nodes">' + nodes.join('') + '</div></div>' +
         '<span class="task-badge' + (done ? ' is-done' : '') + '">' + (done ? '已掌握' : '進行中') + '</span>' +
       '</div>' +
+      '<div class="task-stats">' +
+        '<div class="task-stat"><span class="task-stat-label">練習次數</span><strong>' + answerCount + '<small>次</small></strong></div>' +
+        '<div class="task-stat"><span class="task-stat-label">錯誤率</span><strong>' + (answerCount ? pctText(task.errorRate) : '—') + '</strong></div>' +
+        '<div class="task-stat"><span class="task-stat-label">已掌握</span><strong>' + mastered + '<small>/ ' + total + ' 題</small></strong></div>' +
+        '<div class="task-stat"><span class="task-stat-label">掌握率</span><strong>' + pctText(masteryPercent) + '</strong></div>' +
+      '</div>' +
+      '<div class="task-mastery-bar" aria-hidden="true"><span style="width:' + masteryPercent + '%"></span></div>' +
+      '<div class="task-today">' +
+        '<span class="task-today-label">今天進度</span>' +
+        '<strong>' + todayAttempted + ' / ' + total + ' 題</strong>' +
+        '<span class="task-today-status ' + todayClass + '">' + todayStatus + '</span>' +
+        '<span class="task-unmastered' + (unmastered ? '' : ' is-clear') + '">未掌握 ' + unmastered + ' 題</span>' +
+      '</div>' +
       '<div class="task-card-foot">' +
-        '<span class="progress-ring" title="掌握進度" style="--p:' + Number(task.progress || 0) + '"><strong>' + Math.round(Number(task.progress || 0)) + '%</strong></span>' +
-        '<span class="task-meta"><strong>掌握 ' + task.mastered + ' / ' + task.total + ' 題</strong><span>已練 ' + Number(task.attempted || 0) + ' / ' + task.total + ' · ' +
-          (Number(task.batch_size || 0) < Number(task.total || 0) ? '每輪 ' + task.batch_size + ' 題 · ' : '') +
-          '跨天連對 ' + Number(task.pass_streak || 3) + ' 次算掌握</span></span>' +
+        '<span class="task-meta">已練 ' + Number(task.attempted || 0) + ' / ' + total + ' 題 · ' +
+          (Number(task.batch_size || 0) < total ? '每輪 ' + task.batch_size + ' 題 · ' : '') +
+          '跨天連對 ' + Number(task.pass_streak || 3) + ' 次算掌握</span>' +
         '<button type="button" class="btn btn-primary btn-sm" data-start-task="' + esc(task.task_id) + '">開始</button>' +
       '</div>' +
       '</article>';
@@ -409,6 +453,7 @@
     try {
       const round = await api('/tasks/' + encodeURIComponent(taskId) + '/start', { method: 'POST' });
       state.round = round;
+      state.questionShownAt = performance.now();
       state.answer = null;
       state.feedback = null;
       state.childView = 'round';
@@ -423,16 +468,18 @@
     if (!state.round || state.answer) return;
     try {
       $$('[data-option]').forEach(button => { button.disabled = true; });
+      const responseTime = state.questionShownAt
+        ? Math.max(0, Math.round(performance.now() - state.questionShownAt))
+        : 0;
       const feedback = await api('/rounds/' + encodeURIComponent(state.round.roundId) + '/answer', {
         method: 'POST',
-        body: { optionId }
+        body: { optionId, responseTime }
       });
       state.answer = { optionId, feedback };
       if (feedback.total) state.round.total = feedback.total;
       state.round.combo = feedback.combo;
       renderRound();
       playTone(feedback.correct);
-      els.feedback.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     } catch (error) {
       toast(error.message);
       $$('[data-option]').forEach(button => { button.disabled = false; });
@@ -454,6 +501,7 @@
         refreshData().catch(error => toast(error.message));
       } else {
         state.round = next;
+        state.questionShownAt = performance.now();
         renderRound();
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }
@@ -543,7 +591,7 @@
 
     return '<section class="panel-section">' +
       '<h2>建立新任務</h2>' +
-      '<p>只有管理員可以建立任務。勾選語法點後，系統會從中抽出指定題數，建立後題目固定；也可以展開進階選項直接指定題目。</p>' +
+      '<p>只有管理員可以建立任務。系統會按每個孩子現有的進行中任務與熟練度抽題；建立後題目固定，也可以展開進階選項直接指定題目。</p>' +
       '<form id="task-form">' +
         '<div class="form-grid">' +
           '<label class="field field-full"><span class="field-label">任務名稱</span><input class="input" name="task_name" maxlength="40" required placeholder="例如：三單動詞專項突破"></label>' +
@@ -555,64 +603,227 @@
             '<p class="assign-hint">指定題目會全部納入任務；若多於任務題數，任務會以指定題目數為準。</p>' +
             '<div class="node-picker" style="margin-top:8px">' + (pinned || '<p class="muted">題庫載入中…</p>') + '</div></details>' +
         '</div>' +
-        '<p class="assign-hint">任務題數建立後固定，之後新增題目不影響這個任務；所選題目不足時以實際題數建立；掌握需跨天連續答對指定次數。</p>' +
+        '<p class="assign-hint">進行中或一週內已掌握的題目會自動跳過，所以多人任務每人題目可能不同、題數也可能較少；任務題數建立後固定，掌握需跨天連續答對指定次數。</p>' +
         '<button type="submit" class="btn btn-primary">建立任務</button>' +
       '</form>' +
       '</section>';
   }
 
-  function taskAdminHTML(items) {
-    const first = items[0];
-    const nodes = (first.target_nodes || []).map(id => nodeName(id)).join('、');
-    const allScope = first.scope === 'all';
-    const own = items.find(task => String(task.userId) === String(state.user.id));
-    const rows = items.map(task => {
+  function pctText(value) {
+    const number = Number(value);
+    return (Number.isFinite(number) ? Math.round(number * 10) / 10 : 0) + '%';
+  }
+
+  function durationText(value) {
+    const number = Number(value);
+    if (!number || number < 0) return '—';
+    return (number / 1000).toFixed(1) + ' 秒';
+  }
+
+  function taskAnswerSummary(items) {
+    let answerCount = 0;
+    let correctCount = 0;
+    let timedCount = 0;
+    let timeSum = 0;
+    let lastPracticed = null;
+    items.forEach(task => {
+      const count = Number(task.answerCount) || 0;
+      answerCount += count;
+      correctCount += Number(task.correctCount) || 0;
+      const timed = Number(task.timedCount) || 0;
+      if (timed) {
+        timedCount += timed;
+        timeSum += (Number(task.avgTime) || 0) * timed;
+      }
+      if (task.lastPracticed && (!lastPracticed || String(task.lastPracticed) > String(lastPracticed))) {
+        lastPracticed = task.lastPracticed;
+      }
+    });
+    return {
+      answerCount,
+      accuracy: answerCount ? (correctCount / answerCount) * 100 : 0,
+      avgTime: timedCount ? timeSum / timedCount : 0,
+      lastPracticed
+    };
+  }
+
+  function taskAnswerStatsHTML(items) {
+    const summary = taskAnswerSummary(items);
+    if (!summary.answerCount) {
+      return '<div class="task-admin-stats is-empty"><span><strong>0</strong> 次作答</span><span><strong>—</strong> 尚無答題紀錄</span></div>';
+    }
+    return '<div class="task-admin-stats">' +
+      '<span><strong>' + summary.answerCount + '</strong> 次作答</span>' +
+      '<span><strong>' + pctText(summary.accuracy) + '</strong> 總正確率</span>' +
+      '<span><strong>' + durationText(summary.avgTime) + '</strong> 平均用時</span>' +
+      '<span><strong>' + esc(formatStatDate(summary.lastPracticed)) + '</strong> 最近練習</span>' +
+      '</div>';
+  }
+
+  function taskEditFormHTML(task) {
+    return '<form class="task-edit-form" data-task-edit-form data-task-id="' + esc(task.task_id) + '">' +
+      '<label class="field"><span class="field-label">任務名稱</span><input class="input" name="task_name" maxlength="40" required value="' + esc(task.task_name) + '"></label>' +
+      '<label class="field"><span class="field-label">每輪題數</span><input class="input" type="number" name="batch_size" min="1" max="30" value="' + Number(task.batch_size || 1) + '"></label>' +
+      '<label class="field"><span class="field-label">跨天連對</span><input class="input" type="number" name="pass_streak" min="2" max="6" value="' + Number(task.pass_streak || 3) + '"></label>' +
+      '<div class="task-edit-actions">' +
+        '<button type="button" class="btn btn-ghost btn-sm" data-cancel-task-edit>取消</button>' +
+        '<button type="submit" class="btn btn-primary btn-sm">儲存</button>' +
+      '</div>' +
+      '</form>';
+  }
+
+  function taskStudentRowsHTML(items) {
+    return items.map(task => {
       const wrongOpen = String(state.wrongTaskId) === String(task.task_id);
       const wrong = wrongOpen
-        ? '<div class="wrong-list"><p><strong>頑固錯題</strong></p>' +
+        ? '<div class="wrong-list"><p><strong>本任務錯題</strong></p>' +
           (state.wrongList.length
             ? state.wrongList.slice(0, 6).map(item => '<p><strong>' + esc(item.stem) + '</strong> 錯 ' + item.total_wrong + ' 次</p>').join('')
             : '<p>這個任務還沒有錯題紀錄。</p>') +
           '</div>'
         : '';
+      const answers = Number(task.answerCount)
+        ? '本任務作答 ' + task.answerCount + ' 次 · 正確率 ' + pctText(task.answerAccuracy) + ' · 平均 ' + durationText(task.avgTime)
+        : '本任務尚未作答';
       return '<div class="assignee-row">' +
           '<span class="assignee-name">' + (task.role === 'admin' ? '👑 ' : '👦 ') + esc(task.username || '') + '</span>' +
-          '<span class="assignee-score">掌握 ' + task.mastered + ' / ' + task.total + ' · 已練 ' + Number(task.attempted || 0) + ' / ' + task.total + '</span>' +
-          '<span class="assignee-progress"><span class="progress-track"><span style="width:' + Number(task.progress || 0) + '%"></span></span></span>' +
+          '<span class="assignee-score" title="最近練習：' + esc(formatStatDate(task.lastPracticed)) + '"><strong>本任務掌握 ' + task.mastered + ' / ' + task.total + '</strong><span>' + answers + '</span></span>' +
+          '<span class="assignee-progress" title="本任務掌握進度"><span class="progress-track"><span style="width:' + Number(task.progress || 0) + '%"></span></span></span>' +
           '<button type="button" class="btn btn-ghost btn-sm" data-wrong-task="' + esc(task.task_id) + '">錯題 ' + Number(task.wrong || 0) + '</button>' +
         '</div>' + wrong;
     }).join('');
+  }
 
-    return '<article class="task-admin">' +
-      '<div>' +
-        '<h3>' + esc(first.task_name) +
-          (allScope ? '<span class="assign-scope">🌐 所有用戶</span>' : '') +
-        '</h3>' +
-        '<div class="task-admin-meta"><span>' + esc(nodes || '指定題目') + '</span><span>任務 ' + Number((first.question_ids || []).length) + ' 題</span>' +
-          (Number(first.batch_size || 0) < Number((first.question_ids || []).length) ? '<span>每輪 ' + first.batch_size + ' 題</span>' : '') +
+  function taskGroupSize(items) {
+    const sizes = items.map(task => Number((task.question_ids || []).length) || 0);
+    const batches = items.map(task => Number(task.batch_size) || 0);
+    const min = Math.min(...sizes);
+    const max = Math.max(...sizes);
+    const minBatch = Math.min(...batches);
+    const maxBatch = Math.max(...batches);
+    return {
+      min,
+      max,
+      minBatch,
+      maxBatch,
+      text: min === max ? min + ' 題' : min + '–' + max + ' 題',
+      different: min !== max
+    };
+  }
+
+  function taskDetailHTML(items) {
+    const first = items[0];
+    const groupKey = String(first.groupId || first.task_id);
+    const editing = String(state.editingTaskId || '') === groupKey;
+    const nodes = (first.target_nodes || []).map(id => nodeName(id)).join('、');
+    const archived = !!first.is_archived;
+    const own = items.find(task => String(task.userId) === String(state.user.id));
+    const size = taskGroupSize(items);
+    return '<div class="task-detail">' +
+      '<div class="task-detail-head">' +
+        '<div class="task-admin-meta"><span>' + esc(nodes || '指定題目') + '</span><span>' + (size.different ? '每人 ' : '任務 ') + size.text + '</span>' +
+          (size.minBatch < size.max ? '<span>每輪 ' + (size.minBatch === size.maxBatch ? size.minBatch + ' 題' : size.minBatch + '–' + size.maxBatch + ' 題') + '</span>' : '') +
           '<span>跨天連對 ' + Number(first.pass_streak || 3) + ' 次</span><span>👥 ' + items.length + ' 個帳戶</span></div>' +
-        '<div class="assignee-list">' + rows + '</div>' +
+        '<div class="task-detail-actions">' +
+          (own && !archived ? '<button type="button" class="btn btn-primary btn-sm" data-start-task="' + esc(own.task_id) + '">開始</button>' : '') +
+        '</div>' +
       '</div>' +
-      '<div class="task-admin-actions">' +
-        (own ? '<button type="button" class="btn btn-primary btn-sm" data-start-task="' + esc(own.task_id) + '">開始</button>' : '') +
-        '<button type="button" class="btn btn-danger btn-sm" data-archive-task="' + esc(first.task_id) + '">歸檔</button>' +
-      '</div>' +
-      '</article>';
+      taskAnswerStatsHTML(items) +
+      (editing ? taskEditFormHTML(first) : '') +
+      '<div class="assignee-list">' + taskStudentRowsHTML(items) + '</div>' +
+      '</div>';
+  }
+
+  function taskRowHTML(items) {
+    const first = items[0];
+    const groupKey = String(first.groupId || first.task_id);
+    const expanded = String(state.expandedTaskId || '') === groupKey;
+    const editing = String(state.editingTaskId || '') === groupKey;
+    const archived = !!first.is_archived;
+    const summary = taskAnswerSummary(items);
+    const nodes = (first.target_nodes || []).map(id => nodeName(id));
+    const nodeText = nodes.slice(0, 2).join('、') + (nodes.length > 2 ? ' +' + (nodes.length - 2) : '');
+    const size = taskGroupSize(items);
+    const actionButtons =
+      '<div class="task-row-actions">' +
+        '<button type="button" class="btn btn-ghost btn-sm" data-expand-task="' + esc(groupKey) + '">' + (expanded ? '收起' : '查看') + '</button>' +
+        '<button type="button" class="btn btn-soft btn-sm" data-edit-task="' + esc(first.task_id) + '">' + (editing ? '取消' : '編輯') + '</button>' +
+        (archived
+          ? '<button type="button" class="btn btn-primary btn-sm" data-restore-task="' + esc(first.task_id) + '">恢復</button>'
+          : '<button type="button" class="btn btn-ghost btn-sm" data-archive-task="' + esc(first.task_id) + '">歸檔</button>') +
+        '<button type="button" class="btn btn-danger btn-sm" data-delete-task="' + esc(first.task_id) + '">刪除</button>' +
+      '</div>';
+    return '<tr class="task-row' + (archived ? ' is-archived' : '') + (expanded ? ' is-open' : '') + '">' +
+        '<td class="task-cell-name"><strong>' + esc(first.task_name) + '</strong><small>' + esc(nodeText || '指定題目') + '</small></td>' +
+        '<td>' + size.text + (size.different ? '<small>每人不同</small>' : (size.minBatch < size.min ? '<small>每輪 ' + size.minBatch + ' 題</small>' : '')) + '</td>' +
+        '<td>' + items.length + ' 人</td>' +
+        '<td>' + (summary.answerCount ? summary.answerCount + ' 次' : '—') + '</td>' +
+        '<td>' + (summary.answerCount ? pctText(summary.accuracy) : '—') + '</td>' +
+        '<td>' + (summary.answerCount ? esc(formatStatDate(summary.lastPracticed)) : '—') + '</td>' +
+        '<td><span class="task-status' + (archived ? ' is-archived' : '') + '">' + (archived ? '已歸檔' : '進行中') + '</span></td>' +
+        '<td>' + actionButtons + '</td>' +
+      '</tr>' +
+      (expanded ? '<tr class="task-detail-row"><td colspan="8">' + taskDetailHTML(items) + '</td></tr>' : '');
   }
 
   function renderParentTasks() {
     if (!state.overview) return;
+    const allTasks = state.adminTasks || [];
+    const groupKey = task => String(task.groupId || task.task_id);
+    const countGroups = filter => new Set(allTasks.filter(filter).map(groupKey)).size;
+    const activeCount = countGroups(task => !task.is_archived);
+    const archivedCount = countGroups(task => !!task.is_archived);
+    const visible = allTasks.filter(task => {
+      if (state.taskFilter === 'archived') return !!task.is_archived;
+      if (state.taskFilter === 'all') return true;
+      return !task.is_archived;
+    });
     const groups = new Map();
-    (state.adminTasks || []).forEach(task => {
-      const key = task.groupId || task.task_id;
+    visible.forEach(task => {
+      const key = groupKey(task);
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key).push(task);
     });
-    const cards = [...groups.values()].map(taskAdminHTML).join('');
-    els.parentTasks.innerHTML = taskFormHTML() +
-      '<section class="panel-section"><h2>任務看板</h2><p>指派後每個小孩有獨立進度；不選小孩時會建立給所有用戶。</p><div class="task-admin-list">' +
-      (cards || '<div class="empty-state"><h3>還沒有任務</h3><p>先在上方建立一個任務。</p></div>') +
-      '</div></section>';
+    const groupList = [...groups.values()];
+    const pageSize = 10;
+    const pageCount = Math.max(1, Math.ceil(groupList.length / pageSize));
+    const page = Math.min(Math.max(1, Number(state.taskPage) || 1), pageCount);
+    state.taskPage = page;
+    const pageGroups = groupList.slice((page - 1) * pageSize, page * pageSize);
+    const rows = pageGroups.map(taskRowHTML).join('');
+    const filters = [
+      ['active', '進行中', activeCount],
+      ['archived', '已歸檔', archivedCount],
+      ['all', '全部', activeCount + archivedCount]
+    ].map(([key, label, count]) =>
+      '<button type="button" class="filter-chip' + (state.taskFilter === key ? ' is-active' : '') + '" data-task-filter="' + key + '">' +
+        label + ' <span>' + count + '</span>' +
+      '</button>'
+    ).join('');
+    const emptyText = state.taskFilter === 'archived'
+      ? '還沒有歸檔任務。'
+      : (state.taskFilter === 'all' ? '還沒有任務。' : '目前沒有進行中的任務，可切換到「已歸檔」查看舊任務。');
+    const table = groupList.length
+      ? '<div class="task-table-wrap"><table class="task-table">' +
+          '<thead><tr><th>任務</th><th>題量</th><th>對象</th><th>作答</th><th>正確率</th><th>最近練習</th><th>狀態</th><th>操作</th></tr></thead>' +
+          '<tbody>' + rows + '</tbody></table></div>'
+      : '<div class="empty-state"><h3>沒有符合的任務</h3><p>' + emptyText + '</p></div>';
+    const pager = groupList.length
+      ? '<div class="task-pager"><span>第 ' + page + ' / ' + pageCount + ' 頁 · 共 ' + groupList.length + ' 個任務</span>' +
+          (pageCount > 1
+            ? '<div class="task-pager-actions">' +
+                '<button type="button" class="btn btn-ghost btn-sm" data-task-page="prev"' + (page <= 1 ? ' disabled' : '') + '>上一頁</button>' +
+                '<button type="button" class="btn btn-ghost btn-sm" data-task-page="next"' + (page >= pageCount ? ' disabled' : '') + '>下一頁</button>' +
+              '</div>'
+            : '') +
+        '</div>'
+      : '';
+    els.parentTasks.innerHTML =
+      '<section class="panel-section">' +
+        '<div class="task-board-head"><div><h2>任務看板</h2><p>表格只顯示任務摘要；點「查看」才展開每個孩子的作答明細。<br>作答次數與正確率只統計本任務；掌握度按任務獨立計算；新任務會避開進行中及一週內已掌握題目。</p></div><div class="task-filter">' + filters + '</div></div>' +
+        table + pager +
+      '</section>' +
+      taskFormHTML();
   }
 
   function questionRowHTML(question) {
@@ -893,7 +1104,7 @@
   function renderParent() {
     if (!state.overview) return;
     const stats = state.overview.stats || { mastered: 0, totalAttempts: 0, accuracy: 0 };
-    const tasks = state.adminTasks || [];
+    const tasks = (state.adminTasks || []).filter(task => !task.is_archived);
     const taskGroups = new Set(tasks.map(task => task.groupId || task.task_id));
     const wrongTotal = tasks.reduce((sum, task) => sum + (task.wrong || 0), 0);
     els.parentStats.innerHTML = [
@@ -940,10 +1151,21 @@
       });
       let message = '已建立任務';
       if (result && result.created) message += '（' + result.created + ' 個帳戶）';
-      if (result && result.total) message += ' · ' + result.total + ' 題';
-      if (result && result.requested > result.total) message += '（所選題目不足 ' + result.requested + ' 題）';
+      if (result && result.minTotal !== undefined) {
+        message += result.minTotal === result.maxTotal
+          ? ' · 每人 ' + result.minTotal + ' 題'
+          : ' · 每人 ' + result.minTotal + '–' + result.maxTotal + ' 題';
+      }
+      if (result && result.skipped && result.skipped.length) {
+        const names = result.skipped.map(item => item.nickname || item.username).filter(Boolean).slice(0, 3).join('、');
+        message += '；' + result.skipped.length + ' 人沒有可用題目' + (names ? '（' + names + (result.skipped.length > 3 ? ' 等' : '') + '）' : '');
+      }
       toast(message);
       state.selectedUsers.clear();
+      state.taskFilter = 'active';
+      state.taskPage = 1;
+      state.expandedTaskId = null;
+      state.editingTaskId = null;
       await refreshData();
       state.parentTab = 'tasks';
       renderParent();
@@ -1078,11 +1300,104 @@
   }
 
   async function archiveTask(taskId) {
-    if (!window.confirm('確定把這個任務歸檔嗎？已完成的熟練度會保留。')) return;
+    if (!window.confirm('確定把這個任務歸檔嗎？已完成的熟練度會保留，也會從小孩的任務大廳移除。')) return;
     try {
       await api('/tasks/' + encodeURIComponent(taskId), { method: 'PUT', body: { is_archived: true } });
       state.wrongTaskId = null;
-      toast('已歸檔任務');
+      state.expandedTaskId = null;
+      state.editingTaskId = null;
+      toast('已歸檔任務，可在「已歸檔」中恢復');
+      await refreshData();
+    } catch (error) {
+      toast(error.message);
+    }
+  }
+
+  async function restoreTask(taskId) {
+    try {
+      await api('/tasks/' + encodeURIComponent(taskId), { method: 'PUT', body: { is_archived: false } });
+      state.taskFilter = 'active';
+      state.taskPage = 1;
+      state.expandedTaskId = null;
+      state.editingTaskId = null;
+      toast('已恢復任務');
+      await refreshData();
+    } catch (error) {
+      toast(error.message);
+    }
+  }
+
+  async function deleteTask(taskId) {
+    const task = (state.adminTasks || []).find(item => String(item.task_id) === String(taskId));
+    if (!task) return;
+    const key = String(task.groupId || task.task_id);
+    const items = (state.adminTasks || []).filter(item => String(item.groupId || item.task_id) === key);
+    const message = '確定永久刪除任務「' + task.task_name + '」？\n\n' +
+      '會刪除 ' + items.length + ' 個孩子的任務，並清空這些題目的本任務熟練度、全域掌握和作答記錄。\n' +
+      '排行榜及使用同一題的其他任務也會受影響，且無法恢復。';
+    if (!window.confirm(message)) return;
+    try {
+      await api('/tasks/' + encodeURIComponent(taskId), { method: 'DELETE' });
+      state.wrongTaskId = null;
+      state.expandedTaskId = null;
+      state.editingTaskId = null;
+      toast('已刪除任務及相關進度');
+      await refreshData();
+    } catch (error) {
+      toast(error.message);
+    }
+  }
+
+  function toggleTaskDetail(groupKey) {
+    const key = String(groupKey || '');
+    if (String(state.expandedTaskId || '') === key) {
+      state.expandedTaskId = null;
+      state.editingTaskId = null;
+      state.wrongTaskId = null;
+    } else {
+      state.expandedTaskId = key;
+    }
+    renderParentTasks();
+  }
+
+  function editTask(taskId) {
+    const task = (state.adminTasks || []).find(item => String(item.task_id) === String(taskId));
+    if (!task) return;
+    const key = String(task.groupId || task.task_id);
+    if (String(state.editingTaskId || '') === key) {
+      state.editingTaskId = null;
+    } else {
+      state.editingTaskId = key;
+      state.expandedTaskId = key;
+    }
+    renderParentTasks();
+    if (state.editingTaskId) {
+      const form = $('[data-task-edit-form]');
+      if (form) {
+        form.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        const input = form.querySelector('[name="task_name"]');
+        if (input) input.focus();
+      }
+    }
+  }
+
+  async function saveTaskEdit(form) {
+    const taskId = form.getAttribute('data-task-id');
+    const name = form.querySelector('[name="task_name"]').value.trim();
+    if (!name) return toast('請填寫任務名稱');
+    const batchSize = parseInt(form.querySelector('[name="batch_size"]').value, 10);
+    const passStreak = parseInt(form.querySelector('[name="pass_streak"]').value, 10);
+    try {
+      await api('/tasks/' + encodeURIComponent(taskId), {
+        method: 'PUT',
+        body: {
+          task_name: name,
+          batch_size: batchSize,
+          pass_streak: passStreak
+        }
+      });
+      state.editingTaskId = null;
+      toast('已更新任務');
       await refreshData();
     } catch (error) {
       toast(error.message);
@@ -1254,6 +1569,47 @@
       return;
     }
 
+    const filter = event.target.closest('[data-task-filter]');
+    if (filter) {
+      state.taskFilter = filter.getAttribute('data-task-filter');
+      state.taskPage = 1;
+      state.expandedTaskId = null;
+      state.editingTaskId = null;
+      state.wrongTaskId = null;
+      renderParentTasks();
+      return;
+    }
+
+    const taskPage = event.target.closest('[data-task-page]');
+    if (taskPage) {
+      state.taskPage = Math.max(1, (Number(state.taskPage) || 1) + (taskPage.getAttribute('data-task-page') === 'next' ? 1 : -1));
+      state.expandedTaskId = null;
+      state.editingTaskId = null;
+      state.wrongTaskId = null;
+      renderParentTasks();
+      const head = $('.task-board-head');
+      if (head) head.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return;
+    }
+
+    const expandTaskButton = event.target.closest('[data-expand-task]');
+    if (expandTaskButton) {
+      toggleTaskDetail(expandTaskButton.getAttribute('data-expand-task'));
+      return;
+    }
+
+    const editTaskButton = event.target.closest('[data-edit-task]');
+    if (editTaskButton) {
+      editTask(editTaskButton.getAttribute('data-edit-task'));
+      return;
+    }
+
+    if (event.target.closest('[data-cancel-task-edit]')) {
+      state.editingTaskId = null;
+      renderParentTasks();
+      return;
+    }
+
     const wrong = event.target.closest('[data-wrong-task]');
     if (wrong) {
       showWrong(wrong.getAttribute('data-wrong-task'));
@@ -1263,6 +1619,18 @@
     const archive = event.target.closest('[data-archive-task]');
     if (archive) {
       archiveTask(archive.getAttribute('data-archive-task'));
+      return;
+    }
+
+    const restore = event.target.closest('[data-restore-task]');
+    if (restore) {
+      restoreTask(restore.getAttribute('data-restore-task'));
+      return;
+    }
+
+    const deleteTaskButton = event.target.closest('[data-delete-task]');
+    if (deleteTaskButton) {
+      deleteTask(deleteTaskButton.getAttribute('data-delete-task'));
       return;
     }
 
@@ -1325,6 +1693,11 @@
     if (event.target.id === 'task-form') {
       event.preventDefault();
       createTask(event.target);
+      return;
+    }
+    if (event.target.matches('[data-task-edit-form]')) {
+      event.preventDefault();
+      saveTaskEdit(event.target);
       return;
     }
     if (event.target.id === 'question-form') {

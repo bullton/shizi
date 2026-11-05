@@ -39,6 +39,7 @@ function readTools(rootDir) {
         available,
         accent: manifest.accent || '#5546b8',
         icon: manifest.icon || 'grid',
+        features: manifest.features && typeof manifest.features === 'object' ? manifest.features : {},
         desc: manifest.desc || ''
       });
     } catch (error) {

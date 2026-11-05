@@ -1,30 +1,117 @@
-function toolComparator(tool) {
-  if (tool.id === 'shizi') {
-    return (a, b) => b.score - a.score || (a.avgTime || 0) - (b.avgTime || 0);
-  }
-  return (a, b) => b.score - a.score || (b.accuracy || 0) - (a.accuracy || 0) || (b.attempts || 0) - (a.attempts || 0);
+function number(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function percentileMap(rows, tool) {
-  const map = new Map();
-  const positive = rows
-    .filter(row => Number(row.score) > 0)
-    .sort(toolComparator(tool));
-  const total = positive.length;
-  let index = 0;
-  while (index < total) {
-    let end = index;
-    while (end + 1 < total && Number(positive[end + 1].score) === Number(positive[index].score)) {
-      end += 1;
-    }
-    const averageRank = (index + end) / 2;
-    const percentile = ((total - averageRank) / total) * 100;
-    for (let cursor = index; cursor <= end; cursor += 1) {
-      map.set(String(positive[cursor].userId), Math.round(percentile * 10) / 10);
-    }
-    index = end + 1;
+function speed(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : Infinity;
+}
+
+function text(value) {
+  return String(value == null ? '' : value);
+}
+
+function makeComparator(toolId) {
+  if (toolId === 'shizi') {
+    return (a, b) =>
+      number(b.charsKnown) - number(a.charsKnown) ||
+      number(b.accuracy) - number(a.accuracy) ||
+      speed(a.avgTime) - speed(b.avgTime) ||
+      number(b.attempts) - number(a.attempts) ||
+      text(a.username).localeCompare(text(b.username));
   }
-  return map;
+  if (toolId === 'grammar') {
+    return (a, b) =>
+      number(b.masteryRate) - number(a.masteryRate) ||
+      number(b.attempted) - number(a.attempted) ||
+      number(b.accuracy) - number(a.accuracy) ||
+      speed(a.avgTime) - speed(b.avgTime) ||
+      number(b.attempts) - number(a.attempts) ||
+      text(a.username).localeCompare(text(b.username));
+  }
+  if (toolId === 'idiom') {
+    return (a, b) =>
+      number(b.score) - number(a.score) ||
+      number(b.attempted) - number(a.attempted) ||
+      number(b.accuracy) - number(a.accuracy) ||
+      speed(a.avgTime) - speed(b.avgTime) ||
+      number(b.attempts) - number(a.attempts) ||
+      text(a.username).localeCompare(text(b.username));
+  }
+  return (a, b) =>
+    number(b.score) - number(a.score) ||
+    number(b.accuracy) - number(a.accuracy) ||
+    number(b.attempts) - number(a.attempts) ||
+    text(a.username).localeCompare(text(b.username));
+}
+
+function defaultRow(toolId, userId) {
+  if (toolId === 'shizi') {
+    return {
+      userId,
+      score: 0,
+      charsKnown: 0,
+      attempts: 0,
+      accuracy: 0,
+      avgTime: 0
+    };
+  }
+  if (toolId === 'grammar') {
+    return {
+      userId,
+      score: 0,
+      masteryRate: 0,
+      mastered: 0,
+      totalQuestions: 0,
+      attempted: 0,
+      attempts: 0,
+      accuracy: 0,
+      avgTime: 0
+    };
+  }
+  if (toolId === 'idiom') {
+    return {
+      userId,
+      score: 0,
+      masteryRate: 0,
+      mastered: 0,
+      totalQuestions: 0,
+      attempted: 0,
+      attempts: 0,
+      accuracy: 0,
+      avgTime: 0
+    };
+  }
+  return { userId, score: 0, accuracy: 0, attempts: 0 };
+}
+
+function hasActivity(toolId, row) {
+  if (toolId === 'shizi') {
+    return number(row.charsKnown) > 0 || number(row.attempts) > 0;
+  }
+  if (toolId === 'grammar') {
+    return number(row.attempted) > 0 || number(row.attempts) > 0;
+  }
+  if (toolId === 'idiom') {
+    return number(row.score) > 0 || number(row.attempted) > 0 || number(row.attempts) > 0;
+  }
+  return number(row.score) > 0;
+}
+
+function rankRows(toolId, rows) {
+  const comparator = makeComparator(toolId);
+  const ranked = rows
+    .filter(row => hasActivity(toolId, row))
+    .sort(comparator);
+  const total = ranked.length;
+  ranked.forEach((row, index) => {
+    row.rank = index + 1;
+  });
+  rows.forEach(row => {
+    if (!row.rank) row.rank = null;
+  });
+  return rows;
 }
 
 function buildRanking({ db, tools, modules }) {
@@ -33,52 +120,68 @@ function buildRanking({ db, tools, modules }) {
     const module = modules.get(tool.id);
     return module && typeof module.stats === 'function';
   });
-  const weightSum = active.reduce((sum, tool) => sum + (Number(tool.weight) || 0), 0) || 1;
-
   const perTool = new Map();
   active.forEach(tool => {
     const rows = modules.get(tool.id).stats() || [];
     const byUser = new Map(rows.map(row => [String(row.userId), row]));
-    const normalized = (db.users || []).map(user => {
-      const row = byUser.get(String(user.id)) || { userId: user.id, score: 0 };
+    const normalized = rankRows(tool.id, (db.users || []).map(user => {
+      const row = byUser.get(String(user.id)) || {};
       return {
+        ...defaultRow(tool.id, user.id),
         ...row,
         userId: user.id,
-        score: Number(row.score) || 0
+        username: user.username,
+        nickname: user.nickname || user.username,
+        avatar: user.avatar || null,
+        score: number(row.score)
       };
-    });
+    }));
     perTool.set(tool.id, {
       tool,
-      rows: new Map(normalized.map(row => [String(row.userId), row])),
-      percentiles: percentileMap(normalized, tool)
+      rows: new Map(normalized.map(row => [String(row.userId), row]))
     });
   });
 
   const ranking = (db.users || []).map(user => {
     const toolDetails = {};
     let combined = 0;
+    let totalAttempts = 0;
+    let totalCorrect = 0;
+    let totalTime = 0;
+    let timedAttempts = 0;
     active.forEach(tool => {
       const entry = perTool.get(tool.id);
-      const row = entry.rows.get(String(user.id)) || { score: 0 };
-      const percentile = entry.percentiles.get(String(user.id)) || 0;
-      combined += percentile * (Number(tool.weight) || 0);
-      toolDetails[tool.id] = {
-        ...row,
-        percentile
-      };
+      const row = entry.rows.get(String(user.id)) || defaultRow(tool.id, user.id);
+      combined += number(row.score);
+      const attempts = number(row.attempts);
+      totalAttempts += attempts;
+      totalCorrect += (number(row.accuracy) / 100) * attempts;
+      const avgTime = number(row.avgTime);
+      if (attempts > 0 && avgTime > 0) {
+        totalTime += avgTime * attempts;
+        timedAttempts += attempts;
+      }
+      toolDetails[tool.id] = { ...row };
     });
     return {
       userId: user.id,
       username: user.username,
       nickname: user.nickname || user.username,
       avatar: user.avatar || null,
-      combined: Math.round((combined / weightSum) * 10) / 10,
+      combined: Math.round(combined * 10) / 10,
+      accuracy: totalAttempts > 0 ? Math.round((totalCorrect / totalAttempts) * 1000) / 10 : 0,
+      avgTime: timedAttempts > 0 ? totalTime / timedAttempts : 0,
       tools: toolDetails
     };
   });
 
   return ranking
-    .sort((a, b) => b.combined - a.combined || String(a.username).localeCompare(String(b.username)))
+    .sort((a, b) =>
+      b.combined - a.combined ||
+      b.accuracy - a.accuracy ||
+      (a.avgTime || Infinity) - (b.avgTime || Infinity) ||
+      String(a.username).localeCompare(String(b.username))
+    )
     .slice(0, 100);
 }
 
