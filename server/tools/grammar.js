@@ -1,6 +1,7 @@
 const { jsonResponse, parseBody } = require('../core/http');
 const { generateId } = require('../core/ids');
 const { NODES, QUESTIONS } = require('./grammar-seed');
+const { resolveUserIds } = require('../core/delegation');
 
 const HK_DATE = new Intl.DateTimeFormat('en-CA', {
   timeZone: 'Asia/Hong_Kong',
@@ -141,8 +142,12 @@ function createGrammarTool({ rootDir, toolDir, db, saveData: storeSave, dataExis
     return new Map(grammar.questions.map(question => [question.question_id, question]));
   }
 
-  function findTask(taskId, userId) {
-    return grammar.tasks.find(task => String(task.task_id) === String(taskId) && String(task.userId) === String(userId)) || null;
+  function findTask(taskId) {
+    return grammar.tasks.find(task => String(task.task_id) === String(taskId)) || null;
+  }
+
+  function taskGroupId(task) {
+    return task.groupId || task.task_id;
   }
 
   function taskQuestions(task) {
@@ -257,6 +262,9 @@ function createGrammarTool({ rootDir, toolDir, db, saveData: storeSave, dataExis
       pass_streak: task.pass_streak,
       is_archived: !!task.is_archived,
       createdAt: task.createdAt,
+      groupId: taskGroupId(task),
+      userId: task.userId,
+      scope: task.scope || 'selected',
       total: progress.total,
       mastered: progress.mastered,
       wrong: progress.wrong,
@@ -269,6 +277,21 @@ function createGrammarTool({ rootDir, toolDir, db, saveData: storeSave, dataExis
       .filter(task => String(task.userId) === String(userId) && !task.is_archived)
       .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
       .map(task => serializeTask(task, userId));
+  }
+
+  function adminTaskList() {
+    const users = new Map((db.users || []).map(user => [String(user.id), user]));
+    return grammar.tasks
+      .filter(task => !task.is_archived)
+      .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
+      .map(task => {
+        const user = users.get(String(task.userId));
+        return {
+          ...serializeTask(task, task.userId),
+          username: user ? (user.nickname || user.username) : '（已刪除用戶）',
+          role: user ? (user.role || 'user') : null
+        };
+      });
   }
 
   function normalizeQuestion(raw, existingQuestions) {
@@ -483,7 +506,7 @@ function createGrammarTool({ rootDir, toolDir, db, saveData: storeSave, dataExis
   }
 
   function roundSummary(round) {
-    const task = findTask(round.taskId, round.userId);
+    const task = findTask(round.taskId);
     const progress = task ? serializeTask(task, round.userId) : null;
     const wrongQuestions = [];
     round.wrong.forEach((count, questionId) => {
@@ -640,12 +663,19 @@ function createGrammarTool({ rootDir, toolDir, db, saveData: storeSave, dataExis
       return;
     }
 
+    if (pathname === '/api/admin/tasks' && method === 'GET') {
+      if (user.role !== 'admin') return jsonResponse(res, 403, { error: '需要管理員權限' });
+      jsonResponse(res, 200, adminTaskList());
+      return;
+    }
+
     if (pathname === '/api/tasks' && method === 'GET') {
       jsonResponse(res, 200, taskForUser(userId));
       return;
     }
 
     if (pathname === '/api/tasks' && method === 'POST') {
+      if (user.role !== 'admin') return jsonResponse(res, 403, { error: '只有管理員可以建立任務' });
       try {
         const body = await parseBody(req);
         const name = String(body.task_name || '').trim();
@@ -653,22 +683,36 @@ function createGrammarTool({ rootDir, toolDir, db, saveData: storeSave, dataExis
         const nodes = Array.isArray(body.target_nodes) ? body.target_nodes.filter(id => nodeMap().has(id)) : [];
         const pinned = Array.isArray(body.question_ids) ? body.question_ids.filter(id => questionMap().has(id)) : [];
         if (!nodes.length && !pinned.length) return jsonResponse(res, 400, { error: '請至少選擇一個語法點或指定題目' });
+        const resolved = resolveUserIds(db, body.userIds !== undefined ? body.userIds : body.userId);
+        if (resolved.error) return jsonResponse(res, 400, { error: resolved.error });
         const batchSize = Math.max(1, Math.min(30, parseInt(body.batch_size, 10) || 10));
         const passStreak = Math.max(2, Math.min(6, parseInt(body.pass_streak, 10) || 3));
-        const task = {
-          task_id: generateId(new Set(grammar.tasks.map(item => item.task_id))),
-          userId,
-          task_name: name,
-          target_nodes: Array.from(new Set(nodes)),
-          question_ids: Array.from(new Set(pinned)),
-          batch_size: batchSize,
-          pass_streak: passStreak,
-          is_archived: false,
-          createdAt: new Date().toISOString()
-        };
-        grammar.tasks.push(task);
+        const groupId = generateId(new Set(grammar.tasks.map(item => taskGroupId(item))));
+        const created = resolved.userIds.map(targetId => {
+          const task = {
+            task_id: generateId(new Set(grammar.tasks.map(item => item.task_id))),
+            groupId,
+            userId: targetId,
+            scope: resolved.all ? 'all' : 'selected',
+            createdBy: userId,
+            task_name: name,
+            target_nodes: Array.from(new Set(nodes)),
+            question_ids: Array.from(new Set(pinned)),
+            batch_size: batchSize,
+            pass_streak: passStreak,
+            is_archived: false,
+            createdAt: new Date().toISOString()
+          };
+          grammar.tasks.push(task);
+          return task;
+        });
         await saveData();
-        jsonResponse(res, 201, serializeTask(task, userId));
+        jsonResponse(res, 201, {
+          groupId,
+          scope: resolved.all ? 'all' : 'selected',
+          created: created.length,
+          tasks: created.map(task => serializeTask(task, task.userId))
+        });
       } catch (error) {
         jsonResponse(res, 400, { error: '無效的請求' });
       }
@@ -676,31 +720,48 @@ function createGrammarTool({ rootDir, toolDir, db, saveData: storeSave, dataExis
     }
 
     if (pathname.startsWith('/api/tasks/') && method === 'PUT') {
+      if (user.role !== 'admin') return jsonResponse(res, 403, { error: '只有管理員可以修改任務' });
       const taskId = pathname.split('/')[3];
-      const task = findTask(taskId, userId);
+      const task = findTask(taskId);
       if (!task) return jsonResponse(res, 404, { error: '任務不存在' });
       try {
         const body = await parseBody(req);
-        if (body.task_name !== undefined) {
-          const name = String(body.task_name).trim();
-          if (!name || name.length > 40) return jsonResponse(res, 400, { error: '任務名稱需為 1-40 字' });
-          task.task_name = name;
-        }
-        if (body.target_nodes !== undefined) {
-          task.target_nodes = Array.isArray(body.target_nodes) ? body.target_nodes.filter(id => nodeMap().has(id)) : [];
-        }
-        if (body.question_ids !== undefined) {
-          task.question_ids = Array.isArray(body.question_ids) ? body.question_ids.filter(id => questionMap().has(id)) : [];
-        }
-        if (!task.target_nodes.length && !task.question_ids.length) {
+        const group = grammar.tasks.filter(item => String(taskGroupId(item)) === String(taskGroupId(task)));
+        const targets = group.length ? group : [task];
+        const name = body.task_name !== undefined ? String(body.task_name).trim() : task.task_name;
+        if (!name || name.length > 40) return jsonResponse(res, 400, { error: '任務名稱需為 1-40 字' });
+        const nodes = body.target_nodes !== undefined
+          ? (Array.isArray(body.target_nodes) ? body.target_nodes.filter(id => nodeMap().has(id)) : [])
+          : (task.target_nodes || []);
+        const pinned = body.question_ids !== undefined
+          ? (Array.isArray(body.question_ids) ? body.question_ids.filter(id => questionMap().has(id)) : [])
+          : (task.question_ids || []);
+        if (!nodes.length && !pinned.length) {
           return jsonResponse(res, 400, { error: '請至少保留一個語法點或指定題目' });
         }
-        if (body.batch_size !== undefined) task.batch_size = Math.max(1, Math.min(30, parseInt(body.batch_size, 10) || task.batch_size));
-        if (body.pass_streak !== undefined) task.pass_streak = Math.max(2, Math.min(6, parseInt(body.pass_streak, 10) || task.pass_streak));
-        if (body.is_archived !== undefined) task.is_archived = !!body.is_archived;
-        task.updatedAt = new Date().toISOString();
+        targets.forEach(item => {
+          if (body.task_name !== undefined) item.task_name = name;
+          if (body.target_nodes !== undefined) item.target_nodes = nodes;
+          if (body.question_ids !== undefined) item.question_ids = pinned;
+        });
+        if (body.batch_size !== undefined) {
+          const batchSize = Math.max(1, Math.min(30, parseInt(body.batch_size, 10) || task.batch_size));
+          targets.forEach(item => { item.batch_size = batchSize; });
+        }
+        if (body.pass_streak !== undefined) {
+          const passStreak = Math.max(2, Math.min(6, parseInt(body.pass_streak, 10) || task.pass_streak));
+          targets.forEach(item => { item.pass_streak = passStreak; });
+        }
+        if (body.is_archived !== undefined) {
+          targets.forEach(item => { item.is_archived = !!body.is_archived; });
+        }
+        const updatedAt = new Date().toISOString();
+        targets.forEach(item => { item.updatedAt = updatedAt; });
         await saveData();
-        jsonResponse(res, 200, serializeTask(task, userId));
+        jsonResponse(res, 200, {
+          updated: targets.length,
+          tasks: targets.map(item => serializeTask(item, item.userId))
+        });
       } catch (error) {
         jsonResponse(res, 400, { error: '無效的請求' });
       }
@@ -709,11 +770,15 @@ function createGrammarTool({ rootDir, toolDir, db, saveData: storeSave, dataExis
 
     if (pathname.startsWith('/api/tasks/') && pathname.endsWith('/wrong') && method === 'GET') {
       const parts = pathname.split('/');
-      const task = findTask(parts[3], userId);
+      const task = findTask(parts[3]);
       if (!task) return jsonResponse(res, 404, { error: '任務不存在' });
+      if (user.role !== 'admin' && String(task.userId) !== String(userId)) {
+        return jsonResponse(res, 404, { error: '任務不存在' });
+      }
+      const ownerId = task.userId;
       const list = taskQuestions(task)
         .map(question => {
-          const record = findMastery(userId, question.question_id);
+          const record = findMastery(ownerId, question.question_id);
           return {
             question_id: question.question_id,
             node_id: question.node_id,
@@ -732,8 +797,11 @@ function createGrammarTool({ rootDir, toolDir, db, saveData: storeSave, dataExis
 
     if (pathname.startsWith('/api/tasks/') && pathname.endsWith('/start') && method === 'POST') {
       const parts = pathname.split('/');
-      const task = findTask(parts[3], userId);
+      const task = findTask(parts[3]);
       if (!task) return jsonResponse(res, 404, { error: '任務不存在' });
+      if (String(task.userId) !== String(userId)) {
+        return jsonResponse(res, 403, { error: '這個任務不屬於你' });
+      }
       if (task.is_archived) return jsonResponse(res, 400, { error: '任務已歸檔' });
       const pool = taskQuestions(task);
       if (!pool.length) return jsonResponse(res, 400, { error: '這個任務還沒有題目' });

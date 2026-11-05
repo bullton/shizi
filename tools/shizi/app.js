@@ -2587,7 +2587,9 @@ const AdminAssignments = {
     const hint = document.getElementById('assign-user-hint');
     if (!hint) return;
     const n = this.selectedUsers.size;
-    hint.textContent = n === 0 ? '未揀任何任何人' : `已揀 ${n} 個人（可以包括你自己 👑）`;
+    hint.textContent = n === 0
+      ? '未揀＝派給所有用戶'
+      : (n === this.users.length ? `已揀全部 ${n} 個用戶` : `已揀 ${n} 個人（可以包括你自己 👑）`);
   },
 
   async _loadChars() {
@@ -2724,9 +2726,9 @@ const AdminAssignments = {
     try {
       const name = document.getElementById('assign-name').value.trim();
       const note = document.getElementById('assign-note').value.trim();
-      if (this.selectedUsers.size === 0) return toast('請先揀至少一個對象');
       if (this.selected.size === 0) return toast('請至少揀一個字');
 
+      const allUsers = this.selectedUsers.size === 0;
       const res = await AdminAPI.createAssignment({
         userIds: [...this.selectedUsers],
         name,
@@ -2734,7 +2736,7 @@ const AdminAssignments = {
         charIds: [...this.selected],
         words: [...this.selectedWords]
       });
-      toast(`✅ 任務已建立（${res.created} 個小孩）`);
+      toast(allUsers ? `✅ 任務已建立（所有 ${res.created} 個用戶）` : `✅ 任務已建立（${res.created} 個小孩）`);
       document.getElementById('assign-name').value = '';
       document.getElementById('assign-note').value = '';
       this.selected.clear();
@@ -2777,6 +2779,7 @@ const AdminAssignments = {
       const first = items[0];
       const date = new Date(first.createdAt).toLocaleDateString('zh-HK');
       const multi = items.length > 1;
+      const allScope = items.some(a => a.scope === 'all');
 
       // 每個小孩一行進度
       const kidRows = items.map(a => {
@@ -2809,7 +2812,7 @@ const AdminAssignments = {
         <div class="assignment-head">
           <div>
             <span class="assignment-name">${escapeHtml(first.name)}</span>
-            ${multi ? `<span class="assignment-badge multi">👥 ${items.length} 個小孩</span>` : ''}
+            ${allScope ? '<span class="assignment-badge multi">🌐 所有用戶</span>' : (multi ? `<span class="assignment-badge multi">👥 ${items.length} 個小孩</span>` : '')}
           </div>
           <div class="assignment-date">${date}</div>
         </div>

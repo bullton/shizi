@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>文法花園 · Grammar Garden</title>
-<link rel="stylesheet" href="style.css?v=20261105-3">
+<link rel="stylesheet" href="style.css?v=20261105-4">
 </head>
 <body>
 <div class="app" id="app">
@@ -18,9 +18,9 @@
     </a>
     <div class="top-actions">
       <span class="user-chip" id="user-chip" hidden></span>
-      <div class="mode-switch" role="tablist" aria-label="切換模式">
+      <div class="mode-switch" id="mode-switch" role="tablist" aria-label="切換模式">
         <button type="button" data-mode="child" class="is-active" role="tab" aria-selected="true">練習</button>
-        <button type="button" data-mode="parent" role="tab" aria-selected="false">家長</button>
+        <button type="button" data-mode="parent" role="tab" aria-selected="false">管理</button>
       </div>
       <button type="button" class="icon-btn" id="sound-btn" title="開關音效" aria-label="開關音效">♪</button>
     </div>
@@ -59,7 +59,7 @@
             <h2>任務花圃</h2>
             <p>完成任務，把每一道題練到「已掌握」。</p>
           </div>
-          <button type="button" class="btn btn-soft" id="hall-parent-btn">家長設定</button>
+          <button type="button" class="btn btn-soft" id="hall-parent-btn">管理設定</button>
         </div>
         <div class="task-grid" id="task-grid"></div>
       </section>
@@ -113,9 +113,9 @@
     <section class="view" id="parent-view" hidden>
       <header class="parent-head">
         <div>
-          <p class="eyebrow">家長操作台</p>
+          <p class="eyebrow">管理員操作台</p>
           <h1>文法花園設定</h1>
-          <p>在這裡建立任務、整理題庫，或把 AI 生成的一批題目貼進來。</p>
+          <p>只有管理員可以建立與指派任務、整理題庫，或把 AI 生成的一批題目貼進來。</p>
         </div>
         <button type="button" class="btn btn-ghost" id="parent-child-btn">回到練習</button>
       </header>
@@ -146,6 +146,6 @@
 
   <div class="toast" id="toast" hidden></div>
 </div>
-<script src="app.js?v=20261105-3" defer></script>
+<script src="app.js?v=20261105-4" defer></script>
 </body>
 </html>

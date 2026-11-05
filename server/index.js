@@ -7,6 +7,7 @@ const { createStore } = require('./core/store');
 const { createAuth, PUBLIC_API } = require('./core/auth');
 const { readTools } = require('./core/tools');
 const { buildRanking } = require('./core/ranking');
+const { listUsers } = require('./core/delegation');
 
 const rootDir = path.join(__dirname, '..');
 const legacyDataFile = path.join(rootDir, 'shizi-data.json');
@@ -148,6 +149,15 @@ const server = http.createServer(async (req, res) => {
     const user = auth.requireAuth(req);
     if (!user) {
       jsonResponse(res, 401, { error: '請先登入' });
+      return;
+    }
+
+    if (pathname === '/api/platform/users' && req.method === 'GET') {
+      if (user.role !== 'admin') {
+        jsonResponse(res, 403, { error: '需要管理員權限' });
+        return;
+      }
+      jsonResponse(res, 200, listUsers(store.data));
       return;
     }
 

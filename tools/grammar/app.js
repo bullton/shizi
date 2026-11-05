@@ -9,6 +9,9 @@
     childView: 'hall',
     parentTab: 'tasks',
     selectedNode: '',
+    users: [],
+    selectedUsers: new Set(),
+    adminTasks: [],
     allQuestions: [],
     questionsLoaded: false,
     editingQuestion: null,
@@ -39,6 +42,8 @@
     heroRank: $('#hero-rank'),
     taskGrid: $('#task-grid'),
     userChip: $('#user-chip'),
+    modeSwitch: $('#mode-switch'),
+    hallParentBtn: $('#hall-parent-btn'),
     soundBtn: $('#sound-btn'),
     parentStats: $('#parent-stats'),
     tree: $('#grammar-tree'),
@@ -123,6 +128,10 @@
     els.parentView.hidden = true;
   }
 
+  function isAdmin() {
+    return !!(state.user && state.user.role === 'admin');
+  }
+
   function nodeMap() {
     const map = new Map();
     (state.overview ? state.overview.nodes : []).forEach(node => map.set(node.node_id, node));
@@ -189,12 +198,25 @@
   }
 
   async function loadData() {
-    const [overview, ranking] = await Promise.all([
-      api('/overview'),
-      request('/api/platform/ranking')
-    ]);
+    const jobs = [api('/overview'), request('/api/platform/ranking')];
+    if (isAdmin()) jobs.push(api('/admin/tasks'));
+    const [overview, ranking, adminTasks] = await Promise.all(jobs);
     state.overview = overview;
     state.ranking = Array.isArray(ranking) ? ranking : [];
+    state.adminTasks = Array.isArray(adminTasks) ? adminTasks : [];
+  }
+
+  async function loadUsers() {
+    if (!isAdmin()) {
+      state.users = [];
+      return;
+    }
+    try {
+      const users = await request('/api/platform/users');
+      state.users = Array.isArray(users) ? users : [];
+    } catch (error) {
+      state.users = [];
+    }
   }
 
   async function refreshData() {
@@ -216,6 +238,10 @@
 
   function setMode(mode) {
     if (mode === 'parent') {
+      if (!isAdmin()) {
+        toast('只有管理員可以進入管理設定');
+        return;
+      }
       state.mode = 'parent';
       els.childView.hidden = true;
       els.parentView.hidden = false;
@@ -241,8 +267,12 @@
 
   function renderAll() {
     if (!state.user) return;
+    const admin = isAdmin();
     els.userChip.textContent = (state.user.nickname || state.user.username) + ' · @' + state.user.username;
     els.userChip.hidden = false;
+    if (els.modeSwitch) els.modeSwitch.hidden = !admin;
+    if (els.hallParentBtn) els.hallParentBtn.hidden = !admin;
+    if (!admin && state.mode === 'parent') state.mode = 'child';
     if (state.mode === 'parent') {
       els.childView.hidden = true;
       els.parentView.hidden = false;
@@ -299,7 +329,9 @@
 
     const tasks = state.overview.tasks || [];
     if (!tasks.length) {
-      els.taskGrid.innerHTML = '<div class="empty-state"><h3>還沒有任務花圃</h3><p>先到「家長設定」選幾個語法點，建立第一個任務。</p><button type="button" class="btn btn-primary" data-mode="parent">建立任務</button></div>';
+      els.taskGrid.innerHTML = isAdmin()
+        ? '<div class="empty-state"><h3>還沒有任務花圃</h3><p>先到「管理設定」選幾個語法點，建立第一個任務。</p><button type="button" class="btn btn-primary" data-mode="parent">建立任務</button></div>'
+        : '<div class="empty-state"><h3>還沒有任務花圃</h3><p>等管理員布置任務後，就可以在這裡開始練習。</p></div>';
       return;
     }
     els.taskGrid.innerHTML = tasks.map(taskCardHTML).join('');
@@ -454,6 +486,41 @@
     }
   }
 
+  function assignPickerHTML() {
+    const users = state.users || [];
+    if (!users.length) {
+      return '<div class="field field-full"><span class="field-label">指派給</span><p class="assign-hint">尚未載入用戶；不選小孩時會派給所有用戶。</p></div>';
+    }
+    const chips = users.map(user => {
+      const active = state.selectedUsers.has(String(user.id));
+      return '<button type="button" class="assign-chip' + (active ? ' is-active' : '') + '" data-assign-user="' + esc(user.id) + '">' +
+        (user.role === 'admin' ? '👑 ' : '👦 ') + esc(user.nickname || user.username) +
+        '</button>';
+    }).join('');
+    return '<div class="field field-full"><span class="field-label">指派給</span>' +
+      '<div class="assign-picker" id="task-user-picker">' +
+        '<button type="button" class="assign-chip assign-special' + (state.selectedUsers.size ? '' : ' is-active') + '" data-assign-all-users>🌐 所有用戶</button>' +
+        '<button type="button" class="assign-chip assign-special" data-assign-select-all>全選</button>' +
+        chips +
+      '</div>' +
+      '<p class="assign-hint" id="task-user-hint">' + (state.selectedUsers.size ? '已選 ' + state.selectedUsers.size + ' 個用戶' : '不選小孩＝派給所有用戶') + '</p>' +
+      '</div>';
+  }
+
+  function syncAssignPicker() {
+    const picker = $('#task-user-picker');
+    if (!picker) return;
+    $$('[data-assign-user]', picker).forEach(button => {
+      button.classList.toggle('is-active', state.selectedUsers.has(button.getAttribute('data-assign-user')));
+    });
+    const all = $('[data-assign-all-users]', picker);
+    if (all) all.classList.toggle('is-active', state.selectedUsers.size === 0);
+    const hint = $('#task-user-hint');
+    if (hint) hint.textContent = state.selectedUsers.size
+      ? '已選 ' + state.selectedUsers.size + ' 個用戶'
+      : '不選小孩＝派給所有用戶';
+  }
+
   function taskFormHTML() {
     const nodes = state.overview ? state.overview.nodes : [];
     const grouped = {};
@@ -472,10 +539,11 @@
 
     return '<section class="panel-section">' +
       '<h2>建立新任務</h2>' +
-      '<p>勾選語法點，系統會自動把該節點下的題目匯入任務。也可以展開進階選項，直接指定題目。</p>' +
+      '<p>只有管理員可以建立任務。勾選語法點後，系統會自動把該節點下的題目匯入任務；也可以展開進階選項直接指定題目。</p>' +
       '<form id="task-form">' +
         '<div class="form-grid">' +
           '<label class="field field-full"><span class="field-label">任務名稱</span><input class="input" name="task_name" maxlength="40" required placeholder="例如：三單動詞專項突破"></label>' +
+          assignPickerHTML() +
           '<label class="field"><span class="field-label">每輪題量</span><select class="select" name="batch_size"><option value="5">5 題</option><option value="10" selected>10 題</option><option value="15">15 題</option><option value="20">20 題</option></select></label>' +
           '<label class="field"><span class="field-label">通關連對次數</span><select class="select" name="pass_streak"><option value="2">2 次</option><option value="3" selected>3 次</option><option value="4">4 次</option></select></label>' +
           nodeOptions +
@@ -486,33 +554,55 @@
       '</section>';
   }
 
-  function taskAdminHTML(task) {
-    const nodes = (task.target_nodes || []).map(id => nodeName(id)).join('、');
-    const wrongOpen = String(state.wrongTaskId) === String(task.task_id);
-    const wrong = wrongOpen && state.wrongList.length
-      ? '<div class="wrong-list"><p><strong>頑固錯題</strong></p>' + state.wrongList.slice(0, 6).map(item => '<p><strong>' + esc(item.stem) + '</strong> 錯 ' + item.total_wrong + ' 次</p>').join('') + '</div>'
-      : wrongOpen ? '<div class="wrong-list"><p>這個任務還沒有錯題紀錄。</p></div>' : '';
+  function taskAdminHTML(items) {
+    const first = items[0];
+    const nodes = (first.target_nodes || []).map(id => nodeName(id)).join('、');
+    const allScope = first.scope === 'all';
+    const own = items.find(task => String(task.userId) === String(state.user.id));
+    const rows = items.map(task => {
+      const wrongOpen = String(state.wrongTaskId) === String(task.task_id);
+      const wrong = wrongOpen
+        ? '<div class="wrong-list"><p><strong>頑固錯題</strong></p>' +
+          (state.wrongList.length
+            ? state.wrongList.slice(0, 6).map(item => '<p><strong>' + esc(item.stem) + '</strong> 錯 ' + item.total_wrong + ' 次</p>').join('')
+            : '<p>這個任務還沒有錯題紀錄。</p>') +
+          '</div>'
+        : '';
+      return '<div class="assignee-row">' +
+          '<span class="assignee-name">' + (task.role === 'admin' ? '👑 ' : '👦 ') + esc(task.username || '') + '</span>' +
+          '<span class="assignee-score">' + task.mastered + ' / ' + task.total + ' 題</span>' +
+          '<span class="assignee-progress"><span class="progress-track"><span style="width:' + Number(task.progress || 0) + '%"></span></span></span>' +
+          '<button type="button" class="btn btn-ghost btn-sm" data-wrong-task="' + esc(task.task_id) + '">錯題 ' + Number(task.wrong || 0) + '</button>' +
+        '</div>' + wrong;
+    }).join('');
+
     return '<article class="task-admin">' +
       '<div>' +
-        '<h3>' + esc(task.task_name) + '</h3>' +
-        '<div class="task-admin-meta"><span>' + esc(nodes || '指定題目') + '</span><span>每輪 ' + task.batch_size + ' 題</span><span>連對 ' + task.pass_streak + ' 次</span><span>掌握 ' + task.mastered + ' / ' + task.total + '</span></div>' +
-        '<div class="task-admin-progress"><span class="progress-track"><span style="width:' + Number(task.progress || 0) + '%"></span></span></div>' +
-        wrong +
+        '<h3>' + esc(first.task_name) +
+          (allScope ? '<span class="assign-scope">🌐 所有用戶</span>' : '') +
+        '</h3>' +
+        '<div class="task-admin-meta"><span>' + esc(nodes || '指定題目') + '</span><span>每輪 ' + first.batch_size + ' 題</span><span>連對 ' + first.pass_streak + ' 次</span><span>👥 ' + items.length + ' 個帳戶</span></div>' +
+        '<div class="assignee-list">' + rows + '</div>' +
       '</div>' +
       '<div class="task-admin-actions">' +
-        '<button type="button" class="btn btn-primary btn-sm" data-start-task="' + esc(task.task_id) + '">開始</button>' +
-        '<button type="button" class="btn btn-ghost btn-sm" data-wrong-task="' + esc(task.task_id) + '">錯題榜</button>' +
-        '<button type="button" class="btn btn-danger btn-sm" data-archive-task="' + esc(task.task_id) + '">歸檔</button>' +
+        (own ? '<button type="button" class="btn btn-primary btn-sm" data-start-task="' + esc(own.task_id) + '">開始</button>' : '') +
+        '<button type="button" class="btn btn-danger btn-sm" data-archive-task="' + esc(first.task_id) + '">歸檔</button>' +
       '</div>' +
       '</article>';
   }
 
   function renderParentTasks() {
     if (!state.overview) return;
-    const tasks = state.overview.tasks || [];
+    const groups = new Map();
+    (state.adminTasks || []).forEach(task => {
+      const key = task.groupId || task.task_id;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(task);
+    });
+    const cards = [...groups.values()].map(taskAdminHTML).join('');
     els.parentTasks.innerHTML = taskFormHTML() +
-      '<section class="panel-section"><h2>任務看板</h2><p>任務只會出現在自己的帳戶；完成度按已掌握的題目計算。</p><div class="task-admin-list">' +
-      (tasks.length ? tasks.map(taskAdminHTML).join('') : '<div class="empty-state"><h3>還沒有任務</h3><p>先在上方建立一個任務。</p></div>') +
+      '<section class="panel-section"><h2>任務看板</h2><p>指派後每個小孩有獨立進度；不選小孩時會建立給所有用戶。</p><div class="task-admin-list">' +
+      (cards || '<div class="empty-state"><h3>還沒有任務</h3><p>先在上方建立一個任務。</p></div>') +
       '</div></section>';
   }
 
@@ -598,12 +688,13 @@
   function renderParent() {
     if (!state.overview) return;
     const stats = state.overview.stats || { mastered: 0, totalAttempts: 0, accuracy: 0 };
-    const tasks = state.overview.tasks || [];
+    const tasks = state.adminTasks || [];
+    const taskGroups = new Set(tasks.map(task => task.groupId || task.task_id));
     const wrongTotal = tasks.reduce((sum, task) => sum + (task.wrong || 0), 0);
     els.parentStats.innerHTML = [
       '<div class="parent-stat"><strong>' + (state.overview.questionCount || 0) + '</strong><span>題庫總題數</span></div>',
-      '<div class="parent-stat"><strong>' + (stats.mastered || 0) + '</strong><span>已掌握題數</span></div>',
-      '<div class="parent-stat"><strong>' + tasks.length + '</strong><span>進行中任務</span></div>',
+      '<div class="parent-stat"><strong>' + (stats.mastered || 0) + '</strong><span>我的掌握題數</span></div>',
+      '<div class="parent-stat"><strong>' + taskGroups.size + '</strong><span>進行中任務</span></div>',
       '<div class="parent-stat"><strong>' + wrongTotal + '</strong><span>待攻克錯題</span></div>'
     ].join('');
     renderTree();
@@ -629,17 +720,19 @@
     const pinned = $$('input[name="pinned"]:checked', form).map(input => input.value);
     if (!nodes.length && !pinned.length) return toast('請至少選擇一個語法點或指定題目');
     try {
-      await api('/tasks', {
+      const result = await api('/tasks', {
         method: 'POST',
         body: {
           task_name: name,
           target_nodes: nodes,
           question_ids: pinned,
+          userIds: [...state.selectedUsers],
           batch_size: parseInt(form.querySelector('[name="batch_size"]').value, 10),
           pass_streak: parseInt(form.querySelector('[name="pass_streak"]').value, 10)
         }
       });
-      toast('已建立任務');
+      toast(result && result.created ? '已建立任務（' + result.created + ' 個帳戶）' : '已建立任務');
+      state.selectedUsers.clear();
       await refreshData();
       state.parentTab = 'tasks';
       renderParent();
@@ -776,6 +869,7 @@
       state.user = user;
       els.userChip.textContent = (user.nickname || user.username) + ' · @' + user.username;
       els.userChip.hidden = false;
+      await loadUsers();
       await loadData();
       try {
         await loadQuestions();
@@ -802,6 +896,27 @@
     const parentTab = event.target.closest('[data-parent-tab]');
     if (parentTab) {
       switchParentTab(parentTab.getAttribute('data-parent-tab'));
+      return;
+    }
+
+    const assignUser = event.target.closest('[data-assign-user]');
+    if (assignUser) {
+      const id = assignUser.getAttribute('data-assign-user');
+      if (state.selectedUsers.has(id)) state.selectedUsers.delete(id);
+      else state.selectedUsers.add(id);
+      syncAssignPicker();
+      return;
+    }
+
+    if (event.target.closest('[data-assign-all-users]')) {
+      state.selectedUsers.clear();
+      syncAssignPicker();
+      return;
+    }
+
+    if (event.target.closest('[data-assign-select-all]')) {
+      state.users.forEach(user => state.selectedUsers.add(String(user.id)));
+      syncAssignPicker();
       return;
     }
 

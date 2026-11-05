@@ -1,6 +1,7 @@
 const path = require('path');
 const { jsonResponse, parseBody } = require('../core/http');
 const { generateId } = require('../core/ids');
+const { resolveUserIds } = require('../core/delegation');
 
 function createShiziTool({ rootDir, toolDir, db, saveData: storeSave, dataExists, auth }) {
   const saveData = () => storeSave();
@@ -217,6 +218,7 @@ function decorateAssignment(a, chars) {
     id: a.id,
     groupId: a.groupId || a.id,
     userId: a.userId,
+    scope: a.scope || 'selected',
     name: a.name,
     note: a.note || '',
     charIds: a.charIds || [],
@@ -966,10 +968,10 @@ async function handleAPI(req, res, parsedUrl) {
   if (pathname === '/api/admin/assignments' && method === 'POST') {
     try {
       const { userId, userIds, name, charIds, note, words } = await parseBody(req);
-      // 支援 userIds（多選）同 userId（單選，向後兼容）
-      let targets = Array.isArray(userIds) ? userIds : (userId ? [userId] : []);
-      targets = [...new Set(targets.map(x => parseInt(x)).filter(x => !isNaN(x)))];
-      if (targets.length === 0) return jsonResponse(res, 400, { error: '請至少選擇一個對象' });
+      // 支援 userIds（多選）同 userId（單選，向後兼容）；兩者都空＝派給所有用戶
+      const resolved = resolveUserIds(db, userIds !== undefined ? userIds : userId);
+      if (resolved.error) return jsonResponse(res, 400, { error: resolved.error });
+      const targets = resolved.userIds;
       if (!Array.isArray(charIds) || charIds.length === 0) {
         return jsonResponse(res, 400, { error: '請至少選一個字' });
       }
@@ -986,6 +988,7 @@ async function handleAPI(req, res, parsedUrl) {
           id: generateId(new Set(db.assignments.map(a => a.id))),
           groupId,
           userId: uid,
+          scope: resolved.all ? 'all' : 'selected',
           name: taskName,
           charIds: cleanIds,
           words: normalizeWords(words),     // 任務自帶嘅詞語（可以同字嘅詞語唔一樣）
@@ -999,6 +1002,7 @@ async function handleAPI(req, res, parsedUrl) {
       await saveData(db);
       jsonResponse(res, 200, {
         groupId,
+        scope: resolved.all ? 'all' : 'selected',
         created: created.length,
         assignments: created.map(a => decorateAssignment(a, db.chars))
       });
