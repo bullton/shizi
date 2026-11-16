@@ -38,7 +38,7 @@
 - `node scripts/dict/build-ids.js --check`
 - `node scripts/spell/build-words.js`：重新生成 `tools/spell/words.json`（需要 `SPELL_CACHE` 或預設快取內的 ECDICT／Tatoeba／CMUdict；OpenCC 與 hyphen 已放在 `scripts/spell/vendor/`）
 - `node scripts/spell/build-audio.js`：重新生成 `tools/spell/audio/` 的單詞與音節 MP3（需要 `edge-tts`；可用 `EDGE_TTS_BIN` 指定路徑）
-- `node scripts/quiz/build-questions.js <arena-source.json>`：由 sentence-battle 匯出的題目重新生成 `tools/quiz/questions.json`（句子重組、數學計算、常識問答）
+- `node scripts/quiz/build-questions.js <arena-source.json>`：由 sentence-battle 匯出的題目重新生成三個獨立題庫 `tools/sentence/questions.json`、`tools/math/questions.json`、`tools/gk/questions.json`
 
 ## 修改規則
 

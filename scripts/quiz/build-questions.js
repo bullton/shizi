@@ -7,7 +7,6 @@ const path = require('path');
 
 const rootDir = path.join(__dirname, '..', '..');
 const sourcePath = process.argv[2] || process.env.ARENA_SOURCE || path.join(os.tmpdir(), 'arena-source.json');
-const outputPath = path.join(rootDir, 'tools', 'quiz', 'questions.json');
 
 if (!fs.existsSync(sourcePath)) {
   console.error('找不到題目來源：' + sourcePath);
@@ -229,22 +228,28 @@ Object.keys(nodeGroups).forEach(domain => {
   });
 });
 
-const bundle = {
-  version: 1,
-  source: 'sentence-battle',
-  domains: domainMeta,
-  nodes,
-  questions
-};
-
-fs.mkdirSync(path.dirname(outputPath), { recursive: true });
-fs.writeFileSync(outputPath, JSON.stringify(bundle, null, 2) + '\n');
-
 const byDomain = {};
 questions.forEach(question => {
   byDomain[question.domain] = (byDomain[question.domain] || 0) + 1;
 });
-console.log('[quiz] 已寫入 ' + outputPath);
+
+Object.keys(domainMeta).forEach(domain => {
+  const domainQuestions = questions.filter(question => question.domain === domain);
+  const domainNodes = nodes.filter(node => node.domain === domain);
+  const bundle = {
+    version: 1,
+    source: 'sentence-battle',
+    domain,
+    domains: { [domain]: domainMeta[domain] },
+    nodes: domainNodes,
+    questions: domainQuestions
+  };
+  const outputPath = path.join(rootDir, 'tools', domain, 'questions.json');
+  fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+  fs.writeFileSync(outputPath, JSON.stringify(bundle, null, 2) + '\n');
+  console.log('[quiz] 已寫入 ' + outputPath + '：' + domainQuestions.length + ' 題、' + domainNodes.length + ' 個分類');
+});
+
 console.log('[quiz] 題目：' + JSON.stringify(byDomain) + '，共 ' + questions.length + ' 題');
 console.log('[quiz] 節點：' + nodes.length + ' 個');
 nodes.forEach(node => {

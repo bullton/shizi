@@ -1,11 +1,15 @@
 {
   "id": "math",
-  "name": "口算",
-  "short": "口算",
-  "entry": null,
-  "weight": 0.15,
-  "active": false,
-  "accent": "#8a5a00",
+  "name": "數學計算",
+  "short": "數學",
+  "entry": "/tools/math/",
+  "apiBase": "/api/math",
+  "data": "data/shizi.json",
+  "weight": 0.2,
+  "order": 7,
+  "active": true,
+  "accent": "#1f6f8b",
   "icon": "calc",
-  "desc": "每日口算練習，接入後按自己的節奏計分。"
+  "features": {},
+  "desc": "加、減、乘、除四則運算，輸入答案即時核對，按運算類型集中練習。"
 }

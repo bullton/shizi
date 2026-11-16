@@ -91,6 +91,12 @@ function serveStatic(req, res, parsedUrl) {
     return;
   }
 
+  if (pathname === '/tools/quiz' || pathname === '/tools/quiz/' || pathname.startsWith('/tools/quiz/')) {
+    res.writeHead(302, { Location: '/tools/gk/' });
+    res.end();
+    return;
+  }
+
   if (pathname !== '/' && !pathname.endsWith('/')) {
     const possibleDir = path.resolve(path.join(rootDir, pathname));
     if (possibleDir.startsWith(rootDir + path.sep) && fs.existsSync(possibleDir) && fs.statSync(possibleDir).isDirectory()) {

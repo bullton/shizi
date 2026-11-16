@@ -1,8 +1,8 @@
 const fs = require('fs');
 const path = require('path');
-const { jsonResponse, parseBody } = require('../core/http');
-const { generateId } = require('../core/ids');
-const { createDrill, shuffle } = require('../core/drill');
+const { jsonResponse, parseBody } = require('./http');
+const { generateId } = require('./ids');
+const { createDrill, shuffle } = require('./drill');
 
 const SEED_VERSION = 1;
 
@@ -16,8 +16,100 @@ function normalizeAnswer(value) {
     .trim();
 }
 
-function createQuizTool({ rootDir, toolDir, db, saveData: storeSave, dataExists, auth }) {
+function splitLegacyQuiz({ db, saveData, key, domain, nodes }) {
+  if (db[key] || !db.quiz || !Array.isArray(db.quiz.questions)) return;
+
+  const legacy = db.quiz;
+  const nodeDomain = new Map();
+  (legacy.nodes || []).forEach(node => {
+    if (node && node.node_id) nodeDomain.set(String(node.node_id), node.domain || '');
+  });
+  (nodes || []).forEach(node => {
+    if (node && node.node_id) nodeDomain.set(String(node.node_id), domain);
+  });
+
+  const questionIds = new Set();
+  (legacy.questions || []).forEach(question => {
+    if (!question) return;
+    const questionDomain = question.domain || nodeDomain.get(String(question.node_id));
+    if (questionDomain === domain) questionIds.add(String(question.question_id));
+  });
+
+  const taskIdMap = new Map();
+  const tasks = [];
+  (legacy.tasks || []).forEach(task => {
+    if (!task) return;
+    const targetNodes = Array.isArray(task.target_nodes) ? task.target_nodes.map(String) : [];
+    const targetDomains = new Set(targetNodes.map(nodeId => nodeDomain.get(nodeId)).filter(Boolean));
+    const taskQuestionIds = Array.isArray(task.question_ids)
+      ? task.question_ids.filter(questionId => questionIds.has(String(questionId)))
+      : [];
+    const hasCurrentNode = targetNodes.some(nodeId => nodeDomain.get(nodeId) === domain);
+    if (targetNodes.length && !hasCurrentNode && !taskQuestionIds.length) return;
+    if (!targetNodes.length && !taskQuestionIds.length && !task.fixedQuestions) return;
+
+    const splitTaskId = targetDomains.size > 1
+      ? String(task.task_id) + '-' + domain
+      : task.task_id;
+    taskIdMap.set(String(task.task_id), splitTaskId);
+    const splitGroupId = task.groupId && targetDomains.size > 1
+      ? String(task.groupId) + '-' + domain
+      : task.groupId;
+    tasks.push({
+      ...task,
+      task_id: splitTaskId,
+      groupId: splitGroupId,
+      target_nodes: targetNodes.filter(nodeId => nodeDomain.get(nodeId) === domain),
+      question_ids: taskQuestionIds
+    });
+  });
+
+  const taskMastery = (legacy.taskMastery || []).filter(record =>
+    record &&
+    questionIds.has(String(record.question_id)) &&
+    taskIdMap.has(String(record.task_id))
+  ).map(record => ({
+    ...record,
+    task_id: taskIdMap.get(String(record.task_id))
+  }));
+
+  const mastery = (legacy.mastery || []).filter(record =>
+    record && questionIds.has(String(record.question_id))
+  );
+
+  const attempts = (legacy.attempts || []).filter(record =>
+    record && questionIds.has(String(record.question_id))
+  ).map(record => {
+    if (!record.task_id) return { ...record };
+    const mapped = taskIdMap.get(String(record.task_id));
+    return { ...record, task_id: mapped || null };
+  });
+
+  const questions = (legacy.questions || []).filter(question =>
+    question && questionIds.has(String(question.question_id))
+  );
+
+  db[key] = {
+    seedVersion: 0,
+    seededAt: legacy.seededAt || new Date().toISOString(),
+    migratedFrom: 'quiz',
+    nodes: (nodes || []).map(node => ({ ...node })),
+    questions,
+    tasks,
+    mastery,
+    taskMastery,
+    attempts
+  };
+
+  saveData().catch(error => console.warn('[' + key + '] 舊資料遷移儲存失敗：' + error.message));
+  console.log('[' + key + '] 已從舊三合一題庫遷移 ' + questions.length + ' 題、' + tasks.length + ' 個任務');
+}
+
+function createDomainQuizTool({ rootDir, toolDir, db, saveData: storeSave, auth }, config) {
   const saveData = () => storeSave();
+  const id = config.id;
+  const domain = config.domain;
+  const domainFallback = config.domainMeta || {};
 
   function requireAuth(req, res) {
     const user = auth.requireAuth(req);
@@ -30,20 +122,23 @@ function createQuizTool({ rootDir, toolDir, db, saveData: storeSave, dataExists,
 
   const bundlePath = path.join(toolDir, 'questions.json');
   if (!fs.existsSync(bundlePath)) {
-    throw new Error('[quiz] 找不到 tools/quiz/questions.json，請先執行 scripts/quiz/build-questions.js');
+    throw new Error('[' + id + '] 找不到 tools/' + id + '/questions.json，請先執行 scripts/quiz/build-questions.js');
   }
   const bundle = JSON.parse(fs.readFileSync(bundlePath, 'utf8'));
-  const questionList = Array.isArray(bundle.questions) ? bundle.questions : [];
-  const domainMeta = bundle.domains || {};
-  const nodes = (bundle.nodes || []).map(node => ({
-    node_id: node.node_id,
-    title: node.title,
-    category: node.category || (domainMeta[node.domain] && domainMeta[node.domain].title) || '類別',
-    dimension: node.dimension || '',
-    domain: node.domain,
-    order: node.order || 0,
-    questionCount: node.questionCount || 0
-  }));
+  const questionList = (Array.isArray(bundle.questions) ? bundle.questions : [])
+    .filter(question => !question.domain || question.domain === domain);
+  const domainMeta = (bundle.domains && bundle.domains[domain]) || bundle.domain || domainFallback || {};
+  const nodes = (bundle.nodes || [])
+    .filter(node => !node.domain || node.domain === domain)
+    .map(node => ({
+      node_id: node.node_id,
+      title: node.title,
+      category: node.category || domainMeta.title || '類別',
+      dimension: node.dimension || '',
+      domain,
+      order: node.order || 0,
+      questionCount: node.questionCount || 0
+    }));
 
   function questionToRecord(question, now) {
     return {
@@ -56,16 +151,18 @@ function createQuizTool({ rootDir, toolDir, db, saveData: storeSave, dataExists,
     };
   }
 
+  splitLegacyQuiz({ db, saveData, key: id, domain, nodes });
+
   const drill = createDrill({
     db,
     saveData,
-    key: 'quiz',
+    key: id,
     seed: {
       nodes,
       questions: questionList.map(question => questionToRecord(question, new Date().toISOString()))
     },
     seedQuestion: (question, now) => questionToRecord(question, now),
-    seedMessage: '[quiz] 已寫入 ' + questionList.length + ' 道句子、數學與常識題目',
+    seedMessage: config.seedMessage || ('[' + id + '] 已寫入 ' + questionList.length + ' 道題目'),
     optionPayload: question => {
       if (question.type !== 'choice') return { options: [], answerId: '' };
       const options = shuffle(question.options.map((text, index) => ({
@@ -79,11 +176,14 @@ function createQuizTool({ rootDir, toolDir, db, saveData: storeSave, dataExists,
       id: question.question_id,
       node_id: question.node_id,
       node_title: node.title || question.node_id,
-      domain: question.domain,
+      dimension: node.dimension || '',
+      domain: question.domain || domain,
+      domain_title: domainMeta.title || config.title || domain,
       type: question.type,
       prompt: question.prompt,
       instruction: question.instruction,
-      difficulty: question.difficulty
+      difficulty: question.difficulty,
+      tags: (question.tags || []).slice()
     }),
     answerPayload: ({ question }) => ({
       answer: question.answer,
@@ -92,13 +192,14 @@ function createQuizTool({ rootDir, toolDir, db, saveData: storeSave, dataExists,
     summaryQuestion: question => ({
       question_id: question.question_id,
       node_id: question.node_id,
-      domain: question.domain,
+      node_title: (drill.nodeMap().get(question.node_id) || {}).title || question.node_id,
+      domain: question.domain || domain,
       stem: question.stem,
       answer: question.answer,
       explanation: question.explanation
     }),
-    targetLabel: '類別',
-    roundPrefix: 'QZ_'
+    targetLabel: config.targetLabel || '類別',
+    roundPrefix: config.roundPrefix || 'QZ_'
   });
 
   const quiz = drill.data;
@@ -132,8 +233,8 @@ function createQuizTool({ rootDir, toolDir, db, saveData: storeSave, dataExists,
     quiz.nodes = nodes.map(node => ({ ...node }));
     quiz.seedVersion = SEED_VERSION;
     quiz.questionsVersion = bundle.version || 1;
-    saveData().catch(error => console.warn('[quiz] 題庫更新儲存失敗：' + error.message));
-    console.log('[quiz] 題庫已同步：新增 ' + added + ' 題，更新 ' + updated + ' 題，停用 ' + retired + ' 題');
+    saveData().catch(error => console.warn('[' + id + '] 題庫更新儲存失敗：' + error.message));
+    console.log('[' + id + '] 題庫已同步：新增 ' + added + ' 題，更新 ' + updated + ' 題，停用 ' + retired + ' 題');
   }
 
   migrateQuestions();
@@ -144,10 +245,6 @@ function createQuizTool({ rootDir, toolDir, db, saveData: storeSave, dataExists,
 
   function nodeFor(question) {
     return drill.nodeMap().get(question.node_id) || {};
-  }
-
-  function domainInfo(domain) {
-    return domainMeta[domain] || { title: domain, short: domain };
   }
 
   function tilesFor(question) {
@@ -164,14 +261,13 @@ function createQuizTool({ rootDir, toolDir, db, saveData: storeSave, dataExists,
 
   function questionPayload(question) {
     const node = nodeFor(question);
-    const domain = domainInfo(question.domain);
     const payload = {
       id: question.question_id,
       node_id: question.node_id,
       node_title: node.title || question.node_id,
       dimension: node.dimension || '',
-      domain: question.domain,
-      domain_title: domain.title || question.domain,
+      domain: question.domain || domain,
+      domain_title: domainMeta.title || config.title || domain,
       type: question.type,
       prompt: question.prompt,
       instruction: question.instruction,
@@ -206,7 +302,7 @@ function createQuizTool({ rootDir, toolDir, db, saveData: storeSave, dataExists,
     if (question.type === 'order') {
       const order = Array.isArray(body.order) ? body.order : [];
       if (order.length !== question.parts.length) return false;
-      return order.every((id, index) => String(id) === 'p' + index);
+      return order.every((tileId, index) => String(tileId) === 'p' + index);
     }
     if (question.type === 'input') {
       const given = normalizeAnswer(body.value);
@@ -233,8 +329,8 @@ function createQuizTool({ rootDir, toolDir, db, saveData: storeSave, dataExists,
 
   function pruneRounds() {
     const cutoff = Date.now() - 2 * 60 * 60 * 1000;
-    for (const [id, round] of rounds.entries()) {
-      if (round.startedAt < cutoff) rounds.delete(id);
+    for (const [roundId, round] of rounds.entries()) {
+      if (round.startedAt < cutoff) rounds.delete(roundId);
     }
   }
 
@@ -273,7 +369,7 @@ function createQuizTool({ rootDir, toolDir, db, saveData: storeSave, dataExists,
     pruneRounds();
     roundSeq += 1;
     const round = {
-      roundId: 'QZ_' + Date.now() + '_' + roundSeq,
+      roundId: (config.roundPrefix || 'QZ_') + Date.now() + '_' + roundSeq,
       userId: user.id,
       taskId: task ? task.task_id : null,
       taskName: task ? task.task_name : '自由練習',
@@ -330,9 +426,9 @@ function createQuizTool({ rootDir, toolDir, db, saveData: storeSave, dataExists,
       let taken = 0;
       for (const question of list) {
         if (chosen.length >= count || taken >= amount) break;
-        const key = String(question.question_id);
-        if (used.has(key)) continue;
-        used.add(key);
+        const questionKey = String(question.question_id);
+        if (used.has(questionKey)) continue;
+        used.add(questionKey);
         chosen.push(question);
         taken += 1;
       }
@@ -351,11 +447,9 @@ function createQuizTool({ rootDir, toolDir, db, saveData: storeSave, dataExists,
   }
 
   function resolvePool(body) {
-    const nodes = Array.isArray(body.nodes) ? body.nodes.map(String) : [];
-    const domains = Array.isArray(body.domains) ? body.domains.map(String) : [];
+    const nodeIds = Array.isArray(body.nodes) ? body.nodes.map(String) : [];
     return activeQuestions().filter(question => {
-      if (nodes.length && !nodes.includes(question.node_id)) return false;
-      if (domains.length && !domains.includes(question.domain)) return false;
+      if (nodeIds.length && !nodeIds.includes(question.node_id)) return false;
       return true;
     });
   }
@@ -473,7 +567,7 @@ function createQuizTool({ rootDir, toolDir, db, saveData: storeSave, dataExists,
         question_id: question.question_id,
         node_id: question.node_id,
         node_title: nodeFor(question).title || question.node_id,
-        domain: question.domain,
+        domain: question.domain || domain,
         stem: question.stem,
         answer: question.answer,
         explanation: question.explanation,
@@ -512,32 +606,31 @@ function createQuizTool({ rootDir, toolDir, db, saveData: storeSave, dataExists,
   function overview(userId) {
     const domainCounts = {};
     activeQuestions().forEach(question => {
-      domainCounts[question.domain] = (domainCounts[question.domain] || 0) + 1;
+      const questionDomain = question.domain || domain;
+      domainCounts[questionDomain] = (domainCounts[questionDomain] || 0) + 1;
     });
     return {
       nodes: drill.nodesWithStats(userId),
       tasks: drill.taskForUser(userId),
       stats: drill.userStats(userId),
       questionCount: activeQuestions().length,
-      domains: Object.keys(domainMeta).map(key => ({
-        id: key,
-        title: domainMeta[key].title,
-        short: domainMeta[key].short,
-        icon: domainMeta[key].icon,
-        color: domainMeta[key].color,
-        count: domainCounts[key] || 0
-      })).filter(item => item.count > 0)
+      domains: [{
+        id: domain,
+        title: domainMeta.title || config.title || domain,
+        short: domainMeta.short || config.short || domain,
+        icon: domainMeta.icon || config.icon || 'grid',
+        color: domainMeta.color || config.accent || '#b4602f',
+        count: domainCounts[domain] || 0
+      }]
     };
   }
 
   function questionBank(user, query) {
-    const domain = String(query.domain || '');
     const nodeId = String(query.node_id || '');
     const keyword = String(query.q || '').trim();
     const offset = Math.max(0, parseInt(query.offset, 10) || 0);
     const limit = clamp(parseInt(query.limit, 10) || 50, 1, 200);
     const filtered = activeQuestions().filter(question => {
-      if (domain && question.domain !== domain) return false;
       if (nodeId && question.node_id !== nodeId) return false;
       if (!keyword) return true;
       return String(question.stem || '').includes(keyword) ||
@@ -550,8 +643,8 @@ function createQuizTool({ rootDir, toolDir, db, saveData: storeSave, dataExists,
       limit,
       questions: filtered.slice(offset, offset + limit).map(question => ({
         question_id: question.question_id,
-        domain: question.domain,
-        domain_title: domainInfo(question.domain).title,
+        domain: question.domain || domain,
+        domain_title: domainMeta.title || config.title || domain,
         node_id: question.node_id,
         node_title: nodeFor(question).title || question.node_id,
         type: question.type,
@@ -570,6 +663,7 @@ function createQuizTool({ rootDir, toolDir, db, saveData: storeSave, dataExists,
     const user = requireAuth(req, res);
     if (!user) return;
     const userId = user.id;
+    const label = config.targetLabel || '類別';
 
     if (pathname === '/api/overview' && method === 'GET') {
       jsonResponse(res, 200, overview(userId));
@@ -611,7 +705,7 @@ function createQuizTool({ rootDir, toolDir, db, saveData: storeSave, dataExists,
     if (pathname === '/api/tasks' && method === 'POST') {
       try {
         const body = await parseBody(req);
-        const result = await drill.createTasks({ user, body, label: '類別' });
+        const result = await drill.createTasks({ user, body, label });
         jsonResponse(res, result.status, result.body);
       } catch (error) {
         jsonResponse(res, 400, { error: '無效的請求' });
@@ -634,7 +728,7 @@ function createQuizTool({ rootDir, toolDir, db, saveData: storeSave, dataExists,
       const taskId = pathname.split('/')[3];
       try {
         const body = await parseBody(req);
-        const result = await drill.updateTasks({ user, taskId, body, label: '類別' });
+        const result = await drill.updateTasks({ user, taskId, body, label });
         jsonResponse(res, result.status, result.body);
       } catch (error) {
         jsonResponse(res, 400, { error: '無效的請求' });
@@ -695,4 +789,4 @@ function createQuizTool({ rootDir, toolDir, db, saveData: storeSave, dataExists,
   return { handleAPI, stats: drill.stats };
 }
 
-module.exports = { id: 'quiz', create: createQuizTool };
+module.exports = { createDomainQuizTool };

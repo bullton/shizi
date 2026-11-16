@@ -25,15 +25,40 @@
       desc: '由詞法到時態，用自適應練習把英文文法一步一步練成直覺。'
     },
     {
-      id: 'quiz',
-      name: '知識樂園',
-      short: '知識',
-      entry: '/tools/quiz/',
-      weight: 0.35,
+      id: 'sentence',
+      name: '句子重組',
+      short: '句子',
+      entry: '/tools/sentence/',
+      weight: 0.22,
+      order: 5,
       active: true,
-      accent: '#b4602f',
+      accent: '#7a4ab8',
+      icon: 'pen',
+      desc: '把詞語卡排成通順句子，練四素句、特殊句式與各種複句。'
+    },
+    {
+      id: 'gk',
+      name: '常識問答',
+      short: '常識',
+      entry: '/tools/gk/',
+      weight: 0.2,
+      order: 6,
+      active: true,
+      accent: '#2f8f6b',
       icon: 'compass',
-      desc: '句子重組、數學計算、常識問答三合一，按句式、運算與知識範疇分類練習。'
+      desc: '香港、社會、歷史、世界、科學、環境與健康，一題一題累積常識。'
+    },
+    {
+      id: 'math',
+      name: '數學計算',
+      short: '數學',
+      entry: '/tools/math/',
+      weight: 0.2,
+      order: 7,
+      active: true,
+      accent: '#1f6f8b',
+      icon: 'calc',
+      desc: '加、減、乘、除四則運算，輸入答案即時核對，按運算類型集中練習。'
     },
     {
       id: 'spell',
@@ -497,7 +522,7 @@
           (Number(bt.accuracy) || 0) - (Number(at.accuracy) || 0) ||
           (Number(at.avgTime) || Infinity) - (Number(bt.avgTime) || Infinity);
       }
-      if (toolId === 'idiom' || toolId === 'spell' || toolId === 'quiz') {
+      if (toolId === 'idiom' || toolId === 'spell' || toolId === 'sentence' || toolId === 'math' || toolId === 'gk') {
         return (Number(bt.mastered) || 0) - (Number(at.mastered) || 0) ||
           (Number(bt.attempted) || 0) - (Number(at.attempted) || 0) ||
           (Number(bt.accuracy) || 0) - (Number(at.accuracy) || 0) ||
@@ -523,12 +548,16 @@
     const grammar = toolStats('grammar');
     const idiom = toolStats('idiom');
     const spell = toolStats('spell');
-    const quiz = toolStats('quiz');
+    const sentence = toolStats('sentence');
+    const math = toolStats('math');
+    const gk = toolStats('gk');
     return shiziRecent +
       (grammar ? Number(grammar.recent7) || 0 : 0) +
       (idiom ? Number(idiom.recent7) || 0 : 0) +
       (spell ? Number(spell.recent7) || 0 : 0) +
-      (quiz ? Number(quiz.recent7) || 0 : 0);
+      (sentence ? Number(sentence.recent7) || 0 : 0) +
+      (math ? Number(math.recent7) || 0 : 0) +
+      (gk ? Number(gk.recent7) || 0 : 0);
   }
 
   /* ===== Chrome ===== */
@@ -621,7 +650,7 @@
     const detail = toolStats(tool.id) || {};
     const rank = toolRank(tool.id);
     const isRate = tool.id === 'grammar';
-    const isMastery = tool.id === 'grammar' || tool.id === 'idiom' || tool.id === 'spell' || tool.id === 'quiz';
+    const isMastery = tool.id === 'grammar' || tool.id === 'idiom' || tool.id === 'spell' || tool.id === 'sentence' || tool.id === 'math' || tool.id === 'gk';
     const value = isRate
       ? (detail.masteryRate || 0)
       : isMastery
@@ -648,7 +677,7 @@
 
   function miniRankHTML() {
     if (!state.ranking.length) {
-      return emptyHTML('尚未有排名', '完成一局識字樂、文法花園、英文拆拆拆、成語天地或知識樂園，就會出現在這裡。');
+      return emptyHTML('尚未有排名', '完成一局識字樂、文法花園、英文拆拆拆、成語天地、句子重組、數學計算或常識問答，就會出現在這裡。');
     }
     const rows = state.ranking.slice(0, 5).map(function (row, index) {
       return miniRowHTML(row, index + 1, String(row.userId) === String(state.user.id));
@@ -690,7 +719,9 @@
     const grammar = toolStats('grammar') || { mastered: 0, attempts: 0, recent7: 0 };
     const idiom = toolStats('idiom') || { mastered: 0, attempts: 0, recent7: 0 };
     const spell = toolStats('spell') || { mastered: 0, attempts: 0, recent7: 0 };
-    const quiz = toolStats('quiz') || { mastered: 0, attempts: 0, recent7: 0 };
+    const sentence = toolStats('sentence') || { mastered: 0, attempts: 0, recent7: 0 };
+    const math = toolStats('math') || { mastered: 0, attempts: 0, recent7: 0 };
+    const gk = toolStats('gk') || { mastered: 0, attempts: 0, recent7: 0 };
     const rank = myRank();
     const recent = recentPracticeCount();
     const shiziTool = toolById('shizi');
@@ -704,7 +735,9 @@
       (Number(grammar.attempts) || 0) +
       (Number(idiom.attempts) || 0) +
       (Number(spell.attempts) || 0) +
-      (Number(quiz.attempts) || 0);
+      (Number(sentence.attempts) || 0) +
+      (Number(math.attempts) || 0) +
+      (Number(gk.attempts) || 0);
     const shiziRecent = state.stats && Array.isArray(state.stats.recentActivity)
       ? state.stats.recentActivity.reduce(function (sum, day) { return sum + (Number(day.count) || 0); }, 0)
       : 0;
@@ -713,15 +746,15 @@
         '<div>' +
           '<p class="eyebrow">' + esc(todayLabel()) + '</p>' +
           '<h1 class="page-title">' + greeting() + '，' + esc(state.user.nickname || state.user.username) + '</h1>' +
-          '<p class="page-sub">識字樂、文法花園、英文拆拆拆、成語天地與知識樂園共用同一份帳戶；工具內各自保留進度，工具台則把各邊的表現折算成綜合排名。</p>' +
+          '<p class="page-sub">識字樂、文法花園、英文拆拆拆、成語天地、句子重組、數學計算與常識問答共用同一份帳戶；工具內各自保留進度，工具台則把各邊的表現折算成綜合排名。</p>' +
         '</div>' +
         '<div class="page-actions"><button class="btn btn-primary" type="button" data-nav="tool/' + (primary ? primary.id : 'shizi') + '">' + startLabel + ' ' + icon('arrowRight', 16) + '</button></div>' +
       '</header>' +
       '<div class="stat-strip">' +
         statHTML(fmtInt(shizi.charsKnown), '字', '識字樂已學', '來自識字樂進度') +
-        statHTML(fmtInt(Number(grammar.mastered) + Number(idiom.mastered) + Number(spell.mastered) + Number(quiz.mastered)), '項', '已掌握', '文法／成語／知識按題，拆詞按詞') +
+        statHTML(fmtInt(Number(grammar.mastered) + Number(idiom.mastered) + Number(spell.mastered) + Number(sentence.mastered) + Number(math.mastered) + Number(gk.mastered)), '項', '已掌握', '文法／成語／句子／數學／常識按題，拆詞按詞') +
         statHTML(rank ? String(rank) : '—', '', '綜合名次', '按工具積分相加') +
-        statHTML(fmtInt(recent), '次', '近七日練習', '五個工具的作答合計') +
+        statHTML(fmtInt(recent), '次', '近七日練習', '七個工具的作答合計') +
       '</div>' +
       '<div class="overview-grid">' +
         '<div class="overview-main">' +
@@ -764,7 +797,7 @@
     const overall = tab === 'overall';
     const detail = row.tools && row.tools[tab] ? row.tools[tab] : {};
     const tool = toolById(tab);
-    const isMastery = tool && (tool.id === 'grammar' || tool.id === 'idiom' || tool.id === 'spell' || tool.id === 'quiz');
+    const isMastery = tool && (tool.id === 'grammar' || tool.id === 'idiom' || tool.id === 'spell' || tool.id === 'sentence' || tool.id === 'math' || tool.id === 'gk');
     const detailUnit = tool && tool.id === 'spell' ? '詞' : '題';
     const score = overall
       ? Number(row.combined) || 0
@@ -781,9 +814,11 @@
     const grammar = row.tools && row.tools.grammar ? row.tools.grammar : {};
     const idiom = row.tools && row.tools.idiom ? row.tools.idiom : {};
     const spell = row.tools && row.tools.spell ? row.tools.spell : {};
-    const quiz = row.tools && row.tools.quiz ? row.tools.quiz : {};
+    const sentence = row.tools && row.tools.sentence ? row.tools.sentence : {};
+    const math = row.tools && row.tools.math ? row.tools.math : {};
+    const gk = row.tools && row.tools.gk ? row.tools.gk : {};
     const sub = overall
-      ? '識字樂 ' + fmtInt(shizi.charsKnown) + ' 字 · 文法 ' + fmtInt(grammar.mastered) + ' 題 · 拆詞 ' + fmtInt(spell.mastered) + ' 詞 · 成語 ' + fmtInt(idiom.mastered) + ' 題 · 知識 ' + fmtInt(quiz.mastered) + ' 題'
+      ? '識字樂 ' + fmtInt(shizi.charsKnown) + ' 字 · 文法 ' + fmtInt(grammar.mastered) + ' 題 · 拆詞 ' + fmtInt(spell.mastered) + ' 詞 · 成語 ' + fmtInt(idiom.mastered) + ' 題 · 句子 ' + fmtInt(sentence.mastered) + ' 題 · 數學 ' + fmtInt(math.mastered) + ' 題 · 常識 ' + fmtInt(gk.mastered) + ' 題'
       : isMastery
         ? '掌握 ' + fmtInt(detail.mastered || detail.score) + ' / ' + fmtInt(detail.totalQuestions) + ' ' + detailUnit + '（' + fmtPct(detail.masteryRate) + '%）· 做過 ' + fmtInt(detail.attempted) + ' ' + detailUnit + ' · 正確率 ' + fmtPct(detail.accuracy) + '% · 平均 ' + avgTimeText(detail.avgTime)
         : '已學 ' + fmtInt(detail.charsKnown) + ' 字 · 正確率 ' + fmtPct(detail.accuracy) + '% · 平均 ' + avgTimeText(detail.avgTime) + ' · 練習 ' + fmtInt(detail.attempts) + ' 次';
@@ -806,7 +841,7 @@
     const total = Number(mine && mine.combined) || 0;
     const rows = TOOLS.map(function (tool) {
       const detail = toolStats(tool.id) || {};
-      const mastery = tool.id === 'grammar' || tool.id === 'idiom' || tool.id === 'spell' || tool.id === 'quiz';
+      const mastery = tool.id === 'grammar' || tool.id === 'idiom' || tool.id === 'spell' || tool.id === 'sentence' || tool.id === 'math' || tool.id === 'gk';
       const value = mastery ? Number(detail.mastered || detail.score) || 0 : Number(detail.charsKnown) || 0;
       const pct = tool.active && total > 0 ? Math.min(100, Math.round((value / total) * 100)) : 0;
       return '<div class="weight-row' + (tool.active ? ' is-active' : ' is-muted') + '">' +
@@ -818,7 +853,7 @@
     return '<section class="panel">' +
       '<div class="panel-head"><h2 class="panel-title">積分來源</h2><span class="panel-meta">目前 ' + fmtInt(total) + ' 分</span></div>' +
       '<div class="weight-list">' + rows + '</div>' +
-      '<p class="panel-note">識字樂每學 1 字 = 1 分；文法花園、成語天地與知識樂園每掌握 1 題 = 1 分；英文拆拆拆每掌握 1 詞 = 1 分。綜合積分直接相加。</p>' +
+      '<p class="panel-note">識字樂每學 1 字 = 1 分；文法花園、成語天地、句子重組、數學計算與常識問答每掌握 1 題 = 1 分；英文拆拆拆每掌握 1 詞 = 1 分。綜合積分直接相加。</p>' +
       '</section>';
   }
 
@@ -830,10 +865,12 @@
         '<li>文法花園：每掌握 1 道題 = 1 分。</li>' +
         '<li>英文拆拆拆：每掌握 1 個單詞 = 1 分。</li>' +
         '<li>成語天地：每掌握 1 道題 = 1 分。</li>' +
-        '<li>知識樂園：每掌握 1 道題 = 1 分。</li>' +
+        '<li>句子重組：每掌握 1 道題 = 1 分。</li>' +
+        '<li>數學計算：每掌握 1 道題 = 1 分。</li>' +
+        '<li>常識問答：每掌握 1 道題 = 1 分。</li>' +
         '<li>綜合積分 = 各工具積分直接相加，不再換算百分位。</li>' +
       '</ol>' +
-      '<p class="panel-note">工具榜仍按各自規則排序：識字樂看字數 → 正確率 → 速度；文法花園看掌握率 → 做題量 → 正確率 → 速度；英文拆拆拆、成語天地與知識樂園看掌握數 → 做題量 → 正確率 → 速度。速度只影響工具內同分名次。</p>' +
+      '<p class="panel-note">工具榜仍按各自規則排序：識字樂看字數 → 正確率 → 速度；文法花園看掌握率 → 做題量 → 正確率 → 速度；英文拆拆拆、成語天地、句子重組、數學計算與常識問答看掌握數 → 做題量 → 正確率 → 速度。速度只影響工具內同分名次。</p>' +
       '</section>';
   }
 
@@ -856,23 +893,27 @@
     })).join('');
 
     const note = tab === 'overall'
-      ? '綜合積分＝識字樂已學字數＋文法已掌握題數＋英文拆拆拆已掌握詞數＋成語已掌握題數＋知識樂園已掌握題數，直接相加，不再換算百分位。'
+      ? '綜合積分＝識字樂已學字數＋文法已掌握題數＋英文拆拆拆已掌握詞數＋成語已掌握題數＋句子重組已掌握題數＋數學計算已掌握題數＋常識問答已掌握題數，直接相加，不再換算百分位。'
       : tab === 'grammar'
         ? '文法花園榜依次比較：題目掌握率 → 做題量 → 正確率 → 平均速度。'
         : tab === 'spell'
           ? '英文拆拆拆榜依次比較：已掌握詞數 → 做題量 → 正確率 → 平均速度。'
           : tab === 'idiom'
             ? '成語天地榜依次比較：已掌握題數 → 做題量 → 正確率 → 平均速度。'
-            : tab === 'quiz'
-              ? '知識樂園榜依次比較：已掌握題數 → 做題量 → 正確率 → 平均速度。'
-              : '識字樂榜依次比較：已學字數 → 正確率 → 平均速度；它同時是綜合榜中識字樂的積分來源。';
+            : tab === 'sentence'
+              ? '句子重組榜依次比較：已掌握題數 → 做題量 → 正確率 → 平均速度。'
+              : tab === 'math'
+                ? '數學計算榜依次比較：已掌握題數 → 做題量 → 正確率 → 平均速度。'
+                : tab === 'gk'
+                  ? '常識問答榜依次比較：已掌握題數 → 做題量 → 正確率 → 平均速度。'
+                  : '識字樂榜依次比較：已學字數 → 正確率 → 平均速度；它同時是綜合榜中識字樂的積分來源。';
 
     return '<section class="view">' +
       '<header class="page-head">' +
         '<div>' +
           '<p class="eyebrow">公用排名</p>' +
           '<h1 class="page-title">綜合排名</h1>' +
-          '<p class="page-sub">工具內先各自排名，綜合榜直接累加絕對積分。識字樂、文法花園、英文拆拆拆、成語天地與知識樂園的原始排行榜都保留在工具裡。</p>' +
+          '<p class="page-sub">工具內先各自排名，綜合榜直接累加絕對積分。識字樂、文法花園、英文拆拆拆、成語天地、句子重組、數學計算與常識問答的原始排行榜都保留在工具裡。</p>' +
         '</div>' +
         '<div class="page-actions"><button class="btn btn-ghost" type="button" data-reload>' + icon('refresh', 16) + '更新數據</button></div>' +
       '</header>' +
@@ -881,7 +922,7 @@
           '<div class="tabs" role="tablist" aria-label="排名類型">' + tabs + '</div>' +
           (state.ranking.length
             ? '<ol class="rank-list">' + rows + '</ol>'
-            : emptyHTML('尚未有排名', '完成一局識字樂、文法花園、英文拆拆拆、成語天地或知識樂園，就會出現在這裡。')) +
+            : emptyHTML('尚未有排名', '完成一局識字樂、文法花園、英文拆拆拆、成語天地、句子重組、數學計算或常識問答，就會出現在這裡。')) +
           '<p class="panel-note">' + note + '</p>' +
         '</section>' +
         '<aside class="ranking-rail">' + pointsPanelHTML() + formulaPanelHTML() + '</aside>' +
@@ -899,7 +940,9 @@
     const stats = state.stats || { totalChars: 0, totalAttempts: 0 };
     const grammar = toolStats('grammar') || { mastered: 0, attempts: 0 };
     const spell = toolStats('spell') || { mastered: 0, attempts: 0 };
-    const quiz = toolStats('quiz') || { mastered: 0, attempts: 0 };
+    const sentence = toolStats('sentence') || { mastered: 0, attempts: 0 };
+    const math = toolStats('math') || { mastered: 0, attempts: 0 };
+    const gk = toolStats('gk') || { mastered: 0, attempts: 0 };
     const rank = myRank();
     const joined = user.createdAt ? new Date(user.createdAt).toLocaleDateString('zh-HK') : '—';
     return '<section class="view">' +
@@ -907,7 +950,7 @@
         '<div>' +
           '<p class="eyebrow">帳戶</p>' +
           '<h1 class="page-title">學習檔案</h1>' +
-          '<p class="page-sub">這份資料由學習平台提供，所有工具共用。修改後會同步到識字樂、文法花園、英文拆拆拆、成語天地與知識樂園。</p>' +
+          '<p class="page-sub">這份資料由學習平台提供，所有工具共用。修改後會同步到識字樂、文法花園、英文拆拆拆、成語天地、句子重組、數學計算與常識問答。</p>' +
         '</div>' +
       '</header>' +
       '<div class="profile-grid">' +
@@ -925,7 +968,9 @@
             '<div><dt>識字樂已學</dt><dd>' + fmtInt(stats.totalChars) + ' 字</dd></div>' +
             '<div><dt>文法已掌握</dt><dd>' + fmtInt(grammar.mastered) + ' 題</dd></div>' +
             '<div><dt>英文拆拆拆已掌握</dt><dd>' + fmtInt(spell.mastered) + ' 詞</dd></div>' +
-            '<div><dt>知識樂園已掌握</dt><dd>' + fmtInt(quiz.mastered) + ' 題</dd></div>' +
+            '<div><dt>句子重組已掌握</dt><dd>' + fmtInt(sentence.mastered) + ' 題</dd></div>' +
+            '<div><dt>數學計算已掌握</dt><dd>' + fmtInt(math.mastered) + ' 題</dd></div>' +
+            '<div><dt>常識問答已掌握</dt><dd>' + fmtInt(gk.mastered) + ' 題</dd></div>' +
             '<div><dt>綜合名次</dt><dd>' + (rank ? '第 ' + rank + ' 名' : '尚未上榜') + '</dd></div>' +
           '</dl>' +
         '</section>' +

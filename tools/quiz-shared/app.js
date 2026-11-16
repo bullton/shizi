@@ -1,6 +1,9 @@
 (function () {
   'use strict';
 
+  const CONFIG = window.QUIZ_CONFIG || {};
+  const API_BASE = CONFIG.apiBase || '/api/quiz';
+
   const state = {
     user: null,
     overview: null,
@@ -171,7 +174,7 @@
   }
 
   function api(path, options) {
-    return request('/api/quiz' + path, options);
+    return request(API_BASE + path, options);
   }
 
   function isAdmin() {
@@ -208,6 +211,7 @@
   }
 
   function domainDescription(id) {
+    if (CONFIG.domainDescription) return CONFIG.domainDescription;
     if (id === 'sentence') return '把詞語卡排成通順句子，練四素句、特殊句式與各種複句。';
     if (id === 'math') return '加、減、乘、除四則運算，輸入答案即時核對。';
     if (id === 'gk') return '香港、社會、歷史、世界、科學、環境與健康，一題一題累積常識。';
@@ -215,6 +219,7 @@
   }
 
   function domainMark(id) {
+    if (CONFIG.domainMark) return CONFIG.domainMark;
     if (id === 'sentence') return '句';
     if (id === 'math') return '算';
     if (id === 'gk') return '識';
@@ -369,9 +374,9 @@
   }
 
   function renderDomains() {
-    els.domainGrid.innerHTML = state.domains.map((domain, index) => {
-      const tone = index === 0 ? 'rgba(122, 74, 184, 0.12)' : index === 1 ? 'rgba(31, 111, 139, 0.12)' : 'rgba(47, 143, 107, 0.12)';
-      const color = index === 0 ? 'var(--purple)' : index === 1 ? 'var(--blue)' : 'var(--green)';
+    els.domainGrid.innerHTML = state.domains.map(domain => {
+      const tone = 'var(--accent-soft)';
+      const color = 'var(--accent)';
       return '<button type="button" class="domain-card" data-domain="' + esc(domain.id) + '" style="--domain-tint:' + tone + ';--domain-color:' + color + '">' +
         '<span class="domain-mark">' + esc(domainMark(domain.id)) + '</span>' +
         '<strong>' + esc(domain.title) + '</strong>' +
@@ -391,7 +396,7 @@
       nodes.forEach(node => {
         if (!dimensions.includes(node.dimension)) dimensions.push(node.dimension);
       });
-      const color = domainId === 'sentence' ? 'var(--purple)' : domainId === 'math' ? 'var(--blue)' : 'var(--green)';
+      const color = 'var(--accent)';
       return '<section class="node-group" style="--group-color:' + color + '">' +
         '<div class="node-group-head"><span></span><h3>' + esc(info.title) + '</h3><em>' + nodes.reduce((sum, node) => sum + (node.questionCount || 0), 0) + ' 題</em></div>' +
         dimensions.map(dimension => {
@@ -760,8 +765,8 @@
     els.parentTasks.innerHTML = '<div class="panel-grid">' +
       '<div class="form-card">' +
         '<h3>建立任務</h3>' +
-        '<div class="field"><label for="task-name">任務名稱</label><input id="task-name" maxlength="40" placeholder="例如：本周句子與常識混合練習" value="' + esc(form.name) + '"></div>' +
-        '<div class="field"><label>類別（可跨領域多選）</label><div class="category-picker">' + domainOptions + '</div></div>' +
+        '<div class="field"><label for="task-name">任務名稱</label><input id="task-name" maxlength="40" placeholder="' + esc(CONFIG.taskPlaceholder || '例如：本周分類練習') + '" value="' + esc(form.name) + '"></div>' +
+        '<div class="field"><label>分類（可多選）</label><div class="category-picker">' + domainOptions + '</div></div>' +
         '<div class="field-row">' +
           '<div class="field"><label for="task-size">每輪題數</label><input id="task-size" type="number" min="1" max="30" value="' + fmtInt(form.batchSize) + '"></div>' +
           '<div class="field"><label for="task-streak">連續答對天數</label><input id="task-streak" type="number" min="2" max="6" value="' + fmtInt(form.passStreak) + '"></div>' +
@@ -804,7 +809,7 @@
 
   function renderBank() {
     const bank = state.bank;
-    const domainSelect = '<select data-bank-domain><option value="">全部領域</option>' + state.domains.map(domain =>
+    const domainSelect = '<select data-bank-domain><option value="">全部</option>' + state.domains.map(domain =>
       '<option value="' + esc(domain.id) + '"' + (bank.domain === domain.id ? ' selected' : '') + '>' + esc(domain.title) + '</option>'
     ).join('') + '</select>';
     const nodeSelect = '<select data-bank-node><option value="">全部分類</option>' + state.nodes.filter(node => !bank.domain || node.domain === bank.domain).map(node =>

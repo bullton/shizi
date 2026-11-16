@@ -1,0 +1,1853 @@
+{
+  "version": 1,
+  "source": "sentence-battle",
+  "domain": "math",
+  "domains": {
+    "math": {
+      "title": "數學計算",
+      "short": "數學",
+      "icon": "calc",
+      "color": "#1f6f8b"
+    }
+  },
+  "nodes": [
+    {
+      "node_id": "add",
+      "title": "加法",
+      "dimension": "四則運算",
+      "order": 1,
+      "domain": "math",
+      "category": "數學計算",
+      "questionCount": 25
+    },
+    {
+      "node_id": "sub",
+      "title": "減法",
+      "dimension": "四則運算",
+      "order": 2,
+      "domain": "math",
+      "category": "數學計算",
+      "questionCount": 25
+    },
+    {
+      "node_id": "mul",
+      "title": "乘法",
+      "dimension": "四則運算",
+      "order": 3,
+      "domain": "math",
+      "category": "數學計算",
+      "questionCount": 25
+    },
+    {
+      "node_id": "div",
+      "title": "除法",
+      "dimension": "四則運算",
+      "order": 4,
+      "domain": "math",
+      "category": "數學計算",
+      "questionCount": 25
+    }
+  ],
+  "questions": [
+    {
+      "question_id": "M001",
+      "node_id": "add",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "1924 + 509 = ?",
+      "expression": "1924 + 509 = ?",
+      "answer": "2433",
+      "explanation": "1924 + 509 = 2433",
+      "difficulty": "normal",
+      "tags": [
+        "四則運算",
+        "加法"
+      ],
+      "source": "sentence-battle:6a1c3cc93a4c22739be998f4"
+    },
+    {
+      "question_id": "M002",
+      "node_id": "add",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "4606 + 4112 = ?",
+      "expression": "4606 + 4112 = ?",
+      "answer": "8718",
+      "explanation": "4606 + 4112 = 8718",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "加法"
+      ],
+      "source": "sentence-battle:6a1c3cc93a4c22739be998f5"
+    },
+    {
+      "question_id": "M003",
+      "node_id": "add",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "3757 + 2386 = ?",
+      "expression": "3757 + 2386 = ?",
+      "answer": "6143",
+      "explanation": "3757 + 2386 = 6143",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "加法"
+      ],
+      "source": "sentence-battle:6a1c3cc93a4c22739be998f6"
+    },
+    {
+      "question_id": "M004",
+      "node_id": "add",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "1779 + 9035 = ?",
+      "expression": "1779 + 9035 = ?",
+      "answer": "10814",
+      "explanation": "1779 + 9035 = 10814",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "加法"
+      ],
+      "source": "sentence-battle:6a1c3cc93a4c22739be998f7"
+    },
+    {
+      "question_id": "M005",
+      "node_id": "add",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "1524 + 9774 = ?",
+      "expression": "1524 + 9774 = ?",
+      "answer": "11298",
+      "explanation": "1524 + 9774 = 11298",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "加法"
+      ],
+      "source": "sentence-battle:6a1c3cc93a4c22739be998f8"
+    },
+    {
+      "question_id": "M006",
+      "node_id": "add",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "7012 + 620 = ?",
+      "expression": "7012 + 620 = ?",
+      "answer": "7632",
+      "explanation": "7012 + 620 = 7632",
+      "difficulty": "normal",
+      "tags": [
+        "四則運算",
+        "加法"
+      ],
+      "source": "sentence-battle:6a1c3cc93a4c22739be998f9"
+    },
+    {
+      "question_id": "M007",
+      "node_id": "add",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "588 + 1635 = ?",
+      "expression": "588 + 1635 = ?",
+      "answer": "2223",
+      "explanation": "588 + 1635 = 2223",
+      "difficulty": "normal",
+      "tags": [
+        "四則運算",
+        "加法"
+      ],
+      "source": "sentence-battle:6a1c3cc93a4c22739be998fa"
+    },
+    {
+      "question_id": "M008",
+      "node_id": "add",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "3682 + 3911 = ?",
+      "expression": "3682 + 3911 = ?",
+      "answer": "7593",
+      "explanation": "3682 + 3911 = 7593",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "加法"
+      ],
+      "source": "sentence-battle:6a1c3cc93a4c22739be998fb"
+    },
+    {
+      "question_id": "M009",
+      "node_id": "add",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "8379 + 9963 = ?",
+      "expression": "8379 + 9963 = ?",
+      "answer": "18342",
+      "explanation": "8379 + 9963 = 18342",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "加法"
+      ],
+      "source": "sentence-battle:6a1c3cc93a4c22739be998fc"
+    },
+    {
+      "question_id": "M010",
+      "node_id": "add",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "534 + 9295 = ?",
+      "expression": "534 + 9295 = ?",
+      "answer": "9829",
+      "explanation": "534 + 9295 = 9829",
+      "difficulty": "normal",
+      "tags": [
+        "四則運算",
+        "加法"
+      ],
+      "source": "sentence-battle:6a1c3cc93a4c22739be998fd"
+    },
+    {
+      "question_id": "M011",
+      "node_id": "add",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "3357 + 9028 = ?",
+      "expression": "3357 + 9028 = ?",
+      "answer": "12385",
+      "explanation": "3357 + 9028 = 12385",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "加法"
+      ],
+      "source": "sentence-battle:6a1c3cc93a4c22739be998fe"
+    },
+    {
+      "question_id": "M012",
+      "node_id": "add",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "6973 + 3711 = ?",
+      "expression": "6973 + 3711 = ?",
+      "answer": "10684",
+      "explanation": "6973 + 3711 = 10684",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "加法"
+      ],
+      "source": "sentence-battle:6a1c3cc93a4c22739be998ff"
+    },
+    {
+      "question_id": "M013",
+      "node_id": "add",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "7459 + 9754 = ?",
+      "expression": "7459 + 9754 = ?",
+      "answer": "17213",
+      "explanation": "7459 + 9754 = 17213",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "加法"
+      ],
+      "source": "sentence-battle:6a1c3cc93a4c22739be99900"
+    },
+    {
+      "question_id": "M014",
+      "node_id": "add",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "4657 + 206 = ?",
+      "expression": "4657 + 206 = ?",
+      "answer": "4863",
+      "explanation": "4657 + 206 = 4863",
+      "difficulty": "normal",
+      "tags": [
+        "四則運算",
+        "加法"
+      ],
+      "source": "sentence-battle:6a1c3cc93a4c22739be99901"
+    },
+    {
+      "question_id": "M015",
+      "node_id": "add",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "2715 + 7024 = ?",
+      "expression": "2715 + 7024 = ?",
+      "answer": "9739",
+      "explanation": "2715 + 7024 = 9739",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "加法"
+      ],
+      "source": "sentence-battle:6a1c3cc93a4c22739be99902"
+    },
+    {
+      "question_id": "M016",
+      "node_id": "add",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "5674 + 4652 = ?",
+      "expression": "5674 + 4652 = ?",
+      "answer": "10326",
+      "explanation": "5674 + 4652 = 10326",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "加法"
+      ],
+      "source": "sentence-battle:6a1c3cc93a4c22739be99903"
+    },
+    {
+      "question_id": "M017",
+      "node_id": "add",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "2647 + 3627 = ?",
+      "expression": "2647 + 3627 = ?",
+      "answer": "6274",
+      "explanation": "2647 + 3627 = 6274",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "加法"
+      ],
+      "source": "sentence-battle:6a1c3cc93a4c22739be99904"
+    },
+    {
+      "question_id": "M018",
+      "node_id": "add",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "5614 + 1774 = ?",
+      "expression": "5614 + 1774 = ?",
+      "answer": "7388",
+      "explanation": "5614 + 1774 = 7388",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "加法"
+      ],
+      "source": "sentence-battle:6a1c3cc93a4c22739be99905"
+    },
+    {
+      "question_id": "M019",
+      "node_id": "add",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "1619 + 6324 = ?",
+      "expression": "1619 + 6324 = ?",
+      "answer": "7943",
+      "explanation": "1619 + 6324 = 7943",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "加法"
+      ],
+      "source": "sentence-battle:6a1c3cc93a4c22739be99906"
+    },
+    {
+      "question_id": "M020",
+      "node_id": "add",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "1684 + 5981 = ?",
+      "expression": "1684 + 5981 = ?",
+      "answer": "7665",
+      "explanation": "1684 + 5981 = 7665",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "加法"
+      ],
+      "source": "sentence-battle:6a1c3cc93a4c22739be99907"
+    },
+    {
+      "question_id": "M021",
+      "node_id": "add",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "5735 + 9991 = ?",
+      "expression": "5735 + 9991 = ?",
+      "answer": "15726",
+      "explanation": "5735 + 9991 = 15726",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "加法"
+      ],
+      "source": "sentence-battle:6a1c3cc93a4c22739be99908"
+    },
+    {
+      "question_id": "M022",
+      "node_id": "add",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "4433 + 811 = ?",
+      "expression": "4433 + 811 = ?",
+      "answer": "5244",
+      "explanation": "4433 + 811 = 5244",
+      "difficulty": "normal",
+      "tags": [
+        "四則運算",
+        "加法"
+      ],
+      "source": "sentence-battle:6a1c3cc93a4c22739be99909"
+    },
+    {
+      "question_id": "M023",
+      "node_id": "add",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "7627 + 8885 = ?",
+      "expression": "7627 + 8885 = ?",
+      "answer": "16512",
+      "explanation": "7627 + 8885 = 16512",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "加法"
+      ],
+      "source": "sentence-battle:6a1c3cc93a4c22739be9990a"
+    },
+    {
+      "question_id": "M024",
+      "node_id": "add",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "2145 + 6301 = ?",
+      "expression": "2145 + 6301 = ?",
+      "answer": "8446",
+      "explanation": "2145 + 6301 = 8446",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "加法"
+      ],
+      "source": "sentence-battle:6a1c3cc93a4c22739be9990b"
+    },
+    {
+      "question_id": "M025",
+      "node_id": "add",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "1391 + 9144 = ?",
+      "expression": "1391 + 9144 = ?",
+      "answer": "10535",
+      "explanation": "1391 + 9144 = 10535",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "加法"
+      ],
+      "source": "sentence-battle:6a1c3cc93a4c22739be9990c"
+    },
+    {
+      "question_id": "M026",
+      "node_id": "sub",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "5803 - 5249 = ?",
+      "expression": "5803 - 5249 = ?",
+      "answer": "554",
+      "explanation": "5803 - 5249 = 554",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "減法"
+      ],
+      "source": "sentence-battle:6a1c3cc93a4c22739be9990d"
+    },
+    {
+      "question_id": "M027",
+      "node_id": "sub",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "6925 - 4829 = ?",
+      "expression": "6925 - 4829 = ?",
+      "answer": "2096",
+      "explanation": "6925 - 4829 = 2096",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "減法"
+      ],
+      "source": "sentence-battle:6a1c3cc93a4c22739be9990e"
+    },
+    {
+      "question_id": "M028",
+      "node_id": "sub",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "4150 - 2985 = ?",
+      "expression": "4150 - 2985 = ?",
+      "answer": "1165",
+      "explanation": "4150 - 2985 = 1165",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "減法"
+      ],
+      "source": "sentence-battle:6a1c3cc93a4c22739be9990f"
+    },
+    {
+      "question_id": "M029",
+      "node_id": "sub",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "2139 - 193 = ?",
+      "expression": "2139 - 193 = ?",
+      "answer": "1946",
+      "explanation": "2139 - 193 = 1946",
+      "difficulty": "normal",
+      "tags": [
+        "四則運算",
+        "減法"
+      ],
+      "source": "sentence-battle:6a1c3cc93a4c22739be99910"
+    },
+    {
+      "question_id": "M030",
+      "node_id": "sub",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "4733 - 2470 = ?",
+      "expression": "4733 - 2470 = ?",
+      "answer": "2263",
+      "explanation": "4733 - 2470 = 2263",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "減法"
+      ],
+      "source": "sentence-battle:6a1c3cc93a4c22739be99911"
+    },
+    {
+      "question_id": "M031",
+      "node_id": "sub",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "2307 - 1053 = ?",
+      "expression": "2307 - 1053 = ?",
+      "answer": "1254",
+      "explanation": "2307 - 1053 = 1254",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "減法"
+      ],
+      "source": "sentence-battle:6a1c3cc93a4c22739be99912"
+    },
+    {
+      "question_id": "M032",
+      "node_id": "sub",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "2654 - 1656 = ?",
+      "expression": "2654 - 1656 = ?",
+      "answer": "998",
+      "explanation": "2654 - 1656 = 998",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "減法"
+      ],
+      "source": "sentence-battle:6a1c3cc93a4c22739be99913"
+    },
+    {
+      "question_id": "M033",
+      "node_id": "sub",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "5554 - 3814 = ?",
+      "expression": "5554 - 3814 = ?",
+      "answer": "1740",
+      "explanation": "5554 - 3814 = 1740",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "減法"
+      ],
+      "source": "sentence-battle:6a1c3cc93a4c22739be99914"
+    },
+    {
+      "question_id": "M034",
+      "node_id": "sub",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "6977 - 1432 = ?",
+      "expression": "6977 - 1432 = ?",
+      "answer": "5545",
+      "explanation": "6977 - 1432 = 5545",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "減法"
+      ],
+      "source": "sentence-battle:6a1c3cc93a4c22739be99915"
+    },
+    {
+      "question_id": "M035",
+      "node_id": "sub",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "7065 - 3010 = ?",
+      "expression": "7065 - 3010 = ?",
+      "answer": "4055",
+      "explanation": "7065 - 3010 = 4055",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "減法"
+      ],
+      "source": "sentence-battle:6a1c3cc93a4c22739be99916"
+    },
+    {
+      "question_id": "M036",
+      "node_id": "sub",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "4432 - 2287 = ?",
+      "expression": "4432 - 2287 = ?",
+      "answer": "2145",
+      "explanation": "4432 - 2287 = 2145",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "減法"
+      ],
+      "source": "sentence-battle:6a1c3cc93a4c22739be99917"
+    },
+    {
+      "question_id": "M037",
+      "node_id": "sub",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "2169 - 800 = ?",
+      "expression": "2169 - 800 = ?",
+      "answer": "1369",
+      "explanation": "2169 - 800 = 1369",
+      "difficulty": "normal",
+      "tags": [
+        "四則運算",
+        "減法"
+      ],
+      "source": "sentence-battle:6a1c3cca3a4c22739be99918"
+    },
+    {
+      "question_id": "M038",
+      "node_id": "sub",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "9751 - 4110 = ?",
+      "expression": "9751 - 4110 = ?",
+      "answer": "5641",
+      "explanation": "9751 - 4110 = 5641",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "減法"
+      ],
+      "source": "sentence-battle:6a1c3cca3a4c22739be99919"
+    },
+    {
+      "question_id": "M039",
+      "node_id": "sub",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "3677 - 1993 = ?",
+      "expression": "3677 - 1993 = ?",
+      "answer": "1684",
+      "explanation": "3677 - 1993 = 1684",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "減法"
+      ],
+      "source": "sentence-battle:6a1c3cca3a4c22739be9991a"
+    },
+    {
+      "question_id": "M040",
+      "node_id": "sub",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "7216 - 2311 = ?",
+      "expression": "7216 - 2311 = ?",
+      "answer": "4905",
+      "explanation": "7216 - 2311 = 4905",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "減法"
+      ],
+      "source": "sentence-battle:6a1c3cca3a4c22739be9991b"
+    },
+    {
+      "question_id": "M041",
+      "node_id": "sub",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "4598 - 2756 = ?",
+      "expression": "4598 - 2756 = ?",
+      "answer": "1842",
+      "explanation": "4598 - 2756 = 1842",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "減法"
+      ],
+      "source": "sentence-battle:6a1c3cca3a4c22739be9991c"
+    },
+    {
+      "question_id": "M042",
+      "node_id": "sub",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "1916 - 569 = ?",
+      "expression": "1916 - 569 = ?",
+      "answer": "1347",
+      "explanation": "1916 - 569 = 1347",
+      "difficulty": "normal",
+      "tags": [
+        "四則運算",
+        "減法"
+      ],
+      "source": "sentence-battle:6a1c3cca3a4c22739be9991d"
+    },
+    {
+      "question_id": "M043",
+      "node_id": "sub",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "1525 - 746 = ?",
+      "expression": "1525 - 746 = ?",
+      "answer": "779",
+      "explanation": "1525 - 746 = 779",
+      "difficulty": "normal",
+      "tags": [
+        "四則運算",
+        "減法"
+      ],
+      "source": "sentence-battle:6a1c3cca3a4c22739be9991e"
+    },
+    {
+      "question_id": "M044",
+      "node_id": "sub",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "7572 - 2293 = ?",
+      "expression": "7572 - 2293 = ?",
+      "answer": "5279",
+      "explanation": "7572 - 2293 = 5279",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "減法"
+      ],
+      "source": "sentence-battle:6a1c3cca3a4c22739be9991f"
+    },
+    {
+      "question_id": "M045",
+      "node_id": "sub",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "2084 - 532 = ?",
+      "expression": "2084 - 532 = ?",
+      "answer": "1552",
+      "explanation": "2084 - 532 = 1552",
+      "difficulty": "normal",
+      "tags": [
+        "四則運算",
+        "減法"
+      ],
+      "source": "sentence-battle:6a1c3cca3a4c22739be99920"
+    },
+    {
+      "question_id": "M046",
+      "node_id": "sub",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "6155 - 1841 = ?",
+      "expression": "6155 - 1841 = ?",
+      "answer": "4314",
+      "explanation": "6155 - 1841 = 4314",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "減法"
+      ],
+      "source": "sentence-battle:6a1c3cca3a4c22739be99921"
+    },
+    {
+      "question_id": "M047",
+      "node_id": "sub",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "9179 - 6582 = ?",
+      "expression": "9179 - 6582 = ?",
+      "answer": "2597",
+      "explanation": "9179 - 6582 = 2597",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "減法"
+      ],
+      "source": "sentence-battle:6a1c3cca3a4c22739be99922"
+    },
+    {
+      "question_id": "M048",
+      "node_id": "sub",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "8517 - 2440 = ?",
+      "expression": "8517 - 2440 = ?",
+      "answer": "6077",
+      "explanation": "8517 - 2440 = 6077",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "減法"
+      ],
+      "source": "sentence-battle:6a1c3cca3a4c22739be99923"
+    },
+    {
+      "question_id": "M049",
+      "node_id": "sub",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "5339 - 1243 = ?",
+      "expression": "5339 - 1243 = ?",
+      "answer": "4096",
+      "explanation": "5339 - 1243 = 4096",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "減法"
+      ],
+      "source": "sentence-battle:6a1c3cca3a4c22739be99924"
+    },
+    {
+      "question_id": "M050",
+      "node_id": "sub",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "5040 - 4698 = ?",
+      "expression": "5040 - 4698 = ?",
+      "answer": "342",
+      "explanation": "5040 - 4698 = 342",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "減法"
+      ],
+      "source": "sentence-battle:6a1c3cca3a4c22739be99925"
+    },
+    {
+      "question_id": "M051",
+      "node_id": "mul",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "561 × 35 = ?",
+      "expression": "561 × 35 = ?",
+      "answer": "19635",
+      "explanation": "561 × 35 = 19635",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "乘法"
+      ],
+      "source": "sentence-battle:6a1c3cca3a4c22739be99926"
+    },
+    {
+      "question_id": "M052",
+      "node_id": "mul",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "774 × 76 = ?",
+      "expression": "774 × 76 = ?",
+      "answer": "58824",
+      "explanation": "774 × 76 = 58824",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "乘法"
+      ],
+      "source": "sentence-battle:6a1c3cca3a4c22739be99927"
+    },
+    {
+      "question_id": "M053",
+      "node_id": "mul",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "448 × 76 = ?",
+      "expression": "448 × 76 = ?",
+      "answer": "34048",
+      "explanation": "448 × 76 = 34048",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "乘法"
+      ],
+      "source": "sentence-battle:6a1c3cca3a4c22739be99928"
+    },
+    {
+      "question_id": "M054",
+      "node_id": "mul",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "418 × 48 = ?",
+      "expression": "418 × 48 = ?",
+      "answer": "20064",
+      "explanation": "418 × 48 = 20064",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "乘法"
+      ],
+      "source": "sentence-battle:6a1c3cca3a4c22739be99929"
+    },
+    {
+      "question_id": "M055",
+      "node_id": "mul",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "234 × 19 = ?",
+      "expression": "234 × 19 = ?",
+      "answer": "4446",
+      "explanation": "234 × 19 = 4446",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "乘法"
+      ],
+      "source": "sentence-battle:6a1c3cca3a4c22739be9992a"
+    },
+    {
+      "question_id": "M056",
+      "node_id": "mul",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "531 × 65 = ?",
+      "expression": "531 × 65 = ?",
+      "answer": "34515",
+      "explanation": "531 × 65 = 34515",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "乘法"
+      ],
+      "source": "sentence-battle:6a1c3cca3a4c22739be9992b"
+    },
+    {
+      "question_id": "M057",
+      "node_id": "mul",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "103 × 98 = ?",
+      "expression": "103 × 98 = ?",
+      "answer": "10094",
+      "explanation": "103 × 98 = 10094",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "乘法"
+      ],
+      "source": "sentence-battle:6a1c3cca3a4c22739be9992c"
+    },
+    {
+      "question_id": "M058",
+      "node_id": "mul",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "58 × 16 = ?",
+      "expression": "58 × 16 = ?",
+      "answer": "928",
+      "explanation": "58 × 16 = 928",
+      "difficulty": "normal",
+      "tags": [
+        "四則運算",
+        "乘法"
+      ],
+      "source": "sentence-battle:6a1c3cca3a4c22739be9992d"
+    },
+    {
+      "question_id": "M059",
+      "node_id": "mul",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "166 × 82 = ?",
+      "expression": "166 × 82 = ?",
+      "answer": "13612",
+      "explanation": "166 × 82 = 13612",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "乘法"
+      ],
+      "source": "sentence-battle:6a1c3cca3a4c22739be9992e"
+    },
+    {
+      "question_id": "M060",
+      "node_id": "mul",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "173 × 89 = ?",
+      "expression": "173 × 89 = ?",
+      "answer": "15397",
+      "explanation": "173 × 89 = 15397",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "乘法"
+      ],
+      "source": "sentence-battle:6a1c3cca3a4c22739be9992f"
+    },
+    {
+      "question_id": "M061",
+      "node_id": "mul",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "442 × 78 = ?",
+      "expression": "442 × 78 = ?",
+      "answer": "34476",
+      "explanation": "442 × 78 = 34476",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "乘法"
+      ],
+      "source": "sentence-battle:6a1c3cca3a4c22739be99930"
+    },
+    {
+      "question_id": "M062",
+      "node_id": "mul",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "75 × 51 = ?",
+      "expression": "75 × 51 = ?",
+      "answer": "3825",
+      "explanation": "75 × 51 = 3825",
+      "difficulty": "normal",
+      "tags": [
+        "四則運算",
+        "乘法"
+      ],
+      "source": "sentence-battle:6a1c3cca3a4c22739be99931"
+    },
+    {
+      "question_id": "M063",
+      "node_id": "mul",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "400 × 78 = ?",
+      "expression": "400 × 78 = ?",
+      "answer": "31200",
+      "explanation": "400 × 78 = 31200",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "乘法"
+      ],
+      "source": "sentence-battle:6a1c3cca3a4c22739be99932"
+    },
+    {
+      "question_id": "M064",
+      "node_id": "mul",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "489 × 69 = ?",
+      "expression": "489 × 69 = ?",
+      "answer": "33741",
+      "explanation": "489 × 69 = 33741",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "乘法"
+      ],
+      "source": "sentence-battle:6a1c3cca3a4c22739be99933"
+    },
+    {
+      "question_id": "M065",
+      "node_id": "mul",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "267 × 72 = ?",
+      "expression": "267 × 72 = ?",
+      "answer": "19224",
+      "explanation": "267 × 72 = 19224",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "乘法"
+      ],
+      "source": "sentence-battle:6a1c3cca3a4c22739be99934"
+    },
+    {
+      "question_id": "M066",
+      "node_id": "mul",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "891 × 3 = ?",
+      "expression": "891 × 3 = ?",
+      "answer": "2673",
+      "explanation": "891 × 3 = 2673",
+      "difficulty": "normal",
+      "tags": [
+        "四則運算",
+        "乘法"
+      ],
+      "source": "sentence-battle:6a1c3cca3a4c22739be99935"
+    },
+    {
+      "question_id": "M067",
+      "node_id": "mul",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "706 × 94 = ?",
+      "expression": "706 × 94 = ?",
+      "answer": "66364",
+      "explanation": "706 × 94 = 66364",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "乘法"
+      ],
+      "source": "sentence-battle:6a1c3cca3a4c22739be99936"
+    },
+    {
+      "question_id": "M068",
+      "node_id": "mul",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "127 × 89 = ?",
+      "expression": "127 × 89 = ?",
+      "answer": "11303",
+      "explanation": "127 × 89 = 11303",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "乘法"
+      ],
+      "source": "sentence-battle:6a1c3cca3a4c22739be99937"
+    },
+    {
+      "question_id": "M069",
+      "node_id": "mul",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "916 × 70 = ?",
+      "expression": "916 × 70 = ?",
+      "answer": "64120",
+      "explanation": "916 × 70 = 64120",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "乘法"
+      ],
+      "source": "sentence-battle:6a1c3cca3a4c22739be99938"
+    },
+    {
+      "question_id": "M070",
+      "node_id": "mul",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "778 × 36 = ?",
+      "expression": "778 × 36 = ?",
+      "answer": "28008",
+      "explanation": "778 × 36 = 28008",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "乘法"
+      ],
+      "source": "sentence-battle:6a1c3cca3a4c22739be99939"
+    },
+    {
+      "question_id": "M071",
+      "node_id": "mul",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "797 × 84 = ?",
+      "expression": "797 × 84 = ?",
+      "answer": "66948",
+      "explanation": "797 × 84 = 66948",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "乘法"
+      ],
+      "source": "sentence-battle:6a1c3cca3a4c22739be9993a"
+    },
+    {
+      "question_id": "M072",
+      "node_id": "mul",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "358 × 16 = ?",
+      "expression": "358 × 16 = ?",
+      "answer": "5728",
+      "explanation": "358 × 16 = 5728",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "乘法"
+      ],
+      "source": "sentence-battle:6a1c3cca3a4c22739be9993b"
+    },
+    {
+      "question_id": "M073",
+      "node_id": "mul",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "310 × 57 = ?",
+      "expression": "310 × 57 = ?",
+      "answer": "17670",
+      "explanation": "310 × 57 = 17670",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "乘法"
+      ],
+      "source": "sentence-battle:6a1c3cca3a4c22739be9993c"
+    },
+    {
+      "question_id": "M074",
+      "node_id": "mul",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "171 × 60 = ?",
+      "expression": "171 × 60 = ?",
+      "answer": "10260",
+      "explanation": "171 × 60 = 10260",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "乘法"
+      ],
+      "source": "sentence-battle:6a1c3cca3a4c22739be9993d"
+    },
+    {
+      "question_id": "M075",
+      "node_id": "mul",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "13 × 94 = ?",
+      "expression": "13 × 94 = ?",
+      "answer": "1222",
+      "explanation": "13 × 94 = 1222",
+      "difficulty": "normal",
+      "tags": [
+        "四則運算",
+        "乘法"
+      ],
+      "source": "sentence-battle:6a1c3cca3a4c22739be9993e"
+    },
+    {
+      "question_id": "M076",
+      "node_id": "div",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "13536 ÷ 94 = ?",
+      "expression": "13536 ÷ 94 = ?",
+      "answer": "144",
+      "explanation": "13536 ÷ 94 = 144",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "除法"
+      ],
+      "source": "sentence-battle:6a1c3cca3a4c22739be9993f"
+    },
+    {
+      "question_id": "M077",
+      "node_id": "div",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "26400 ÷ 66 = ?",
+      "expression": "26400 ÷ 66 = ?",
+      "answer": "400",
+      "explanation": "26400 ÷ 66 = 400",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "除法"
+      ],
+      "source": "sentence-battle:6a1c3cca3a4c22739be99940"
+    },
+    {
+      "question_id": "M078",
+      "node_id": "div",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "6456 ÷ 24 = ?",
+      "expression": "6456 ÷ 24 = ?",
+      "answer": "269",
+      "explanation": "6456 ÷ 24 = 269",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "除法"
+      ],
+      "source": "sentence-battle:6a1c3cca3a4c22739be99941"
+    },
+    {
+      "question_id": "M079",
+      "node_id": "div",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "6825 ÷ 15 = ?",
+      "expression": "6825 ÷ 15 = ?",
+      "answer": "455",
+      "explanation": "6825 ÷ 15 = 455",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "除法"
+      ],
+      "source": "sentence-battle:6a1c3cca3a4c22739be99942"
+    },
+    {
+      "question_id": "M080",
+      "node_id": "div",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "13284 ÷ 82 = ?",
+      "expression": "13284 ÷ 82 = ?",
+      "answer": "162",
+      "explanation": "13284 ÷ 82 = 162",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "除法"
+      ],
+      "source": "sentence-battle:6a1c3cca3a4c22739be99943"
+    },
+    {
+      "question_id": "M081",
+      "node_id": "div",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "22327 ÷ 83 = ?",
+      "expression": "22327 ÷ 83 = ?",
+      "answer": "269",
+      "explanation": "22327 ÷ 83 = 269",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "除法"
+      ],
+      "source": "sentence-battle:6a1c3cca3a4c22739be99944"
+    },
+    {
+      "question_id": "M082",
+      "node_id": "div",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "8769 ÷ 79 = ?",
+      "expression": "8769 ÷ 79 = ?",
+      "answer": "111",
+      "explanation": "8769 ÷ 79 = 111",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "除法"
+      ],
+      "source": "sentence-battle:6a1c3cca3a4c22739be99945"
+    },
+    {
+      "question_id": "M083",
+      "node_id": "div",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "4221 ÷ 21 = ?",
+      "expression": "4221 ÷ 21 = ?",
+      "answer": "201",
+      "explanation": "4221 ÷ 21 = 201",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "除法"
+      ],
+      "source": "sentence-battle:6a1c3cca3a4c22739be99946"
+    },
+    {
+      "question_id": "M084",
+      "node_id": "div",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "9108 ÷ 99 = ?",
+      "expression": "9108 ÷ 99 = ?",
+      "answer": "92",
+      "explanation": "9108 ÷ 99 = 92",
+      "difficulty": "normal",
+      "tags": [
+        "四則運算",
+        "除法"
+      ],
+      "source": "sentence-battle:6a1c3cca3a4c22739be99947"
+    },
+    {
+      "question_id": "M085",
+      "node_id": "div",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "35358 ÷ 71 = ?",
+      "expression": "35358 ÷ 71 = ?",
+      "answer": "498",
+      "explanation": "35358 ÷ 71 = 498",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "除法"
+      ],
+      "source": "sentence-battle:6a1c3cca3a4c22739be99948"
+    },
+    {
+      "question_id": "M086",
+      "node_id": "div",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "33120 ÷ 69 = ?",
+      "expression": "33120 ÷ 69 = ?",
+      "answer": "480",
+      "explanation": "33120 ÷ 69 = 480",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "除法"
+      ],
+      "source": "sentence-battle:6a1c3cca3a4c22739be99949"
+    },
+    {
+      "question_id": "M087",
+      "node_id": "div",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "632 ÷ 2 = ?",
+      "expression": "632 ÷ 2 = ?",
+      "answer": "316",
+      "explanation": "632 ÷ 2 = 316",
+      "difficulty": "easy",
+      "tags": [
+        "四則運算",
+        "除法"
+      ],
+      "source": "sentence-battle:6a1c3cca3a4c22739be9994a"
+    },
+    {
+      "question_id": "M088",
+      "node_id": "div",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "11180 ÷ 43 = ?",
+      "expression": "11180 ÷ 43 = ?",
+      "answer": "260",
+      "explanation": "11180 ÷ 43 = 260",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "除法"
+      ],
+      "source": "sentence-battle:6a1c3cca3a4c22739be9994b"
+    },
+    {
+      "question_id": "M089",
+      "node_id": "div",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "268 ÷ 4 = ?",
+      "expression": "268 ÷ 4 = ?",
+      "answer": "67",
+      "explanation": "268 ÷ 4 = 67",
+      "difficulty": "easy",
+      "tags": [
+        "四則運算",
+        "除法"
+      ],
+      "source": "sentence-battle:6a1c3cca3a4c22739be9994c"
+    },
+    {
+      "question_id": "M090",
+      "node_id": "div",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "22032 ÷ 48 = ?",
+      "expression": "22032 ÷ 48 = ?",
+      "answer": "459",
+      "explanation": "22032 ÷ 48 = 459",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "除法"
+      ],
+      "source": "sentence-battle:6a1c3cca3a4c22739be9994d"
+    },
+    {
+      "question_id": "M091",
+      "node_id": "div",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "5412 ÷ 41 = ?",
+      "expression": "5412 ÷ 41 = ?",
+      "answer": "132",
+      "explanation": "5412 ÷ 41 = 132",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "除法"
+      ],
+      "source": "sentence-battle:6a1c3cca3a4c22739be9994e"
+    },
+    {
+      "question_id": "M092",
+      "node_id": "div",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "1197 ÷ 9 = ?",
+      "expression": "1197 ÷ 9 = ?",
+      "answer": "133",
+      "explanation": "1197 ÷ 9 = 133",
+      "difficulty": "easy",
+      "tags": [
+        "四則運算",
+        "除法"
+      ],
+      "source": "sentence-battle:6a1c3cca3a4c22739be9994f"
+    },
+    {
+      "question_id": "M093",
+      "node_id": "div",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "36556 ÷ 74 = ?",
+      "expression": "36556 ÷ 74 = ?",
+      "answer": "494",
+      "explanation": "36556 ÷ 74 = 494",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "除法"
+      ],
+      "source": "sentence-battle:6a1c3cca3a4c22739be99950"
+    },
+    {
+      "question_id": "M094",
+      "node_id": "div",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "636 ÷ 12 = ?",
+      "expression": "636 ÷ 12 = ?",
+      "answer": "53",
+      "explanation": "636 ÷ 12 = 53",
+      "difficulty": "normal",
+      "tags": [
+        "四則運算",
+        "除法"
+      ],
+      "source": "sentence-battle:6a1c3cca3a4c22739be99951"
+    },
+    {
+      "question_id": "M095",
+      "node_id": "div",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "24510 ÷ 95 = ?",
+      "expression": "24510 ÷ 95 = ?",
+      "answer": "258",
+      "explanation": "24510 ÷ 95 = 258",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "除法"
+      ],
+      "source": "sentence-battle:6a1c3cca3a4c22739be99952"
+    },
+    {
+      "question_id": "M096",
+      "node_id": "div",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "3990 ÷ 10 = ?",
+      "expression": "3990 ÷ 10 = ?",
+      "answer": "399",
+      "explanation": "3990 ÷ 10 = 399",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "除法"
+      ],
+      "source": "sentence-battle:6a1c3cca3a4c22739be99953"
+    },
+    {
+      "question_id": "M097",
+      "node_id": "div",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "28140 ÷ 70 = ?",
+      "expression": "28140 ÷ 70 = ?",
+      "answer": "402",
+      "explanation": "28140 ÷ 70 = 402",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "除法"
+      ],
+      "source": "sentence-battle:6a1c3cca3a4c22739be99954"
+    },
+    {
+      "question_id": "M098",
+      "node_id": "div",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "1350 ÷ 18 = ?",
+      "expression": "1350 ÷ 18 = ?",
+      "answer": "75",
+      "explanation": "1350 ÷ 18 = 75",
+      "difficulty": "normal",
+      "tags": [
+        "四則運算",
+        "除法"
+      ],
+      "source": "sentence-battle:6a1c3cca3a4c22739be99955"
+    },
+    {
+      "question_id": "M099",
+      "node_id": "div",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "21758 ÷ 86 = ?",
+      "expression": "21758 ÷ 86 = ?",
+      "answer": "253",
+      "explanation": "21758 ÷ 86 = 253",
+      "difficulty": "hard",
+      "tags": [
+        "四則運算",
+        "除法"
+      ],
+      "source": "sentence-battle:6a1c3cca3a4c22739be99956"
+    },
+    {
+      "question_id": "M100",
+      "node_id": "div",
+      "domain": "math",
+      "type": "input",
+      "prompt": "請直接輸入計算結果。",
+      "instruction": "輸入計算結果，再按「檢查」。",
+      "stem": "6768 ÷ 72 = ?",
+      "expression": "6768 ÷ 72 = ?",
+      "answer": "94",
+      "explanation": "6768 ÷ 72 = 94",
+      "difficulty": "normal",
+      "tags": [
+        "四則運算",
+        "除法"
+      ],
+      "source": "sentence-battle:6a1c3cca3a4c22739be99957"
+    }
+  ]
+}

@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>數學計算 · Math Lab</title>
+<style>
+  :root {
+    --accent: #1f6f8b;
+    --accent-2: #145268;
+    --accent-soft: #dcecf2;
+    --accent-glow: rgba(31, 111, 139, 0.12);
+    --accent-glow-2: rgba(122, 74, 184, 0.07);
+  }
+</style>
+<link rel="stylesheet" href="../quiz-shared/style.css?v=20261117-2">
+</head>
+<body>
+<div class="app" id="app">
+  <header class="topbar">
+    <a class="brand" href="/" target="_top" title="返回學習平台">
+      <span class="brand-mark">算</span>
+      <span class="brand-text">
+        <strong>數學計算</strong>
+        <em>Math Lab</em>
+      </span>
+    </a>
+    <div class="top-actions">
+      <span class="user-chip" id="user-chip" hidden></span>
+      <div class="mode-switch" id="mode-switch" role="tablist" aria-label="切換模式" hidden>
+        <button type="button" data-mode="child" class="is-active" role="tab" aria-selected="true">練習</button>
+        <button type="button" data-mode="parent" role="tab" aria-selected="false">管理</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="main">
+    <section class="locked" id="locked" hidden>
+      <div class="locked-card">
+        <span class="locked-mark">算</span>
+        <h1>請先登入學習平台</h1>
+        <p>數學計算與其他學習工具共用同一份帳戶、進度和排名。請先回到學習平台登入，再回來開始練習。</p>
+        <a class="btn btn-primary" href="/" target="_top">前往學習平台</a>
+      </div>
+    </section>
+
+    <section class="view" id="child-view" hidden>
+      <section id="hall-view">
+        <header class="hero">
+          <div class="hero-copy">
+            <p class="eyebrow">Math Lab · 數學計算</p>
+            <h1><span id="hello-name">你好</span>，今天來算幾題</h1>
+            <p class="hero-sub">加、減、乘、除四則運算，輸入答案即時核對。答錯的題目會自動回到隊列，連續答對就會慢慢掌握。</p>
+            <div class="hero-stats" id="hero-stats"></div>
+          </div>
+          <div class="hero-art" aria-hidden="true">
+            <span class="hero-glow"></span>
+            <span class="hero-tile tile-a">加</span>
+            <span class="hero-tile tile-b">減</span>
+            <span class="hero-tile tile-c">乘</span>
+            <span class="hero-seal">除</span>
+          </div>
+        </header>
+
+        <div class="section-head">
+          <div>
+            <h2>今日任務</h2>
+            <p>完成老師指派的任務，把每道題練到「已掌握」。</p>
+          </div>
+          <button type="button" class="btn btn-soft" id="hall-parent-btn" hidden>管理設定</button>
+        </div>
+        <div class="task-grid" id="task-grid"></div>
+
+        <div class="section-head free-head">
+          <div>
+            <h2>全部題目</h2>
+            <p>想綜合練習，就從整個數學題庫開始；也可以向下選擇指定運算。</p>
+          </div>
+          <div class="count-filter" id="count-filter" role="group" aria-label="題目數量">
+            <button type="button" data-count="5">5 題</button>
+            <button type="button" data-count="10" class="is-active">10 題</button>
+            <button type="button" data-count="15">15 題</button>
+            <button type="button" data-count="20">20 題</button>
+          </div>
+        </div>
+        <div class="domain-grid" id="domain-grid"></div>
+
+        <div class="section-head">
+          <div>
+            <h2>分類練習</h2>
+            <p>按加、減、乘、除集中練習，把每一種運算練穩。</p>
+          </div>
+          <button type="button" class="btn btn-ghost" id="practice-all">綜合練習</button>
+        </div>
+        <div class="node-groups" id="node-groups"></div>
+      </section>
+
+      <section id="round-view" class="round-view" hidden>
+        <div class="round-top">
+          <button type="button" class="text-btn" id="quit-round">← 返回</button>
+          <div class="round-progress">
+            <span id="round-progress-text">1 / 10</span>
+            <span class="progress-track"><span id="round-progress-bar"></span></span>
+          </div>
+          <span class="combo-pill" id="combo-pill" hidden>連對 0</span>
+        </div>
+
+        <article class="question-card">
+          <div class="question-meta">
+            <span class="chip chip-domain" id="q-domain"></span>
+            <span class="chip chip-node" id="q-node"></span>
+            <span class="chip chip-level" id="q-level"></span>
+            <span class="chip chip-retry" id="q-retry" hidden>再試一次</span>
+          </div>
+          <h2 class="question-prompt" id="q-prompt"></h2>
+          <p class="question-instruction" id="q-instruction"></p>
+
+          <div class="answer-area" id="order-area" hidden>
+            <div class="slot-row" id="answer-slots" aria-label="句子答案區"></div>
+            <div class="tile-bank" id="tile-bank" aria-label="詞語卡"></div>
+            <div class="answer-actions">
+              <button type="button" class="btn btn-ghost" id="clear-order">清空</button>
+              <button type="button" class="btn btn-ghost" id="shuffle-order">重排</button>
+              <button type="button" class="btn btn-primary" id="check-order" disabled>檢查</button>
+            </div>
+          </div>
+
+          <div class="answer-area" id="input-area" hidden>
+            <div class="math-expression" id="math-expression"></div>
+            <input class="math-input" id="math-input" type="text" inputmode="numeric" autocomplete="off" aria-label="輸入答案" placeholder="輸入答案">
+            <div class="keypad" id="keypad"></div>
+            <div class="answer-actions">
+              <button type="button" class="btn btn-primary" id="check-input">檢查</button>
+            </div>
+          </div>
+
+          <div class="answer-area" id="choice-area" hidden>
+            <div class="choice-options" id="choice-options"></div>
+          </div>
+
+          <div class="feedback" id="feedback" hidden>
+            <div class="feedback-head">
+              <span class="feedback-icon" id="feedback-icon">✓</span>
+              <div>
+                <h3 id="feedback-title">答對了</h3>
+                <p id="feedback-answer"></p>
+              </div>
+            </div>
+            <p class="feedback-explain" id="feedback-explain"></p>
+            <div class="feedback-foot">
+              <span id="feedback-mastery"></span>
+              <button type="button" class="btn btn-primary" id="feedback-next">下一題 →</button>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <section id="summary-view" class="summary-view" hidden>
+        <div class="summary-card">
+          <p class="eyebrow">Round Complete</p>
+          <h1 id="summary-title">這一輪完成了</h1>
+          <p class="summary-sub" id="summary-sub"></p>
+          <div class="summary-stats" id="summary-stats"></div>
+          <div class="summary-progress" id="summary-progress"></div>
+          <div class="summary-wrong" id="summary-wrong"></div>
+          <div class="summary-actions">
+            <button type="button" class="btn btn-primary" id="summary-again">再練一輪</button>
+            <button type="button" class="btn btn-ghost" id="summary-back">返回數學計算</button>
+          </div>
+        </div>
+      </section>
+    </section>
+
+    <section class="view" id="parent-view" hidden>
+      <header class="parent-head">
+        <div>
+          <p class="eyebrow">管理員操作台</p>
+          <h1>數學計算設定</h1>
+          <p>建立運算任務、指派給學生，或查看每種運算的掌握情況。題目按加減乘除分類，不設年級。</p>
+        </div>
+        <button type="button" class="btn btn-ghost" id="parent-child-btn">回到練習</button>
+      </header>
+
+      <div class="parent-stats" id="parent-stats"></div>
+
+      <div class="parent-layout">
+        <aside class="tree-panel">
+          <div class="panel-head">
+            <h2>分類</h2>
+            <span id="tree-count"></span>
+          </div>
+          <div class="classification-tree" id="parent-tree"></div>
+        </aside>
+
+        <div class="parent-main">
+          <div class="parent-tabs" role="tablist">
+            <button type="button" class="is-active" data-parent-tab="tasks" role="tab" aria-selected="true">任務看板</button>
+            <button type="button" data-parent-tab="stats" role="tab" aria-selected="false">學習統計</button>
+            <button type="button" data-parent-tab="bank" role="tab" aria-selected="false">題庫</button>
+          </div>
+
+          <div class="parent-panel" id="parent-tasks"></div>
+          <div class="parent-panel" id="parent-analytics" hidden></div>
+          <div class="parent-panel" id="parent-bank" hidden></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div class="toast" id="toast" hidden></div>
+</div>
+<script>
+  window.QUIZ_CONFIG = {
+    apiBase: '/api/math',
+    domain: 'math',
+    domainMark: '算',
+    domainDescription: '加、減、乘、除四則運算，輸入答案即時核對。',
+    taskPlaceholder: '例如：本周乘法練習'
+  };
+</script>
+<script src="../quiz-shared/app.js?v=20261117-2" defer></script>
+</body>
+</html>

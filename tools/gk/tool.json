@@ -1,0 +1,15 @@
+{
+  "id": "gk",
+  "name": "常識問答",
+  "short": "常識",
+  "entry": "/tools/gk/",
+  "apiBase": "/api/gk",
+  "data": "data/shizi.json",
+  "weight": 0.2,
+  "order": 6,
+  "active": true,
+  "accent": "#2f8f6b",
+  "icon": "compass",
+  "features": {},
+  "desc": "香港、社會、歷史、世界、科學、環境與健康，一題一題累積常識。"
+}

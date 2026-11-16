@@ -1,0 +1,15 @@
+{
+  "id": "sentence",
+  "name": "句子重組",
+  "short": "句子",
+  "entry": "/tools/sentence/",
+  "apiBase": "/api/sentence",
+  "data": "data/shizi.json",
+  "weight": 0.22,
+  "order": 5,
+  "active": true,
+  "accent": "#7a4ab8",
+  "icon": "pen",
+  "features": {},
+  "desc": "把詞語卡排成通順句子，練四素句、特殊句式與各種複句。"
+}
