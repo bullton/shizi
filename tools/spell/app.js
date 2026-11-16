@@ -192,19 +192,65 @@
   }
 
   /* ===== Sound ===== */
+  let _voiceWarmed = false;
+  let _englishVoice;
+
+  function warmUpVoices() {
+    if (!('speechSynthesis' in window)) return;
+    if (_voiceWarmed) return;
+    _voiceWarmed = true;
+    window.speechSynthesis.getVoices();
+    window.speechSynthesis.onvoiceschanged = () => {
+      _englishVoice = null;
+      window.speechSynthesis.getVoices();
+    };
+  }
+
+  function pickEnglishVoice() {
+    if (_englishVoice) return _englishVoice;
+    const voices = window.speechSynthesis.getVoices() || [];
+    if (!voices.length) return null;
+
+    const novelty = /bad news|bahh|bells|boing|bubbles|cellos|good news|jester|organ|superstar|trinoids|whisper|wobble|zarvox|albert|fred|junior|kathy|ralph|grandma|grandpa|eddy|flo|reed|rocko|sandy|shelley/i;
+    const preferred = /^(samantha|alex|ava|allison|susan|daniel|karen|moira|serena|google us english|google uk english|microsoft .*(aria|jenny|guy|libby|sonia|ryan))/i;
+    const english = voices.filter(v => /^en([-_]|$)/i.test(v.lang) && !novelty.test(v.name));
+    const us = english.filter(v => /^en[-_]US/i.test(v.lang));
+    const gb = english.filter(v => /^en[-_]GB/i.test(v.lang));
+
+    _englishVoice = us.find(v => preferred.test(v.name))
+      || gb.find(v => preferred.test(v.name))
+      || us.find(v => v.localService)
+      || us[0]
+      || gb[0]
+      || english.find(v => v.localService)
+      || english[0]
+      || null;
+    return _englishVoice;
+  }
+
   function speak(text, rate) {
     if (!state.sound || !text || !('speechSynthesis' in window)) return;
     try {
-      window.speechSynthesis.cancel();
+      warmUpVoices();
+      const synth = window.speechSynthesis;
+      synth.cancel();
       const utterance = new SpeechSynthesisUtterance(String(text));
-      utterance.lang = 'en-US';
+      const voice = pickEnglishVoice();
+      if (voice) {
+        utterance.voice = voice;
+        utterance.lang = voice.lang;
+      } else {
+        utterance.lang = 'en-US';
+      }
       utterance.rate = rate || 0.86;
       utterance.pitch = 1;
-      window.speechSynthesis.speak(utterance);
+      synth.speak(utterance);
     } catch (error) {
       /* ignore */
     }
   }
+
+  warmUpVoices();
 
   function speakCurrent() {
     if (!state.round || !state.round.current) return;
