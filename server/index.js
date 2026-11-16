@@ -71,7 +71,7 @@ function stripToolPrefix(parsedUrl, id) {
 
 const staticExt = new Set([
   '.html', '.js', '.css', '.png', '.jpg', '.jpeg', '.gif', '.svg',
-  '.webp', '.ico', '.woff', '.woff2', '.ttf'
+  '.webp', '.ico', '.woff', '.woff2', '.ttf', '.mp3'
 ]);
 
 function requestUrl(req) {
@@ -102,7 +102,14 @@ function serveStatic(req, res, parsedUrl) {
 
   const manifestMatch = pathname.match(/^\/tools\/([a-z0-9-]+)\/tool\.json$/);
   if (manifestMatch && req.method === 'GET') {
-    sendFile(res, path.join(rootDir, 'tools', manifestMatch[1], 'tool.json'));
+    sendFile(res, path.join(rootDir, 'tools', manifestMatch[1], 'tool.json'), null, req);
+    return;
+  }
+
+  const audioManifestMatch = pathname.match(/^\/tools\/([a-z0-9-]+)\/audio\/manifest\.json$/);
+  if (audioManifestMatch && req.method === 'GET') {
+    res.setHeader('Cache-Control', 'no-cache');
+    sendFile(res, path.join(rootDir, 'tools', audioManifestMatch[1], 'audio', 'manifest.json'), 'application/json; charset=utf-8', req);
     return;
   }
 
@@ -118,7 +125,8 @@ function serveStatic(req, res, parsedUrl) {
     return;
   }
 
-  sendFile(res, filePath, mimeTypes[ext]);
+  if (ext === '.mp3') res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+  sendFile(res, filePath, mimeTypes[ext], req);
 }
 
 const server = http.createServer(async (req, res) => {

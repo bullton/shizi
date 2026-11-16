@@ -103,6 +103,7 @@ http://localhost:3000/
 │   ├── spell/
 │   │   ├── tool.json         # 英文拆拆拆登記資料
 │   │   ├── words.json        # 2,000 個單詞與音節資料（由腳本生成）
+│   │   ├── audio/            # 固定神經語音 MP3（2,000 單詞＋1,487 音節）
 │   │   ├── index.html        # 練習器 + 管理員操作台
 │   │   ├── style.css
 │   │   └── app.js
@@ -254,10 +255,12 @@ node scripts/dict/dict-atomic.js --check  # 檢查有冇過時
 
 - 2,000 個英文單詞，按生活主題與 Level 1-3 分級；每個詞包含音節、IPA、中文釋義、詞形與例句
 - 練習時只顯示中文意思與 IPA，不顯示拼寫；把打亂的音節積木拖進格子或點擊排列
+- 單詞與音節使用固定神經語音音頻包，Mac／iPad／手機聽到同一把清晰聲音；點「聽發音」或音節積木即時播放
 - 拼對後朗讀完整單詞，並彈出釋義卡；同一個詞連續拼對 2 次即掌握（任務可設 2-6 次）
 - 答錯會清零連續正確次數；同一題答錯 2 次後可「顯示答案」，顯示答案計一次答錯
 - 任務、熟練度、錯詞回爐、今日進度沿用 `server/core/drill.js`
 - 詞庫由 `scripts/spell/build-words.js` 從 ECDICT、Tatoeba、OpenCC 與 hyphen 資料生成；不要手改 `tools/spell/words.json`
+- 音頻由 `scripts/spell/build-audio.js` 生成到 `tools/spell/audio/`；更換語音、語速或詞庫後重跑，並保留 `manifest.json`
 - 管理端可建立任務、指派用戶、查看學習統計、瀏覽與搜尋詞庫；排名以已掌握詞數計算
 
 ### 成語天地

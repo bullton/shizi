@@ -15,17 +15,43 @@ const mimeTypes = {
   '.ico': 'image/x-icon',
   '.woff': 'font/woff',
   '.woff2': 'font/woff2',
-  '.ttf': 'font/ttf'
+  '.ttf': 'font/ttf',
+  '.mp3': 'audio/mpeg'
 };
 
-function sendFile(res, filePath, contentType) {
+function sendFile(res, filePath, contentType, req) {
   fs.readFile(filePath, (err, data) => {
     if (err) {
       res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
       res.end('Not Found');
       return;
     }
-    res.writeHead(200, { 'Content-Type': contentType || mimeTypes[path.extname(filePath).toLowerCase()] || 'application/octet-stream' });
+    const type = contentType || mimeTypes[path.extname(filePath).toLowerCase()] || 'application/octet-stream';
+    const range = req && req.headers ? req.headers.range : null;
+    const match = range && /^bytes=(\d*)-(\d*)$/.exec(range);
+    if (match) {
+      let start = match[1] ? Number(match[1]) : 0;
+      let end = match[2] ? Number(match[2]) : data.length - 1;
+      if (!match[1] && match[2]) {
+        start = Math.max(0, data.length - Number(match[2]));
+        end = data.length - 1;
+      }
+      if (start <= end && start < data.length) {
+        const chunk = data.subarray(start, Math.min(end, data.length - 1) + 1);
+        res.writeHead(206, {
+          'Content-Type': type,
+          'Content-Range': 'bytes ' + start + '-' + (start + chunk.length - 1) + '/' + data.length,
+          'Accept-Ranges': 'bytes',
+          'Content-Length': chunk.length
+        });
+        res.end(chunk);
+        return;
+      }
+      res.writeHead(416, { 'Content-Range': 'bytes */' + data.length });
+      res.end();
+      return;
+    }
+    res.writeHead(200, { 'Content-Type': type, 'Accept-Ranges': 'bytes', 'Content-Length': data.length });
     res.end(data);
   });
 }

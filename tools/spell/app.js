@@ -13,6 +13,9 @@
     summary: null,
     lastRound: null,
     sound: true,
+    audioManifest: null,
+    audioLoading: null,
+    audioCurrent: null,
     hasInteracted: false,
     parentTab: 'tasks',
     adminTasks: [],
@@ -228,8 +231,37 @@
     return _englishVoice;
   }
 
-  function speak(text, rate) {
-    if (!state.sound || !text || !('speechSynthesis' in window)) return;
+  function stopAudio() {
+    if (state.audioCurrent) {
+      state.audioCurrent.pause();
+      state.audioCurrent = null;
+    }
+  }
+
+  function loadAudioManifest() {
+    if (state.audioManifest) return Promise.resolve(state.audioManifest);
+    if (state.audioLoading) return state.audioLoading;
+    state.audioLoading = fetch(new URL('audio/manifest.json', document.baseURI), { cache: 'no-cache' })
+      .then(response => (response.ok ? response.json() : null))
+      .then(data => {
+        if (data && data.words) state.audioManifest = data;
+        return state.audioManifest;
+      })
+      .catch(() => null);
+    return state.audioLoading;
+  }
+
+  function audioUrl(kind, text) {
+    const manifest = state.audioManifest;
+    if (!manifest) return '';
+    const files = manifest[kind];
+    if (!files) return '';
+    const file = files[String(text).toLowerCase()];
+    return file ? new URL('audio/' + file, document.baseURI).href : '';
+  }
+
+  function speakTTS(text, rate) {
+    if (!('speechSynthesis' in window)) return;
     try {
       warmUpVoices();
       const synth = window.speechSynthesis;
@@ -250,7 +282,43 @@
     }
   }
 
+  function playClip(kind, text, rate) {
+    if (!state.sound) return false;
+    const url = audioUrl(kind, text);
+    if (!url) return false;
+    try {
+      if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+      stopAudio();
+      const audio = new Audio(url);
+      audio.preload = 'auto';
+      state.audioCurrent = audio;
+      const clear = () => {
+        if (state.audioCurrent === audio) state.audioCurrent = null;
+      };
+      audio.addEventListener('ended', clear, { once: true });
+      audio.addEventListener('error', clear, { once: true });
+      const playing = audio.play();
+      if (playing && typeof playing.catch === 'function') {
+        playing.catch(() => {
+          clear();
+          speakTTS(text, rate);
+        });
+      }
+      return true;
+    } catch (error) {
+      stopAudio();
+      return false;
+    }
+  }
+
+  function speak(text, rate, kind) {
+    if (!state.sound || !text) return;
+    if (playClip(kind || 'words', text, rate)) return;
+    speakTTS(text, rate);
+  }
+
   warmUpVoices();
+  loadAudioManifest();
 
   function speakCurrent() {
     if (!state.round || !state.round.current) return;
@@ -259,7 +327,7 @@
 
   function speakSyllable(text) {
     if (!text || String(text).length < 2) return;
-    speak(text, 0.8);
+    speak(text, 0.8, 'syllables');
   }
 
   /* ===== Boot ===== */
@@ -1120,7 +1188,10 @@
 
     if (target.id === 'sound-btn') {
       state.sound = !state.sound;
-      if (!state.sound && 'speechSynthesis' in window) window.speechSynthesis.cancel();
+      if (!state.sound) {
+        stopAudio();
+        if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+      }
       renderAll();
       return;
     }

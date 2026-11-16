@@ -37,6 +37,7 @@
 - `node scripts/dict/dict-atomic.js --check`
 - `node scripts/dict/build-ids.js --check`
 - `node scripts/spell/build-words.js`：重新生成 `tools/spell/words.json`（需要 `SPELL_CACHE` 或預設快取內的 ECDICT／Tatoeba／CMUdict；OpenCC 與 hyphen 已放在 `scripts/spell/vendor/`）
+- `node scripts/spell/build-audio.js`：重新生成 `tools/spell/audio/` 的單詞與音節 MP3（需要 `edge-tts`；可用 `EDGE_TTS_BIN` 指定路徑）
 
 ## 修改規則
 
