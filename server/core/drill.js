@@ -343,10 +343,15 @@ function createDrill({
   }
 
   function userStats(userId) {
-    const records = data.mastery.filter(record => String(record.userId) === String(userId));
+    const activeQuestions = data.questions.filter(question => question.status !== false);
+    const activeIds = new Set(activeQuestions.map(question => String(question.question_id)));
+    const records = data.mastery.filter(record =>
+      String(record.userId) === String(userId) &&
+      activeIds.has(String(record.question_id))
+    );
     const attempted = records.filter(record => record.total_attempts > 0).length;
     const mastered = records.filter(record => record.box_level === 3).length;
-    const totalQuestions = data.questions.filter(question => question.status !== false).length;
+    const totalQuestions = activeQuestions.length;
     const totalAttempts = records.reduce((sum, record) => sum + (record.total_attempts || 0), 0);
     const totalWrong = records.reduce((sum, record) => sum + (record.total_wrong || 0), 0);
     const accuracy = totalAttempts > 0 ? ((totalAttempts - totalWrong) / totalAttempts) * 100 : 0;

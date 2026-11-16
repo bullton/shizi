@@ -1,0 +1,32 @@
+{
+  "generatedAt": "2026-11-16T13:36:33.246Z",
+  "total": 2000,
+  "levels": {
+    "1": 700,
+    "2": 700,
+    "3": 600
+  },
+  "themes": {
+    "nature": 55,
+    "food": 46,
+    "body": 32,
+    "family": 41,
+    "school": 35,
+    "home": 30,
+    "city": 33,
+    "sport": 28,
+    "emotion": 32,
+    "time": 23,
+    "action": 26,
+    "describe": 43,
+    "core": 1576
+  },
+  "syllables": {
+    "2": 1152,
+    "3": 625,
+    "4": 223
+  },
+  "examples": 2000,
+  "translations": 1787,
+  "missingExamples": []
+}

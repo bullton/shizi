@@ -7,7 +7,7 @@
 - 入口：`server.js` → `server/index.js`
 - 平台大廳：`hub/`
 - 工具前端：`tools/<id>/`
-- 資料產生腳本：`scripts/dict/`
+- 資料產生腳本：`scripts/dict/`、`scripts/spell/`
 
 ## 環境
 
@@ -36,6 +36,7 @@
 - `node scripts/dict/dict-transform.js --check`
 - `node scripts/dict/dict-atomic.js --check`
 - `node scripts/dict/build-ids.js --check`
+- `node scripts/spell/build-words.js`：重新生成 `tools/spell/words.json`（需要 `SPELL_CACHE` 或預設快取內的 ECDICT／Tatoeba／CMUdict；OpenCC 與 hyphen 已放在 `scripts/spell/vendor/`）
 
 ## 修改規則
 

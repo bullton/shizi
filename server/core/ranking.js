@@ -30,9 +30,9 @@ function makeComparator(toolId) {
       number(b.attempts) - number(a.attempts) ||
       text(a.username).localeCompare(text(b.username));
   }
-  if (toolId === 'idiom') {
+  if (toolId === 'idiom' || toolId === 'spell') {
     return (a, b) =>
-      number(b.score) - number(a.score) ||
+      number(b.mastered) - number(a.mastered) ||
       number(b.attempted) - number(a.attempted) ||
       number(b.accuracy) - number(a.accuracy) ||
       speed(a.avgTime) - speed(b.avgTime) ||
@@ -70,7 +70,7 @@ function defaultRow(toolId, userId) {
       avgTime: 0
     };
   }
-  if (toolId === 'idiom') {
+  if (toolId === 'idiom' || toolId === 'spell') {
     return {
       userId,
       score: 0,
@@ -93,8 +93,8 @@ function hasActivity(toolId, row) {
   if (toolId === 'grammar') {
     return number(row.attempted) > 0 || number(row.attempts) > 0;
   }
-  if (toolId === 'idiom') {
-    return number(row.score) > 0 || number(row.attempted) > 0 || number(row.attempts) > 0;
+  if (toolId === 'idiom' || toolId === 'spell') {
+    return number(row.score) > 0 || number(row.mastered) > 0 || number(row.attempted) > 0 || number(row.attempts) > 0;
   }
   return number(row.score) > 0;
 }

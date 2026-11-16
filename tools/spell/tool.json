@@ -1,0 +1,15 @@
+{
+  "id": "spell",
+  "name": "英文拆拆拆",
+  "short": "拆詞",
+  "entry": "/tools/spell/",
+  "apiBase": "/api/spell",
+  "data": "data/shizi.json",
+  "weight": 0.3,
+  "order": 4,
+  "active": true,
+  "accent": "#1f6f8b",
+  "icon": "blocks",
+  "features": {},
+  "desc": "把英文單詞按音節拆成積木，拖回正確順序，邊玩邊記住讀音、意思和例句。"
+}
