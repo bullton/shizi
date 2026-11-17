@@ -434,10 +434,22 @@
     }).join('');
   }
 
+  function emptyOrder(question) {
+    if (!question || question.type !== 'order') return [];
+    return new Array(question.count).fill(null);
+  }
+
+  function firstEmptySlot() {
+    for (let index = 0; index < state.order.length; index += 1) {
+      if (!state.order[index]) return index;
+    }
+    return -1;
+  }
+
   function startRoundPayload(payload) {
     state.round = payload;
     state.tiles = payload.question.tiles || [];
-    state.order = [];
+    state.order = emptyOrder(payload.question);
     state.answerText = '';
     state.answer = null;
     state.summary = null;
@@ -479,7 +491,7 @@
 
   function renderOrder(question) {
     const answered = !!state.answer;
-    const used = new Set(state.order);
+    const used = new Set(state.order.filter(Boolean));
     const slots = [];
     for (let index = 0; index < question.count; index += 1) {
       const tile = tileById(state.order[index]);
@@ -494,7 +506,7 @@
       const hidden = used.has(tile.id);
       return '<button type="button" class="tile' + (hidden ? ' is-placeholder' : '') + '" draggable="' + (answered ? 'false' : 'true') + '" data-tile="' + esc(tile.id) + '"' + (answered ? ' disabled' : '') + '>' + esc(tile.text) + '</button>';
     }).join('');
-    els.checkOrder.disabled = answered || state.order.length !== question.count;
+    els.checkOrder.disabled = answered || state.order.some(id => !id);
     els.clearOrder.disabled = answered;
     els.shuffleOrder.disabled = answered;
   }
@@ -564,7 +576,7 @@
 
   async function submitOrder() {
     if (state.busy || state.answer) return;
-    if (state.order.length !== state.round.question.count) {
+    if (state.order.some(id => !id)) {
       toast('請把所有詞語卡排進句子裏');
       return;
     }
@@ -629,7 +641,7 @@
         state.answer = null;
         state.answerText = '';
         state.tiles = response.question.tiles || [];
-        state.order = [];
+        state.order = emptyOrder(response.question);
         state.questionShownAt = performance.now();
         renderChild();
         window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -964,10 +976,15 @@
 
   document.addEventListener('click', event => {
     const target = event.target;
-    if (suppressClickUntil && performance.now() < suppressClickUntil) {
-      suppressClickUntil = 0;
-      event.preventDefault();
-      return;
+    if (suppressClick) {
+      const recent = performance.now() < suppressClick.until;
+      const near = Math.hypot(event.clientX - suppressClick.x, event.clientY - suppressClick.y) < 28;
+      if (recent && near) {
+        suppressClick = null;
+        event.preventDefault();
+        return;
+      }
+      if (!recent) suppressClick = null;
     }
 
     const modeButton = target.closest('[data-mode]');
@@ -1018,7 +1035,7 @@
 
     if (target.closest('#clear-order')) {
       if (!state.answer) {
-        state.order = [];
+        state.order = emptyOrder(state.round.question);
         renderRound();
       }
       return;
@@ -1026,7 +1043,7 @@
 
     if (target.closest('#shuffle-order')) {
       if (!state.answer) {
-        state.order = [];
+        state.order = emptyOrder(state.round.question);
         state.tiles = shuffle(state.tiles);
         renderRound();
       }
@@ -1072,11 +1089,14 @@
     }
 
     const tile = target.closest('[data-tile]');
-    if (tile && !state.answer && state.order.length < state.round.question.count) {
+    if (tile && !state.answer) {
       const id = tile.getAttribute('data-tile');
       if (!state.order.includes(id)) {
-        state.order.push(id);
-        renderRound();
+        const slotIndex = firstEmptySlot();
+        if (slotIndex >= 0) {
+          state.order[slotIndex] = id;
+          renderRound();
+        }
       }
       return;
     }
@@ -1084,8 +1104,8 @@
     const slot = target.closest('[data-slot-remove]');
     if (slot && !state.answer) {
       const index = Number(slot.getAttribute('data-slot-remove'));
-      if (Number.isInteger(index) && index >= 0) {
-        state.order.splice(index, 1);
+      if (Number.isInteger(index) && index >= 0 && index < state.order.length) {
+        state.order[index] = null;
         renderRound();
       }
       return;
@@ -1239,7 +1259,7 @@
   });
 
   let dragSource = null;
-  let suppressClickUntil = 0;
+  let suppressClick = null;
   let pointerDrag = null;
 
   function clearDragStyles() {
@@ -1248,13 +1268,29 @@
     $$('.drag-ghost').forEach(ghost => ghost.remove());
   }
 
+  function nearestSlotIndex(x, y) {
+    let best = null;
+    let bestDistance = Infinity;
+    $$('#answer-slots [data-slot-index]').forEach(slot => {
+      const rect = slot.getBoundingClientRect();
+      const dx = x < rect.left ? rect.left - x : x > rect.right ? x - rect.right : 0;
+      const dy = y < rect.top ? rect.top - y : y > rect.bottom ? y - rect.bottom : 0;
+      const distance = dx * dx + dy * dy;
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = Number(slot.getAttribute('data-slot-index'));
+      }
+    });
+    return best;
+  }
+
   function dropIndexFromPoint(x, y) {
     if (!els.answerSlots) return null;
     const element = document.elementFromPoint(x, y);
     const row = element && element.closest('#answer-slots');
     if (!row) return null;
     const slot = element.closest('[data-slot-index]');
-    return slot ? Number(slot.getAttribute('data-slot-index')) : state.order.length;
+    return slot ? Number(slot.getAttribute('data-slot-index')) : nearestSlotIndex(x, y);
   }
 
   function highlightDrop(index) {
@@ -1270,19 +1306,53 @@
 
   function applyOrderDrop(source, targetIndex) {
     if (!source || !state.round || state.round.question.type !== 'order' || state.answer) return false;
-    const count = state.round.question.count;
-    const clamp = value => Math.max(0, Math.min(state.order.length, value));
+    const order = state.order;
+    const count = order.length;
+    if (!count || !Number.isInteger(targetIndex) || targetIndex < 0) return false;
+    const target = Math.min(count - 1, targetIndex);
+
     if (source.kind === 'slot') {
       const from = Number(source.index);
-      if (!Number.isInteger(from) || from < 0 || from >= state.order.length) return false;
-      const moved = state.order.splice(from, 1)[0];
-      state.order.splice(clamp(targetIndex == null ? state.order.length : targetIndex), 0, moved);
+      if (!Number.isInteger(from) || from < 0 || from >= count || !order[from]) return false;
+      if (from === target) return false;
+      const tile = order[from];
+      if (!order[target]) {
+        order[target] = tile;
+        order[from] = null;
+        return true;
+      }
+      if (target > from) {
+        for (let index = from; index < target; index += 1) order[index] = order[index + 1];
+      } else {
+        for (let index = from; index > target; index -= 1) order[index] = order[index - 1];
+      }
+      order[target] = tile;
       return true;
     }
+
     if (source.kind === 'tile') {
       const id = source.id;
-      if (!id || state.order.includes(id) || state.order.length >= count) return false;
-      state.order.splice(clamp(targetIndex == null ? state.order.length : targetIndex), 0, id);
+      if (!id || order.includes(id)) return false;
+      if (!order[target]) {
+        order[target] = id;
+        return true;
+      }
+      let hole = -1;
+      for (let index = target + 1; index < count; index += 1) {
+        if (!order[index]) { hole = index; break; }
+      }
+      if (hole < 0) {
+        for (let index = target - 1; index >= 0; index -= 1) {
+          if (!order[index]) { hole = index; break; }
+        }
+      }
+      if (hole < 0) return false;
+      if (hole > target) {
+        for (let index = hole; index > target; index -= 1) order[index] = order[index - 1];
+      } else {
+        for (let index = hole; index < target; index += 1) order[index] = order[index + 1];
+      }
+      order[target] = id;
       return true;
     }
     return false;
@@ -1355,11 +1425,14 @@
   document.addEventListener('pointerdown', event => {
     if (event.pointerType === 'mouse' || state.answer) return;
     const slot = event.target.closest('[data-slot-drag]');
-    if (!slot) return;
+    const tile = slot ? null : event.target.closest('[data-tile]');
+    if (!slot && !tile) return;
     pointerDrag = {
       pointerId: event.pointerId,
-      index: Number(slot.getAttribute('data-slot-drag')),
-      text: slot.textContent,
+      kind: slot ? 'slot' : 'tile',
+      index: slot ? Number(slot.getAttribute('data-slot-drag')) : -1,
+      id: tile ? tile.getAttribute('data-tile') : '',
+      text: (slot || tile).textContent,
       startX: event.clientX,
       startY: event.clientY,
       moved: false,
@@ -1377,8 +1450,13 @@
       ghost.textContent = pointerDrag.text;
       document.body.appendChild(ghost);
       pointerDrag.ghost = ghost;
-      const slot = $('#answer-slots [data-slot-index="' + pointerDrag.index + '"]');
-      if (slot) slot.classList.add('is-dragging');
+      if (pointerDrag.kind === 'slot') {
+        const slot = $('#answer-slots [data-slot-index="' + pointerDrag.index + '"]');
+        if (slot) slot.classList.add('is-dragging');
+      } else {
+        const tile = $('#tile-bank [data-tile="' + pointerDrag.id + '"]');
+        if (tile) tile.classList.add('is-dragging');
+      }
     }
     event.preventDefault();
     if (pointerDrag.ghost) {
@@ -1394,9 +1472,10 @@
     pointerDrag = null;
     clearDragStyles();
     if (!drag.moved) return;
-    suppressClickUntil = performance.now() + 300;
+    suppressClick = { x: event.clientX, y: event.clientY, until: performance.now() + 800 };
     const index = dropIndexFromPoint(event.clientX, event.clientY);
-    if (applyOrderDrop({ kind: 'slot', index: drag.index }, index)) renderRound();
+    const source = drag.kind === 'slot' ? { kind: 'slot', index: drag.index } : { kind: 'tile', id: drag.id };
+    if (applyOrderDrop(source, index)) renderRound();
   });
 
   document.addEventListener('pointercancel', () => {
