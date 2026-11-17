@@ -103,8 +103,6 @@
     feedbackTitle: $('#feedback-title'),
     feedbackAnswer: $('#feedback-answer'),
     feedbackExplain: $('#feedback-explain'),
-    feedbackMastery: $('#feedback-mastery'),
-    feedbackNext: $('#feedback-next'),
     summaryTitle: $('#summary-title'),
     summarySub: $('#summary-sub'),
     summaryStats: $('#summary-stats'),
@@ -116,6 +114,21 @@
   };
 
   let toastTimer = null;
+
+  const dock = document.createElement('div');
+  dock.id = 'answer-dock';
+  dock.className = 'answer-dock';
+  dock.hidden = true;
+  dock.innerHTML =
+    '<span class="answer-dock-icon" id="dock-icon">✓</span>' +
+    '<div class="answer-dock-copy" role="status" aria-live="polite"><strong id="dock-title">答對了</strong><span id="dock-mastery"></span></div>' +
+    '<button type="button" class="btn btn-primary" id="dock-next">下一題 →</button>';
+  els.roundView.appendChild(dock);
+  els.dock = dock;
+  els.dockIcon = $('#dock-icon');
+  els.dockTitle = $('#dock-title');
+  els.dockMastery = $('#dock-mastery');
+  els.dockNext = $('#dock-next');
 
   function esc(value) {
     return String(value == null ? '' : value).replace(/[&<>"']/g, char => ({
@@ -313,6 +326,7 @@
     });
     els.childView.hidden = state.mode !== 'child';
     els.parentView.hidden = state.mode !== 'parent';
+    if (state.mode !== 'child') hideDock();
     if (state.mode === 'child') renderChild();
     else renderParent();
   }
@@ -321,9 +335,15 @@
     els.hallView.hidden = state.view !== 'hall';
     els.roundView.hidden = state.view !== 'round';
     els.summaryView.hidden = state.view !== 'summary';
+    if (state.view !== 'round' || !state.answer) hideDock();
     if (state.view === 'hall') renderHall();
     if (state.view === 'round') renderRound();
     if (state.view === 'summary') renderSummary();
+  }
+
+  function hideDock() {
+    els.dock.hidden = true;
+    document.body.classList.remove('has-answer-dock');
   }
 
   function renderHall() {
@@ -511,6 +531,7 @@
     const feedback = state.answer;
     if (!feedback) {
       els.feedback.hidden = true;
+      hideDock();
       return;
     }
     const question = state.round.question;
@@ -531,8 +552,14 @@
     if (feedback.boxLevel === 3) mastery = '這個類別已掌握';
     else if (feedback.becameMastered) mastery = '剛剛掌握了這道題';
     else if (feedback.taskProgress) mastery = '任務進度 ' + fmtInt(feedback.taskProgress.mastered) + ' / ' + fmtInt(feedback.taskProgress.total);
-    els.feedbackMastery.textContent = mastery;
-    els.feedbackNext.textContent = feedback.retryAdded ? '再試一次 →' : '下一題 →';
+
+    els.dock.hidden = false;
+    els.dock.className = 'answer-dock ' + (feedback.correct ? 'is-correct' : 'is-wrong');
+    els.dockIcon.textContent = feedback.correct ? '✓' : '!';
+    els.dockTitle.textContent = feedback.correct ? '答對了' : '再留意一下';
+    els.dockMastery.textContent = mastery;
+    els.dockNext.textContent = feedback.retryAdded ? '再試一次 →' : '下一題 →';
+    document.body.classList.add('has-answer-dock');
   }
 
   async function submitOrder() {
@@ -573,6 +600,9 @@
       state.answer = Object.assign({ optionId: payload.optionId || null }, feedback);
       if (feedback.total) state.round.total = feedback.total;
       state.round.combo = feedback.combo;
+      if (document.activeElement && typeof document.activeElement.blur === 'function') {
+        document.activeElement.blur();
+      }
       renderRound();
     } catch (error) {
       toast(error.message);
@@ -1008,7 +1038,7 @@
       return;
     }
 
-    if (target.closest('#feedback-next')) {
+    if (target.closest('#dock-next') || target.closest('#feedback-next')) {
       nextQuestion();
       return;
     }

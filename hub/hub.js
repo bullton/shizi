@@ -622,6 +622,7 @@
       els.main.innerHTML = rankingHTML();
     } else if (state.view === 'profile') {
       els.main.innerHTML = profileHTML();
+      refreshVoiceOptions();
     } else if (state.view === 'admin') {
       els.main.innerHTML = adminHTML();
     } else {
@@ -935,6 +936,42 @@
     return '<button class="avatar-pick" type="button" data-avatar="' + esc(value) + '" aria-label="使用頭像 ' + esc(value) + '">' + esc(value) + '</button>';
   }
 
+  function deviceVoices(kind) {
+    if (!('speechSynthesis' in window)) return [];
+    const voices = window.speechSynthesis.getVoices() || [];
+    const pattern = kind === 'zh' ? /^(zh|yue)([-_]|$)/i : /^en([-_]|$)/i;
+    const seen = new Set();
+    return voices.filter(voice => {
+      if (!pattern.test(voice.lang || '') || seen.has(voice.name)) return false;
+      seen.add(voice.name);
+      return true;
+    });
+  }
+
+  function voiceOptionsHTML(kind, selected) {
+    const auto = kind === 'zh' ? '自動（粵語優先）' : '自動（Ava 錄音）';
+    const voices = deviceVoices(kind);
+    let html = '<option value="">' + esc(auto) + '</option>';
+    voices.forEach(voice => {
+      const label = voice.name + (voice.lang ? ' · ' + voice.lang : '');
+      html += '<option value="' + esc(voice.name) + '"' + (voice.name === selected ? ' selected' : '') + '>' + esc(label) + '</option>';
+    });
+    if (selected && !voices.some(voice => voice.name === selected)) {
+      html += '<option value="' + esc(selected) + '" selected>' + esc(selected + '（此裝置未安裝）') + '</option>';
+    }
+    return html;
+  }
+
+  function refreshVoiceOptions() {
+    if (!state.user) return;
+    const zh = $('#voice-zh');
+    const en = $('#voice-en');
+    const zhValue = zh ? zh.value : (state.user.voiceZh || '');
+    const enValue = en ? en.value : (state.user.voiceEn || '');
+    if (zh) zh.innerHTML = voiceOptionsHTML('zh', zhValue);
+    if (en) en.innerHTML = voiceOptionsHTML('en', enValue);
+  }
+
   function profileHTML() {
     const user = state.user;
     const stats = state.stats || { totalChars: 0, totalAttempts: 0 };
@@ -984,6 +1021,26 @@
             '<div class="profile-preview"><span class="field-label">預覽</span><span id="profile-avatar-preview">' + avatarHTML(user, 'lg') + '</span></div>' +
             '<p class="field-error" id="profile-error" hidden></p>' +
             '<div class="form-actions"><button class="btn btn-primary" type="submit" id="profile-save">保存資料</button></div>' +
+          '</form>' +
+        '</section>' +
+        '<section class="panel">' +
+          '<div class="panel-head"><h2 class="panel-title">聲音設置</h2></div>' +
+          '<form id="voice-form" novalidate>' +
+            '<label class="field"><span class="field-label">中文朗讀聲音（識字樂）</span>' +
+              '<select id="voice-zh">' + voiceOptionsHTML('zh', user.voiceZh || '') + '</select>' +
+            '</label>' +
+            '<p class="field-hint">留空會自動挑選最合適的粵語聲音。設定會同步到所有裝置。</p>' +
+            '<label class="field"><span class="field-label">英文朗讀聲音（英文拆拆拆）</span>' +
+              '<select id="voice-en">' + voiceOptionsHTML('en', user.voiceEn || '') + '</select>' +
+            '</label>' +
+            '<p class="field-hint">留空會使用內建 Ava 錄音；選擇其他聲音則改用此裝置的瀏覽器語音。</p>' +
+            '<p class="field-hint" id="voice-hint" hidden></p>' +
+            '<p class="field-error" id="voice-error" hidden></p>' +
+            '<div class="form-actions">' +
+              '<button type="button" class="btn btn-ghost" id="voice-preview-zh">試聽中文</button>' +
+              '<button type="button" class="btn btn-ghost" id="voice-preview-en">試聽英文</button>' +
+              '<button class="btn btn-primary" type="submit" id="voice-save">保存聲音</button>' +
+            '</div>' +
           '</form>' +
         '</section>' +
         '<section class="panel">' +
@@ -1376,6 +1433,85 @@
     }
   }
 
+  function previewTTS(kind, name) {
+    if (!('speechSynthesis' in window)) return;
+    const voices = window.speechSynthesis.getVoices() || [];
+    const chosen = name ? voices.find(voice => voice.name === name) : null;
+    const synth = window.speechSynthesis;
+    synth.cancel();
+    const utterance = new SpeechSynthesisUtterance(kind === 'zh' ? '今日我哋一齊開心地學中文。' : 'Let us practise English together.');
+    if (chosen) {
+      utterance.voice = chosen;
+      utterance.lang = chosen.lang;
+    } else {
+      utterance.lang = kind === 'zh' ? 'zh-HK' : 'en-US';
+    }
+    utterance.rate = kind === 'zh' ? 0.8 : 0.9;
+    synth.speak(utterance);
+  }
+
+  function previewVoice(kind) {
+    const select = $(kind === 'zh' ? '#voice-zh' : '#voice-en');
+    const name = select ? select.value : '';
+    if (kind === 'en' && !name) {
+      fetch('/tools/spell/audio/manifest.json', { cache: 'no-cache' })
+        .then(response => (response.ok ? response.json() : null))
+        .then(manifest => {
+          const files = manifest && manifest.words;
+          const file = files && (files.coral || files[Object.keys(files)[0]]);
+          if (!file) throw new Error('no sample');
+          if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+          const audio = new Audio('/tools/spell/audio/' + file);
+          const playing = audio.play();
+          if (playing && typeof playing.catch === 'function') playing.catch(() => previewTTS('en', ''));
+        })
+        .catch(() => previewTTS('en', ''));
+      return;
+    }
+    if (!('speechSynthesis' in window)) {
+      toast('此瀏覽器不支援語音朗讀');
+      return;
+    }
+    previewTTS(kind, name);
+  }
+
+  async function saveVoice() {
+    if (!state.user) return;
+    const zh = $('#voice-zh');
+    const en = $('#voice-en');
+    const hint = $('#voice-hint');
+    const errorBox = $('#voice-error');
+    if (!zh || !en) return;
+    if (errorBox) errorBox.hidden = true;
+    if (hint) hint.hidden = true;
+
+    const voiceZh = zh.value;
+    const voiceEn = en.value;
+    const warnings = [];
+    if (voiceZh && !deviceVoices('zh').some(voice => voice.name === voiceZh)) warnings.push('此裝置未安裝所選中文聲音');
+    if (voiceEn && !deviceVoices('en').some(voice => voice.name === voiceEn)) warnings.push('此裝置未安裝所選英文聲音');
+
+    const button = $('#voice-save');
+    setButtonBusy(button, true, '保存中…');
+    try {
+      const data = await api('/profile', 'PUT', { voiceZh: voiceZh, voiceEn: voiceEn });
+      state.user.voiceZh = data.voiceZh || '';
+      state.user.voiceEn = data.voiceEn || '';
+      if (warnings.length && hint) {
+        hint.textContent = warnings.join('；') + '，在其他裝置仍會生效，此裝置會自動改用最佳聲音。';
+        hint.hidden = false;
+      }
+      toast('已保存聲音設定');
+    } catch (error) {
+      if (errorBox) {
+        errorBox.textContent = (error && error.message) || '保存失敗';
+        errorBox.hidden = false;
+      }
+    } finally {
+      setButtonBusy(button, false, '保存聲音');
+    }
+  }
+
   async function savePassword() {
     const current = $('#current-password');
     const next = $('#new-password');
@@ -1658,6 +1794,10 @@
     document.addEventListener('input', handleInput);
     document.addEventListener('change', handleChange);
     document.addEventListener('submit', handleSubmit);
+    if ('speechSynthesis' in window) {
+      try { window.speechSynthesis.getVoices(); } catch (error) { /* ignore */ }
+      window.speechSynthesis.addEventListener('voiceschanged', refreshVoiceOptions);
+    }
 
     $('#user-dialog-close').addEventListener('click', function () { closeDialog(els.userDialog); });
     $('#user-cancel').addEventListener('click', function () { closeDialog(els.userDialog); });
@@ -1774,6 +1914,16 @@
       return;
     }
 
+    if (event.target.closest('#voice-preview-zh')) {
+      previewVoice('zh');
+      return;
+    }
+
+    if (event.target.closest('#voice-preview-en')) {
+      previewVoice('en');
+      return;
+    }
+
   }
 
   function handleInput(event) {
@@ -1802,6 +1952,9 @@
     if (event.target.id === 'profile-form') {
       event.preventDefault();
       saveProfile();
+    } else if (event.target.id === 'voice-form') {
+      event.preventDefault();
+      saveVoice();
     } else if (event.target.id === 'password-form') {
       event.preventDefault();
       savePassword();

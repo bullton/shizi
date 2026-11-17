@@ -203,8 +203,19 @@ function warmUpVoices() {
   window.speechSynthesis.getVoices();
   window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
 }
+let _voiceWarned = false;
 function pickCantoneseVoice() {
   const voices = window.speechSynthesis.getVoices() || [];
+  const preferredName = (typeof User !== 'undefined' && User.current) ? User.current.voiceZh : '';
+  if (preferredName) {
+    const preferred = voices.find(v => v.name === preferredName)
+      || voices.find(v => String(v.name).toLowerCase() === String(preferredName).toLowerCase());
+    if (preferred) return preferred;
+    if (!_voiceWarned) {
+      _voiceWarned = true;
+      toast('此裝置沒有「' + preferredName + '」，已改用預設粵語聲音');
+    }
+  }
   return voices.find(v => /zh[-_]HK/i.test(v.lang))
       || voices.find(v => /yue/i.test(v.lang))
       || voices.find(v => /zh[-_]TW/i.test(v.lang))

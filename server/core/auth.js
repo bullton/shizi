@@ -140,6 +140,8 @@ function createAuth({ db, saveData }) {
         nickname: fullUser.nickname || fullUser.username,
         role: fullUser.role,
         avatar: fullUser.avatar || null,
+        voiceZh: fullUser.voiceZh || '',
+        voiceEn: fullUser.voiceEn || '',
         createdAt: fullUser.createdAt || null
       });
       return true;

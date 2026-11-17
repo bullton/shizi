@@ -409,7 +409,7 @@ async function handleAPI(req, res, parsedUrl) {
     const user = requireAuth(req, res);
     if (!user) return jsonResponse(res, 401, { error: '未登入' });
     try {
-      const { nickname, avatar } = await parseBody(req);
+      const { nickname, avatar, voiceZh, voiceEn } = await parseBody(req);
       const userIdx = db.users.findIndex(u => u.id === user.id);
       if (userIdx < 0) return jsonResponse(res, 404, { error: '用戶不存在' });
       if (nickname && nickname.length >= 1 && nickname.length <= 20) {
@@ -421,13 +421,25 @@ async function handleAPI(req, res, parsedUrl) {
       if (avatar !== undefined) {
         db.users[userIdx].avatar = avatar;
       }
+      if (voiceZh !== undefined) {
+        db.users[userIdx].voiceZh = String(voiceZh || '').trim().slice(0, 120);
+      }
+      if (voiceEn !== undefined) {
+        db.users[userIdx].voiceEn = String(voiceEn || '').trim().slice(0, 120);
+      }
       saveData(db);
       sessions.forEach((s, sid) => {
         if (s.user.id === user.id) {
           s.user.nickname = db.users[userIdx].nickname;
         }
       });
-      jsonResponse(res, 200, { success: true, nickname: db.users[userIdx].nickname, avatar: db.users[userIdx].avatar || null });
+      jsonResponse(res, 200, {
+        success: true,
+        nickname: db.users[userIdx].nickname,
+        avatar: db.users[userIdx].avatar || null,
+        voiceZh: db.users[userIdx].voiceZh || '',
+        voiceEn: db.users[userIdx].voiceEn || ''
+      });
     } catch (e) {
       jsonResponse(res, 400, { error: '無效的請求' });
     }

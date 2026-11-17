@@ -197,6 +197,7 @@
   /* ===== Sound ===== */
   let _voiceWarmed = false;
   let _englishVoice;
+  let _voiceWarned = false;
 
   function warmUpVoices() {
     if (!('speechSynthesis' in window)) return;
@@ -210,6 +211,17 @@
   }
 
   function pickEnglishVoice() {
+    const wanted = state.user && state.user.voiceEn;
+    if (wanted) {
+      const voices = window.speechSynthesis.getVoices() || [];
+      const found = voices.find(v => v.name === wanted)
+        || voices.find(v => String(v.name).toLowerCase() === String(wanted).toLowerCase());
+      if (found) return found;
+      if (!_voiceWarned) {
+        _voiceWarned = true;
+        toast('此裝置沒有「' + wanted + '」，已改用預設英文聲音');
+      }
+    }
     if (_englishVoice) return _englishVoice;
     const voices = window.speechSynthesis.getVoices() || [];
     if (!voices.length) return null;
@@ -284,6 +296,7 @@
 
   function playClip(kind, text, rate) {
     if (!state.sound) return false;
+    if (state.user && state.user.voiceEn) return false;
     const url = audioUrl(kind, text);
     if (!url) return false;
     try {
