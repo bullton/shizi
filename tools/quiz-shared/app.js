@@ -484,9 +484,9 @@
     for (let index = 0; index < question.count; index += 1) {
       const tile = tileById(state.order[index]);
       if (tile) {
-        slots.push('<button type="button" class="slot is-filled" data-slot-remove="' + index + '"' + (answered ? ' disabled' : '') + '>' + esc(tile.text) + '</button>');
+        slots.push('<button type="button" class="slot is-filled" data-slot-index="' + index + '" data-slot-drag="' + index + '" data-slot-remove="' + index + '" draggable="' + (answered ? 'false' : 'true') + '" title="拖動排序；點擊移走" aria-label="第 ' + (index + 1) + ' 格：' + esc(tile.text) + '，可拖動排序或點擊移走"' + (answered ? ' disabled' : '') + '>' + esc(tile.text) + '</button>');
       } else {
-        slots.push('<span class="slot is-empty">' + (index + 1) + '</span>');
+        slots.push('<span class="slot is-empty" data-slot-index="' + index + '">' + (index + 1) + '</span>');
       }
     }
     els.answerSlots.innerHTML = slots.join('');
@@ -964,6 +964,11 @@
 
   document.addEventListener('click', event => {
     const target = event.target;
+    if (suppressClickUntil && performance.now() < suppressClickUntil) {
+      suppressClickUntil = 0;
+      event.preventDefault();
+      return;
+    }
 
     const modeButton = target.closest('[data-mode]');
     if (modeButton) {
@@ -1233,40 +1238,170 @@
     }
   });
 
+  let dragSource = null;
+  let suppressClickUntil = 0;
+  let pointerDrag = null;
+
+  function clearDragStyles() {
+    $$('#answer-slots .slot').forEach(slot => slot.classList.remove('is-drop-target', 'is-dragging'));
+    if (els.answerSlots) els.answerSlots.classList.remove('is-over');
+    $$('.drag-ghost').forEach(ghost => ghost.remove());
+  }
+
+  function dropIndexFromPoint(x, y) {
+    if (!els.answerSlots) return null;
+    const element = document.elementFromPoint(x, y);
+    const row = element && element.closest('#answer-slots');
+    if (!row) return null;
+    const slot = element.closest('[data-slot-index]');
+    return slot ? Number(slot.getAttribute('data-slot-index')) : state.order.length;
+  }
+
+  function highlightDrop(index) {
+    $$('#answer-slots .slot').forEach(slot => slot.classList.remove('is-drop-target'));
+    if (index == null) {
+      if (els.answerSlots) els.answerSlots.classList.remove('is-over');
+      return;
+    }
+    if (els.answerSlots) els.answerSlots.classList.add('is-over');
+    const slot = $('#answer-slots [data-slot-index="' + index + '"]');
+    if (slot) slot.classList.add('is-drop-target');
+  }
+
+  function applyOrderDrop(source, targetIndex) {
+    if (!source || !state.round || state.round.question.type !== 'order' || state.answer) return false;
+    const count = state.round.question.count;
+    const clamp = value => Math.max(0, Math.min(state.order.length, value));
+    if (source.kind === 'slot') {
+      const from = Number(source.index);
+      if (!Number.isInteger(from) || from < 0 || from >= state.order.length) return false;
+      const moved = state.order.splice(from, 1)[0];
+      state.order.splice(clamp(targetIndex == null ? state.order.length : targetIndex), 0, moved);
+      return true;
+    }
+    if (source.kind === 'tile') {
+      const id = source.id;
+      if (!id || state.order.includes(id) || state.order.length >= count) return false;
+      state.order.splice(clamp(targetIndex == null ? state.order.length : targetIndex), 0, id);
+      return true;
+    }
+    return false;
+  }
+
   document.addEventListener('dragstart', event => {
-    const tile = event.target.closest('[data-tile]');
-    if (!tile || state.answer) {
+    if (state.answer) {
       event.preventDefault();
       return;
     }
-    event.dataTransfer.setData('text/plain', tile.getAttribute('data-tile'));
+    const slot = event.target.closest('[data-slot-drag]');
+    if (slot) {
+      dragSource = { kind: 'slot', index: Number(slot.getAttribute('data-slot-drag')) };
+      event.dataTransfer.setData('text/plain', 'slot:' + dragSource.index);
+      event.dataTransfer.effectAllowed = 'move';
+      slot.classList.add('is-dragging');
+      return;
+    }
+    const tile = event.target.closest('[data-tile]');
+    if (!tile) {
+      event.preventDefault();
+      return;
+    }
+    dragSource = { kind: 'tile', id: tile.getAttribute('data-tile') };
+    event.dataTransfer.setData('text/plain', 'tile:' + dragSource.id);
     event.dataTransfer.effectAllowed = 'move';
+    tile.classList.add('is-dragging');
   });
 
   document.addEventListener('dragover', event => {
-    const slots = event.target.closest('#answer-slots');
-    if (slots && !state.answer) {
-      event.preventDefault();
-      slots.classList.add('is-over');
+    if (!dragSource || state.answer) return;
+    if (!event.target.closest('#answer-slots')) {
+      highlightDrop(null);
+      return;
     }
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+    highlightDrop(dropIndexFromPoint(event.clientX, event.clientY));
   });
 
   document.addEventListener('dragleave', event => {
-    const slots = event.target.closest('#answer-slots');
-    if (slots) slots.classList.remove('is-over');
+    const row = event.target.closest('#answer-slots');
+    const next = event.relatedTarget;
+    if (row && !(next && next.closest && next.closest('#answer-slots'))) highlightDrop(null);
   });
 
   document.addEventListener('drop', event => {
-    const slots = event.target.closest('#answer-slots');
-    if (!slots || state.answer) return;
+    if (!dragSource || state.answer) return;
+    if (!event.target.closest('#answer-slots')) {
+      dragSource = null;
+      highlightDrop(null);
+      clearDragStyles();
+      return;
+    }
     event.preventDefault();
-    slots.classList.remove('is-over');
-    const id = event.dataTransfer.getData('text/plain');
-    if (!id || !state.round || state.round.question.type !== 'order') return;
-    if (state.order.includes(id) || state.order.length >= state.round.question.count) return;
-    if (!tileById(id)) return;
-    state.order.push(id);
-    renderRound();
+    const index = dropIndexFromPoint(event.clientX, event.clientY);
+    const source = dragSource;
+    dragSource = null;
+    highlightDrop(null);
+    clearDragStyles();
+    if (applyOrderDrop(source, index)) renderRound();
+  });
+
+  document.addEventListener('dragend', () => {
+    dragSource = null;
+    highlightDrop(null);
+    clearDragStyles();
+  });
+
+  document.addEventListener('pointerdown', event => {
+    if (event.pointerType === 'mouse' || state.answer) return;
+    const slot = event.target.closest('[data-slot-drag]');
+    if (!slot) return;
+    pointerDrag = {
+      pointerId: event.pointerId,
+      index: Number(slot.getAttribute('data-slot-drag')),
+      text: slot.textContent,
+      startX: event.clientX,
+      startY: event.clientY,
+      moved: false,
+      ghost: null
+    };
+  });
+
+  document.addEventListener('pointermove', event => {
+    if (!pointerDrag || event.pointerId !== pointerDrag.pointerId) return;
+    if (!pointerDrag.moved) {
+      if (Math.hypot(event.clientX - pointerDrag.startX, event.clientY - pointerDrag.startY) < 8) return;
+      pointerDrag.moved = true;
+      const ghost = document.createElement('div');
+      ghost.className = 'drag-ghost';
+      ghost.textContent = pointerDrag.text;
+      document.body.appendChild(ghost);
+      pointerDrag.ghost = ghost;
+      const slot = $('#answer-slots [data-slot-index="' + pointerDrag.index + '"]');
+      if (slot) slot.classList.add('is-dragging');
+    }
+    event.preventDefault();
+    if (pointerDrag.ghost) {
+      pointerDrag.ghost.style.left = event.clientX + 'px';
+      pointerDrag.ghost.style.top = event.clientY + 'px';
+    }
+    highlightDrop(dropIndexFromPoint(event.clientX, event.clientY));
+  });
+
+  document.addEventListener('pointerup', event => {
+    if (!pointerDrag || event.pointerId !== pointerDrag.pointerId) return;
+    const drag = pointerDrag;
+    pointerDrag = null;
+    clearDragStyles();
+    if (!drag.moved) return;
+    suppressClickUntil = performance.now() + 300;
+    const index = dropIndexFromPoint(event.clientX, event.clientY);
+    if (applyOrderDrop({ kind: 'slot', index: drag.index }, index)) renderRound();
+  });
+
+  document.addEventListener('pointercancel', () => {
+    pointerDrag = null;
+    clearDragStyles();
   });
 
   boot();

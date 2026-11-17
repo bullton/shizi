@@ -302,7 +302,14 @@ function createDomainQuizTool({ rootDir, toolDir, db, saveData: storeSave, auth 
     if (question.type === 'order') {
       const order = Array.isArray(body.order) ? body.order : [];
       if (order.length !== question.parts.length) return false;
-      return order.every((tileId, index) => String(tileId) === 'p' + index);
+      const expected = question.parts.map(part => String(part).trim());
+      const actual = order.map(tileId => {
+        const match = /^p(\d+)$/.exec(String(tileId || ''));
+        if (!match) return null;
+        const index = Number(match[1]);
+        return index >= 0 && index < question.parts.length ? String(question.parts[index]).trim() : null;
+      });
+      return actual.every((text, index) => text === expected[index]);
     }
     if (question.type === 'input') {
       const given = normalizeAnswer(body.value);
