@@ -355,6 +355,8 @@
       ['近七日作答', fmtInt(stats.recent7) + ' 題'],
       ['平均用時', avgTimeText(stats.avgTime)]
     ].map(item => '<div class="hero-stat"><strong>' + esc(item[1]) + '</strong><span>' + esc(item[0]) + '</span></div>').join('');
+    const heroFreeCount = $('#hero-free-count');
+    if (heroFreeCount) heroFreeCount.textContent = String(state.count);
 
     renderTasks();
     renderDomains();
@@ -1015,7 +1017,7 @@
       return;
     }
 
-    if (target.closest('#practice-all')) {
+    if (target.closest('#hero-free-start') || target.closest('#practice-all')) {
       startFree({});
       return;
     }

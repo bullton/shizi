@@ -282,6 +282,24 @@ a {
   gap: 10px 28px;
 }
 
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 22px;
+}
+
+.hero-action-hint {
+  color: var(--ink-faint);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.hero-action-hint b {
+  color: var(--accent-2);
+}
+
 .hero-stat {
   display: flex;
   flex-direction: column;

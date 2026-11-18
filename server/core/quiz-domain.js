@@ -5,6 +5,7 @@ const { generateId } = require('./ids');
 const { createDrill, shuffle } = require('./drill');
 
 const SEED_VERSION = 1;
+const PRACTICE_COOLDOWN_MS = 6 * 60 * 60 * 1000;
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -406,57 +407,40 @@ function createDomainQuizTool({ rootDir, toolDir, db, saveData: storeSave, auth 
         .filter(record => String(record.userId) === String(userId))
         .map(record => [String(record.question_id), record])
     );
-    const wrong = [];
+    const now = Date.now();
     const fresh = [];
-    const review = [];
-    const other = [];
+    const cooled = [];
+    const recent = [];
+    const lastPracticed = question => {
+      const record = records.get(String(question.question_id));
+      const time = record && record.last_practiced_at ? Date.parse(record.last_practiced_at) : NaN;
+      return Number.isFinite(time) ? time : null;
+    };
     pool.forEach(question => {
       const record = records.get(String(question.question_id));
-      if (!record || !record.total_attempts) fresh.push(question);
-      else if (record.box_level === 0 && (record.total_wrong || 0) > 0) wrong.push(question);
-      else if (record.box_level === 3) other.push(question);
-      else review.push(question);
+      const last = lastPracticed(question);
+      if (!record || !record.total_attempts || last === null) fresh.push(question);
+      else if (now - last >= PRACTICE_COOLDOWN_MS) cooled.push(question);
+      else recent.push(question);
     });
-    wrong.sort((a, b) => {
-      const ar = records.get(String(a.question_id));
-      const br = records.get(String(b.question_id));
+    function byOldest(a, b) {
+      const ar = records.get(String(a.question_id)) || {};
+      const br = records.get(String(b.question_id)) || {};
+      const diff = String(ar.last_practiced_at || '').localeCompare(String(br.last_practiced_at || ''));
+      if (diff !== 0) return diff;
       return (br.total_wrong || 0) - (ar.total_wrong || 0);
-    });
-    review.sort((a, b) => {
-      const ar = records.get(String(a.question_id));
-      const br = records.get(String(b.question_id));
-      return String(ar.last_practiced_at || '').localeCompare(String(br.last_practiced_at || ''));
-    });
-    const chosen = [];
-    const used = new Set();
-    function take(list, amount) {
-      let taken = 0;
-      for (const question of list) {
-        if (chosen.length >= count || taken >= amount) break;
-        const questionKey = String(question.question_id);
-        if (used.has(questionKey)) continue;
-        used.add(questionKey);
-        chosen.push(question);
-        taken += 1;
-      }
     }
-    take(wrong, Math.round(count * 0.4));
-    take(fresh, Math.round(count * 0.3));
-    take(review, Math.round(count * 0.3));
-    if (chosen.length < count) {
-      take(wrong, count);
-      take(fresh, count);
-      take(review, count);
-      take(shuffle(other), count);
-      take(shuffle(pool), count);
-    }
-    return chosen.slice(0, count);
+    cooled.sort(byOldest);
+    recent.sort(byOldest);
+    return shuffle(fresh).concat(cooled, recent).slice(0, count);
   }
 
   function resolvePool(body) {
     const nodeIds = Array.isArray(body.nodes) ? body.nodes.map(String) : [];
+    const domainIds = Array.isArray(body.domains) ? body.domains.map(String) : [];
     return activeQuestions().filter(question => {
       if (nodeIds.length && !nodeIds.includes(question.node_id)) return false;
+      if (domainIds.length && !domainIds.includes(question.domain)) return false;
       return true;
     });
   }

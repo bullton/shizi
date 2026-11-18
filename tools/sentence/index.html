@@ -13,7 +13,7 @@
     --accent-glow-2: rgba(31, 111, 139, 0.08);
   }
 </style>
-<link rel="stylesheet" href="../quiz-shared/style.css?v=20261117-2">
+<link rel="stylesheet" href="../quiz-shared/style.css?v=20261118-1">
 </head>
 <body>
 <div class="app" id="app">
@@ -52,6 +52,10 @@
             <h1><span id="hello-name">你好</span>，今天來排句子吧</h1>
             <p class="hero-sub">把詞語卡排成通順句子，練四素句、特殊句式與各種複句。答錯的題目會自動回到隊列，連續答對就會慢慢掌握。</p>
             <div class="hero-stats" id="hero-stats"></div>
+            <div class="hero-actions">
+              <button type="button" class="btn btn-primary" id="hero-free-start">自由練習</button>
+              <span class="hero-action-hint">每次 <b id="hero-free-count">10</b> 題，未做過的題目優先</span>
+            </div>
           </div>
           <div class="hero-art" aria-hidden="true">
             <span class="hero-glow"></span>
@@ -214,6 +218,6 @@
     taskPlaceholder: '例如：本周複句練習'
   };
 </script>
-<script src="../quiz-shared/app.js?v=20261117-2" defer></script>
+<script src="../quiz-shared/app.js?v=20261118-1" defer></script>
 </body>
 </html>
