@@ -2,10 +2,11 @@
   "id": "poetry",
   "name": "古詩詞",
   "short": "古詩",
-  "entry": null,
+  "entry": "/tools/poetry/",
   "weight": 0.2,
-  "active": false,
+  "order": 8,
+  "active": true,
   "accent": "#33466f",
   "icon": "pen",
-  "desc": "讀詩、記詩、默寫，保留自己的靛青氣質。"
+  "desc": "聽詩、懂意、排句、補字、背誦、默寫，一首一首走進古詩的世界。"
 }

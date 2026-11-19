@@ -1,0 +1,337 @@
+{
+  "themes": [
+    { "id": "all", "title": "全部" },
+    { "id": "home", "title": "思鄉" },
+    { "id": "season", "title": "四季" },
+    { "id": "landscape", "title": "山水" },
+    { "id": "play", "title": "童趣" },
+    { "id": "farewell", "title": "送別" },
+    { "id": "family", "title": "親情" },
+    { "id": "wisdom", "title": "哲理" },
+    { "id": "work", "title": "惜物" }
+  ],
+  "poems": [
+    {
+      "id": "jingyesi",
+      "title": "靜夜思",
+      "author": "李白",
+      "dynasty": "唐",
+      "themeId": "home",
+      "theme": "思鄉",
+      "level": "啟蒙",
+      "tags": ["月", "思鄉", "五言絕句"],
+      "lines": [
+        { "text": "床前明月光", "pinyin": "chuáng qián míng yuè guāng", "translation": "床前灑滿明亮的月光。" },
+        { "text": "疑是地上霜", "pinyin": "yí shì dì shàng shuāng", "translation": "好像地上鋪了一層白霜。", "note": "疑：好像。" },
+        { "text": "舉頭望明月", "pinyin": "jǔ tóu wàng míng yuè", "translation": "抬起頭望着天上的明月。" },
+        { "text": "低頭思故鄉", "pinyin": "dī tóu sī gù xiāng", "translation": "低下頭思念遠方的故鄉。" }
+      ],
+      "background": "李白獨自在外，夜裏看到月光，想起遠方的家鄉，寫下這首小詩。",
+      "appreciation": "「舉頭」與「低頭」一抬一低，把看月到思鄉的轉折寫得自然又深。",
+      "keyLine": 3,
+      "keyLineNote": "「舉頭」與「低頭」兩個動作，寫出從看月到思鄉的變化。"
+    },
+    {
+      "id": "chunxiao",
+      "title": "春曉",
+      "author": "孟浩然",
+      "dynasty": "唐",
+      "themeId": "season",
+      "theme": "四季",
+      "level": "啟蒙",
+      "tags": ["春", "鳥", "五言絕句"],
+      "lines": [
+        { "text": "春眠不覺曉", "pinyin": "chūn mián bù jué xiǎo", "translation": "春天睡得香甜，不知不覺天亮了。", "note": "不覺曉：不知道天已經亮。" },
+        { "text": "處處聞啼鳥", "pinyin": "chù chù wén tí niǎo", "translation": "到處都聽到鳥兒叫。" },
+        { "text": "夜來風雨聲", "pinyin": "yè lái fēng yǔ shēng", "translation": "昨夜傳來風雨的聲音。" },
+        { "text": "花落知多少", "pinyin": "huā luò zhī duō shǎo", "translation": "不知道有多少花被風雨吹落。" }
+      ],
+      "background": "孟浩然在春天的早晨醒來，聽見鳥鳴，想起夜裏的風雨。",
+      "appreciation": "從聲音寫春天，最後一句留下對落花的牽掛。",
+      "keyLine": 0,
+      "keyLineNote": "「不覺曉」寫出春睡香甜，也點出詩人悠閒的心境。"
+    },
+    {
+      "id": "dengguequelou",
+      "title": "登鸛雀樓",
+      "author": "王之渙",
+      "dynasty": "唐",
+      "themeId": "landscape",
+      "theme": "山水",
+      "level": "基礎",
+      "tags": ["樓", "黃河", "勵志"],
+      "lines": [
+        { "text": "白日依山盡", "pinyin": "bái rì yī shān jìn", "translation": "太陽靠着山邊慢慢落下。", "note": "依：靠着。盡：消失。" },
+        { "text": "黃河入海流", "pinyin": "huáng hé rù hǎi liú", "translation": "黃河奔騰着流向大海。" },
+        { "text": "欲窮千里目", "pinyin": "yù qióng qiān lǐ mù", "translation": "想要看到更遠的千里風光。", "note": "窮：窮盡，看到盡頭。" },
+        { "text": "更上一層樓", "pinyin": "gèng shàng yī céng lóu", "translation": "就要再登上一層樓。" }
+      ],
+      "background": "王之渙登上鸛雀樓，看見落日與黃河，寫下這首詩。",
+      "appreciation": "前兩句寫景，後兩句說理：站得高，才能看得遠。",
+      "keyLine": 3,
+      "keyLineNote": "「更上一層樓」不只是登樓，也比喻不斷進步。"
+    },
+    {
+      "id": "yonge",
+      "title": "詠鵝",
+      "author": "駱賓王",
+      "dynasty": "唐",
+      "themeId": "play",
+      "theme": "童趣",
+      "level": "啟蒙",
+      "tags": ["鵝", "顏色", "童趣"],
+      "lines": [
+        { "text": "鵝，鵝，鵝", "pinyin": "é, é, é", "translation": "鵝呀，鵝呀，鵝。" },
+        { "text": "曲項向天歌", "pinyin": "qū xiàng xiàng tiān gē", "translation": "彎着脖子向天唱歌。", "note": "曲項：彎着脖子。" },
+        { "text": "白毛浮綠水", "pinyin": "bái máo fú lǜ shuǐ", "translation": "白白的羽毛浮在綠水上。" },
+        { "text": "紅掌撥清波", "pinyin": "hóng zhǎng bō qīng bō", "translation": "紅紅的腳掌撥動清清的水波。" }
+      ],
+      "background": "相傳駱賓王七歲時看見池中的鵝，隨口吟出這首詩。",
+      "appreciation": "白毛、綠水、紅掌、清波，顏色鮮明，像一幅畫。",
+      "keyLine": 1,
+      "keyLineNote": "「曲項」寫鵝彎着脖子唱歌的樣子，很有畫面。"
+    },
+    {
+      "id": "minnong",
+      "title": "憫農",
+      "author": "李紳",
+      "dynasty": "唐",
+      "themeId": "work",
+      "theme": "惜物",
+      "level": "基礎",
+      "tags": ["農夫", "糧食", "五言絕句"],
+      "lines": [
+        { "text": "鋤禾日當午", "pinyin": "chú hé rì dāng wǔ", "translation": "正午烈日下，農夫在田裏鋤草。", "note": "鋤禾：給禾苗鋤草鬆土。" },
+        { "text": "汗滴禾下土", "pinyin": "hàn dī hé xià tǔ", "translation": "汗水一滴滴落進禾苗下的泥土。" },
+        { "text": "誰知盤中餐", "pinyin": "shuí zhī pán zhōng cān", "translation": "誰知道碗裏的飯菜。" },
+        { "text": "粒粒皆辛苦", "pinyin": "lì lì jiē xīn kǔ", "translation": "每一粒都來得這樣辛苦。" }
+      ],
+      "background": "李紳看到農夫在烈日下勞動，寫下這首詩。",
+      "appreciation": "用「汗滴」和「粒粒」把珍惜糧食的道理寫得具體。",
+      "keyLine": 3,
+      "keyLineNote": "「粒粒皆辛苦」提醒我們珍惜每一粒糧食。"
+    },
+    {
+      "id": "jiangxue",
+      "title": "江雪",
+      "author": "柳宗元",
+      "dynasty": "唐",
+      "themeId": "landscape",
+      "theme": "山水",
+      "level": "基礎",
+      "tags": ["雪", "冬天", "孤獨"],
+      "lines": [
+        { "text": "千山鳥飛絕", "pinyin": "qiān shān niǎo fēi jué", "translation": "群山之中，看不到一隻飛鳥。", "note": "絕：消失，沒有。" },
+        { "text": "萬徑人蹤滅", "pinyin": "wàn jìng rén zōng miè", "translation": "所有小路上，都沒有人走過的蹤跡。" },
+        { "text": "孤舟蓑笠翁", "pinyin": "gū zhōu suō lì wēng", "translation": "江上只有一隻小船，船上坐着戴蓑衣斗笠的老翁。" },
+        { "text": "獨釣寒江雪", "pinyin": "dú diào hán jiāng xuě", "translation": "獨自在大雪紛飛的寒江上釣魚。" }
+      ],
+      "background": "柳宗元被貶到永州，借雪江獨釣的畫面寫自己的心境。",
+      "appreciation": "天地很靜，老翁很孤獨，卻也有一種不屈的堅持。",
+      "keyLine": 3,
+      "keyLineNote": "「獨釣」既是釣魚，也寫出詩人孤高清冷的心境。"
+    },
+    {
+      "id": "wanglushanpubu",
+      "title": "望廬山瀑布",
+      "author": "李白",
+      "dynasty": "唐",
+      "themeId": "landscape",
+      "theme": "山水",
+      "level": "進階",
+      "tags": ["瀑布", "廬山", "誇張"],
+      "lines": [
+        { "text": "日照香爐生紫煙", "pinyin": "rì zhào xiāng lú shēng zǐ yān", "translation": "陽光照射香爐峰，升起紫色雲煙。" },
+        { "text": "遙看瀑布掛前川", "pinyin": "yáo kàn pù bù guà qián chuān", "translation": "遠遠望去，瀑布像掛在山前的河流。" },
+        { "text": "飛流直下三千尺", "pinyin": "fēi liú zhí xià sān qiān chǐ", "translation": "水流飛瀉而下，好像有三千尺長。" },
+        { "text": "疑是銀河落九天", "pinyin": "yí shì yín hé luò jiǔ tiān", "translation": "讓人懷疑是銀河從九天之上落了下來。" }
+      ],
+      "background": "李白遊廬山，看見瀑布氣勢磅礴，寫下這首詩。",
+      "appreciation": "誇張的「三千尺」和「銀河」，把瀑布寫得壯觀又浪漫。",
+      "keyLine": 3,
+      "keyLineNote": "「疑是」不是真的懷疑，而是用想像把瀑布比作銀河。"
+    },
+    {
+      "id": "jueju",
+      "title": "絕句",
+      "author": "杜甫",
+      "dynasty": "唐",
+      "themeId": "season",
+      "theme": "四季",
+      "level": "進階",
+      "tags": ["春天", "顏色", "七言絕句"],
+      "lines": [
+        { "text": "兩個黃鸝鳴翠柳", "pinyin": "liǎng gè huáng lí míng cuì liǔ", "translation": "兩隻黃鸝在翠綠的柳枝上鳴叫。" },
+        { "text": "一行白鷺上青天", "pinyin": "yī háng bái lù shàng qīng tiān", "translation": "一行白鷺飛上藍天。" },
+        { "text": "窗含西嶺千秋雪", "pinyin": "chuāng hán xī lǐng qiān qiū xuě", "translation": "窗戶裏含着西嶺上終年不化的積雪。" },
+        { "text": "門泊東吳萬里船", "pinyin": "mén bó dōng wú wàn lǐ chuán", "translation": "門前停泊着來自東吳的萬里航船。" }
+      ],
+      "background": "杜甫在成都草堂，看見春日景色，心情舒暢。",
+      "appreciation": "四句四景，顏色從黃、翠、白、青到雪、船，像一扇窗裏的畫。",
+      "keyLine": 2,
+      "keyLineNote": "「含」字把窗外的雪山收進窗框，像一幅畫。"
+    },
+    {
+      "id": "zaofabaidicheng",
+      "title": "早發白帝城",
+      "author": "李白",
+      "dynasty": "唐",
+      "themeId": "landscape",
+      "theme": "山水",
+      "level": "進階",
+      "tags": ["長江", "行船", "輕快"],
+      "lines": [
+        { "text": "朝辭白帝彩雲間", "pinyin": "zhāo cí bái dì cǎi yún jiān", "translation": "清晨告別彩雲環繞的白帝城。" },
+        { "text": "千里江陵一日還", "pinyin": "qiān lǐ jiāng líng yī rì huán", "translation": "千里之外的江陵，一天就能到達。" },
+        { "text": "兩岸猿聲啼不住", "pinyin": "liǎng àn yuán shēng tí bù zhù", "translation": "兩岸猿猴的叫聲接連不斷。" },
+        { "text": "輕舟已過萬重山", "pinyin": "qīng zhōu yǐ guò wàn chóng shān", "translation": "輕快的小船已穿過萬重山嶺。" }
+      ],
+      "background": "李白流放途中遇赦，乘船東下，寫下這首輕快的詩。",
+      "appreciation": "「一日還」「已過」寫出船行之快，也寫出心情的輕鬆。",
+      "keyLine": 3,
+      "keyLineNote": "「輕舟」既寫船輕，也寫詩人重獲自由後的輕快。"
+    },
+    {
+      "id": "songyuaner",
+      "title": "送元二使安西",
+      "author": "王維",
+      "dynasty": "唐",
+      "themeId": "farewell",
+      "theme": "送別",
+      "level": "進階",
+      "tags": ["送別", "柳", "酒"],
+      "lines": [
+        { "text": "渭城朝雨浥輕塵", "pinyin": "wèi chéng zhāo yǔ yì qīng chén", "translation": "渭城清晨的雨濕潤了路上的輕塵。", "note": "浥：濕潤。" },
+        { "text": "客舍青青柳色新", "pinyin": "kè shè qīng qīng liǔ sè xīn", "translation": "客舍旁的柳樹被雨洗得青青一新。" },
+        { "text": "勸君更盡一杯酒", "pinyin": "quàn jūn gèng jìn yī bēi jiǔ", "translation": "請你再喝完這一杯酒。" },
+        { "text": "西出陽關無故人", "pinyin": "xī chū yáng guān wú gù rén", "translation": "向西出了陽關，就再也見不到老朋友了。" }
+      ],
+      "background": "王維在渭城送別朋友元二，寫下這首送別詩。",
+      "appreciation": "前兩句寫景清新，後兩句把依依不捨都放進一杯酒裏。",
+      "keyLine": 2,
+      "keyLineNote": "「更盡一杯酒」是勸酒，也是拖延分別的時刻。"
+    },
+    {
+      "id": "youzhiyin",
+      "title": "遊子吟",
+      "author": "孟郊",
+      "dynasty": "唐",
+      "themeId": "family",
+      "theme": "親情",
+      "level": "進階",
+      "tags": ["母親", "親情", "縫衣"],
+      "lines": [
+        { "text": "慈母手中線", "pinyin": "cí mǔ shǒu zhōng xiàn", "translation": "慈愛的母親手裏拿着針線。" },
+        { "text": "遊子身上衣", "pinyin": "yóu zǐ shēn shàng yī", "translation": "為即將遠行的孩子縫製衣服。" },
+        { "text": "臨行密密縫", "pinyin": "lín xíng mì mì féng", "translation": "臨走前密密地縫了又縫。" },
+        { "text": "意恐遲遲歸", "pinyin": "yì kǒng chí chí guī", "translation": "心裏擔心孩子遲遲不能回家。" },
+        { "text": "誰言寸草心", "pinyin": "shuí yán cùn cǎo xīn", "translation": "誰說小草一樣微弱的心意。" },
+        { "text": "報得三春暉", "pinyin": "bào dé sān chūn huī", "translation": "能報答春天陽光般的母愛。" }
+      ],
+      "background": "孟郊想起母親為自己縫衣的情景，寫下這首詩。",
+      "appreciation": "用「密密縫」這個細節，寫出母親說不出口的牽掛。",
+      "keyLine": 4,
+      "keyLineNote": "「寸草心」比喻子女的心意，「三春暉」比喻母愛。"
+    },
+    {
+      "id": "tixilinbi",
+      "title": "題西林壁",
+      "author": "蘇軾",
+      "dynasty": "宋",
+      "themeId": "wisdom",
+      "theme": "哲理",
+      "level": "進階",
+      "tags": ["廬山", "哲理", "角度看"],
+      "lines": [
+        { "text": "橫看成嶺側成峰", "pinyin": "héng kàn chéng lǐng cè chéng fēng", "translation": "從正面看是連綿的山嶺，從側面看是高聳的山峰。" },
+        { "text": "遠近高低各不同", "pinyin": "yuǎn jìn gāo dī gè bù tóng", "translation": "遠近高低不同，看到的樣子也不同。" },
+        { "text": "不識廬山真面目", "pinyin": "bù shí lú shān zhēn miàn mù", "translation": "看不清廬山真正的樣子。" },
+        { "text": "只緣身在此山中", "pinyin": "zhǐ yuán shēn zài cǐ shān zhōng", "translation": "只因為自己就在這座山裏。" }
+      ],
+      "background": "蘇軾遊廬山，發現從不同角度看山，樣子都不一樣。",
+      "appreciation": "由看山想到看事情：身在其中，反而容易看不清全貌。",
+      "keyLine": 3,
+      "keyLineNote": "「只緣」點出原因：身在山中，視角受限。"
+    },
+    {
+      "id": "yongliu",
+      "title": "詠柳",
+      "author": "賀知章",
+      "dynasty": "唐",
+      "themeId": "season",
+      "theme": "四季",
+      "level": "基礎",
+      "tags": ["柳樹", "春風", "比喻"],
+      "lines": [
+        { "text": "碧玉妝成一樹高", "pinyin": "bì yù zhuāng chéng yī shù gāo", "translation": "柳樹像用碧玉裝扮過，高高地立着。" },
+        { "text": "萬條垂下綠絲絛", "pinyin": "wàn tiáo chuí xià lǜ sī tāo", "translation": "千萬條柳枝垂下來，像綠色的絲帶。", "note": "絲絛：絲帶。" },
+        { "text": "不知細葉誰裁出", "pinyin": "bù zhī xì yè shuí cái chū", "translation": "不知道這細細的柳葉是誰裁剪出來的。" },
+        { "text": "二月春風似剪刀", "pinyin": "èr yuè chūn fēng sì jiǎn dāo", "translation": "原來二月的春風就像一把剪刀。" }
+      ],
+      "background": "賀知章看見春天的柳樹，讚美春風的巧妙。",
+      "appreciation": "把春風比作剪刀，想像新穎，寫出柳葉的精緻。",
+      "keyLine": 3,
+      "keyLineNote": "「似剪刀」把無形的春風寫成能裁剪柳葉的巧手。"
+    },
+    {
+      "id": "shanxing",
+      "title": "山行",
+      "author": "杜牧",
+      "dynasty": "唐",
+      "themeId": "season",
+      "theme": "四季",
+      "level": "基礎",
+      "tags": ["秋天", "楓葉", "山路"],
+      "lines": [
+        { "text": "遠上寒山石徑斜", "pinyin": "yuǎn shàng hán shān shí jìng xié", "translation": "沿着彎彎斜斜的石徑，登上遠處的寒山。" },
+        { "text": "白雲生處有人家", "pinyin": "bái yún shēng chù yǒu rén jiā", "translation": "白雲升騰的地方，隱約有人家。" },
+        { "text": "停車坐愛楓林晚", "pinyin": "tíng chē zuò ài fēng lín wǎn", "translation": "停下車，只因喜愛傍晚的楓林。", "note": "坐：因為。" },
+        { "text": "霜葉紅於二月花", "pinyin": "shuāng yè hóng yú èr yuè huā", "translation": "經霜的楓葉比二月的春花還要紅。" }
+      ],
+      "background": "杜牧在深秋山行，被楓林晚景吸引，停下車來欣賞。",
+      "appreciation": "最後一句用春花比楓葉，把秋景寫得比春天還熱烈。",
+      "keyLine": 3,
+      "keyLineNote": "「紅於」是比……更紅，寫出霜葉的鮮豔。"
+    },
+    {
+      "id": "jiuyuejiu",
+      "title": "九月九日憶山東兄弟",
+      "author": "王維",
+      "dynasty": "唐",
+      "themeId": "home",
+      "theme": "思鄉",
+      "level": "進階",
+      "tags": ["重陽節", "兄弟", "思鄉"],
+      "lines": [
+        { "text": "獨在異鄉為異客", "pinyin": "dú zài yì xiāng wéi yì kè", "translation": "獨自在他鄉做異鄉人。" },
+        { "text": "每逢佳節倍思親", "pinyin": "měi féng jiā jié bèi sī qīn", "translation": "每到佳節就更加思念親人。" },
+        { "text": "遙知兄弟登高處", "pinyin": "yáo zhī xiōng dì dēng gāo chù", "translation": "遙想兄弟們登高遠眺的地方。" },
+        { "text": "遍插茱萸少一人", "pinyin": "biàn chā zhū yú shǎo yī rén", "translation": "大家都插上茱萸，卻少了我一個人。" }
+      ],
+      "background": "王維在重陽節獨自在外，思念家鄉的兄弟。",
+      "appreciation": "不寫自己登高，而想像兄弟登高時少了自己，思念更深。",
+      "keyLine": 3,
+      "keyLineNote": "「少一人」從兄弟那邊寫起，把思念寫得更含蓄。"
+    },
+    {
+      "id": "cunju",
+      "title": "村居",
+      "author": "高鼎",
+      "dynasty": "清",
+      "themeId": "play",
+      "theme": "童趣",
+      "level": "基礎",
+      "tags": ["春天", "風箏", "兒童"],
+      "lines": [
+        { "text": "草長鶯飛二月天", "pinyin": "cǎo zhǎng yīng fēi èr yuè tiān", "translation": "二月裏，青草生長，黃鶯飛舞。" },
+        { "text": "拂堤楊柳醉春煙", "pinyin": "fú dī yáng liǔ zuì chūn yān", "translation": "楊柳輕拂堤岸，沉醉在春天的煙霧裏。" },
+        { "text": "兒童散學歸來早", "pinyin": "ér tóng sàn xué guī lái zǎo", "translation": "孩子們放學回來得早。" },
+        { "text": "忙趁東風放紙鳶", "pinyin": "máng chèn dōng fēng fàng zhǐ yuān", "translation": "趕忙趁着東風放風箏。", "note": "紙鳶：風箏。" }
+      ],
+      "background": "高鼎住在鄉村，看見春天裏孩子放風箏的快樂情景。",
+      "appreciation": "前兩句寫春景，後兩句寫兒童，畫面明快又有生氣。",
+      "keyLine": 3,
+      "keyLineNote": "「忙趁」寫出孩子迫不及待的心情。"
+    }
+  ]
+}

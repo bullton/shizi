@@ -81,6 +81,18 @@
       accent: '#a8452f',
       icon: 'spark',
       desc: '按場景練成語，從神態、心情到寫景，把表達詞彙一點一點累積起來。'
+    },
+    {
+      id: 'poetry',
+      name: '古詩詞',
+      short: '古詩',
+      entry: '/tools/poetry/',
+      weight: 0.2,
+      order: 8,
+      active: true,
+      accent: '#33466f',
+      icon: 'pen',
+      desc: '聽詩、懂意、排句、補字、背誦、默寫，一首一首走進古詩的世界。'
     }
   ];
 
@@ -651,14 +663,14 @@
     const detail = toolStats(tool.id) || {};
     const rank = toolRank(tool.id);
     const isRate = tool.id === 'grammar';
-    const isMastery = tool.id === 'grammar' || tool.id === 'idiom' || tool.id === 'spell' || tool.id === 'sentence' || tool.id === 'math' || tool.id === 'gk';
+    const isMastery = tool.id === 'grammar' || tool.id === 'idiom' || tool.id === 'spell' || tool.id === 'sentence' || tool.id === 'math' || tool.id === 'gk' || tool.id === 'poetry';
     const value = isRate
       ? (detail.masteryRate || 0)
       : isMastery
         ? (detail.mastered || detail.score || 0)
         : (detail.charsKnown || detail.score || 0);
     const label = isRate ? '掌握率' : isMastery ? '已掌握' : '已學';
-    const unit = isRate ? '%' : tool.id === 'spell' ? '詞' : isMastery ? '題' : '字';
+    const unit = isRate ? '%' : tool.id === 'spell' ? '詞' : tool.id === 'poetry' ? '首' : isMastery ? '題' : '字';
     return '<a class="tool-card" href="#/tool/' + tool.id + '" data-nav="tool/' + tool.id + '" style="--tool:' + tool.accent + '">' +
       '<div class="tool-card-top"><span class="tool-icon">' + icon(tool.icon, 20) + '</span><span class="tool-badge is-live">已接入</span></div>' +
       '<h3>' + esc(tool.name) + '</h3>' +
@@ -798,8 +810,8 @@
     const overall = tab === 'overall';
     const detail = row.tools && row.tools[tab] ? row.tools[tab] : {};
     const tool = toolById(tab);
-    const isMastery = tool && (tool.id === 'grammar' || tool.id === 'idiom' || tool.id === 'spell' || tool.id === 'sentence' || tool.id === 'math' || tool.id === 'gk');
-    const detailUnit = tool && tool.id === 'spell' ? '詞' : '題';
+    const isMastery = tool && (tool.id === 'grammar' || tool.id === 'idiom' || tool.id === 'spell' || tool.id === 'sentence' || tool.id === 'math' || tool.id === 'gk' || tool.id === 'poetry');
+    const detailUnit = tool && tool.id === 'poetry' ? '首' : tool && tool.id === 'spell' ? '詞' : '題';
     const score = overall
       ? Number(row.combined) || 0
       : isMastery
@@ -818,8 +830,9 @@
     const sentence = row.tools && row.tools.sentence ? row.tools.sentence : {};
     const math = row.tools && row.tools.math ? row.tools.math : {};
     const gk = row.tools && row.tools.gk ? row.tools.gk : {};
+    const poetry = row.tools && row.tools.poetry ? row.tools.poetry : {};
     const sub = overall
-      ? '識字樂 ' + fmtInt(shizi.charsKnown) + ' 字 · 文法 ' + fmtInt(grammar.mastered) + ' 題 · 拆詞 ' + fmtInt(spell.mastered) + ' 詞 · 成語 ' + fmtInt(idiom.mastered) + ' 題 · 句子 ' + fmtInt(sentence.mastered) + ' 題 · 數學 ' + fmtInt(math.mastered) + ' 題 · 常識 ' + fmtInt(gk.mastered) + ' 題'
+      ? '識字樂 ' + fmtInt(shizi.charsKnown) + ' 字 · 文法 ' + fmtInt(grammar.mastered) + ' 題 · 拆詞 ' + fmtInt(spell.mastered) + ' 詞 · 成語 ' + fmtInt(idiom.mastered) + ' 題 · 句子 ' + fmtInt(sentence.mastered) + ' 題 · 數學 ' + fmtInt(math.mastered) + ' 題 · 常識 ' + fmtInt(gk.mastered) + ' 題 · 古詩 ' + fmtInt(poetry.mastered) + ' 首'
       : isMastery
         ? '掌握 ' + fmtInt(detail.mastered || detail.score) + ' / ' + fmtInt(detail.totalQuestions) + ' ' + detailUnit + '（' + fmtPct(detail.masteryRate) + '%）· 做過 ' + fmtInt(detail.attempted) + ' ' + detailUnit + ' · 正確率 ' + fmtPct(detail.accuracy) + '% · 平均 ' + avgTimeText(detail.avgTime)
         : '已學 ' + fmtInt(detail.charsKnown) + ' 字 · 正確率 ' + fmtPct(detail.accuracy) + '% · 平均 ' + avgTimeText(detail.avgTime) + ' · 練習 ' + fmtInt(detail.attempts) + ' 次';
@@ -842,8 +855,8 @@
     const total = Number(mine && mine.combined) || 0;
     const rows = TOOLS.map(function (tool) {
       const detail = toolStats(tool.id) || {};
-      const mastery = tool.id === 'grammar' || tool.id === 'idiom' || tool.id === 'spell' || tool.id === 'sentence' || tool.id === 'math' || tool.id === 'gk';
-      const value = mastery ? Number(detail.mastered || detail.score) || 0 : Number(detail.charsKnown) || 0;
+      const mastery = tool.id === 'grammar' || tool.id === 'idiom' || tool.id === 'spell' || tool.id === 'sentence' || tool.id === 'math' || tool.id === 'gk' || tool.id === 'poetry';
+      const value = tool.id === 'poetry' ? Number(detail.score) || 0 : mastery ? Number(detail.mastered || detail.score) || 0 : Number(detail.charsKnown) || 0;
       const pct = tool.active && total > 0 ? Math.min(100, Math.round((value / total) * 100)) : 0;
       return '<div class="weight-row' + (tool.active ? ' is-active' : ' is-muted') + '">' +
         '<span class="weight-name"><span class="weight-dot" style="background:' + (tool.active ? tool.accent : 'var(--line-strong)') + '"></span>' + esc(tool.short) + '</span>' +
@@ -854,7 +867,7 @@
     return '<section class="panel">' +
       '<div class="panel-head"><h2 class="panel-title">積分來源</h2><span class="panel-meta">目前 ' + fmtInt(total) + ' 分</span></div>' +
       '<div class="weight-list">' + rows + '</div>' +
-      '<p class="panel-note">識字樂每學 1 字 = 1 分；文法花園、成語天地、句子重組、數學計算與常識問答每掌握 1 題 = 1 分；英文拆拆拆每掌握 1 詞 = 1 分。綜合積分直接相加。</p>' +
+      '<p class="panel-note">識字樂每學 1 字 = 1 分；文法花園、成語天地、句子重組、數學計算與常識問答每掌握 1 題 = 1 分；英文拆拆拆每掌握 1 詞 = 1 分；古詩詞按完成步驟與掌握詩數計分。綜合積分直接相加。</p>' +
       '</section>';
   }
 
@@ -869,9 +882,10 @@
         '<li>句子重組：每掌握 1 道題 = 1 分。</li>' +
         '<li>數學計算：每掌握 1 道題 = 1 分。</li>' +
         '<li>常識問答：每掌握 1 道題 = 1 分。</li>' +
+        '<li>古詩詞：每完成 1 個學習步驟 = 1 分，掌握整首詩再加 10 分。</li>' +
         '<li>綜合積分 = 各工具積分直接相加，不再換算百分位。</li>' +
       '</ol>' +
-      '<p class="panel-note">工具榜仍按各自規則排序：識字樂看字數 → 正確率 → 速度；文法花園看掌握率 → 做題量 → 正確率 → 速度；英文拆拆拆、成語天地、句子重組、數學計算與常識問答看掌握數 → 做題量 → 正確率 → 速度。速度只影響工具內同分名次。</p>' +
+      '<p class="panel-note">工具榜仍按各自規則排序：識字樂看字數 → 正確率 → 速度；文法花園看掌握率 → 做題量 → 正確率 → 速度；英文拆拆拆、成語天地、句子重組、數學計算、常識問答與古詩詞看掌握數 → 做題量 → 正確率 → 速度。速度只影響工具內同分名次。</p>' +
       '</section>';
   }
 
@@ -894,13 +908,15 @@
     })).join('');
 
     const note = tab === 'overall'
-      ? '綜合積分＝識字樂已學字數＋文法已掌握題數＋英文拆拆拆已掌握詞數＋成語已掌握題數＋句子重組已掌握題數＋數學計算已掌握題數＋常識問答已掌握題數，直接相加，不再換算百分位。'
+      ? '綜合積分＝識字樂已學字數＋文法已掌握題數＋英文拆拆拆已掌握詞數＋成語已掌握題數＋句子重組已掌握題數＋數學計算已掌握題數＋常識問答已掌握題數＋古詩詞積分，直接相加，不再換算百分位。'
       : tab === 'grammar'
         ? '文法花園榜依次比較：題目掌握率 → 做題量 → 正確率 → 平均速度。'
         : tab === 'spell'
           ? '英文拆拆拆榜依次比較：已掌握詞數 → 做題量 → 正確率 → 平均速度。'
           : tab === 'idiom'
             ? '成語天地榜依次比較：已掌握題數 → 做題量 → 正確率 → 平均速度。'
+            : tab === 'poetry'
+              ? '古詩詞榜依次比較：已掌握詩數 → 做題量 → 默寫正確率 → 平均速度。'
             : tab === 'sentence'
               ? '句子重組榜依次比較：已掌握題數 → 做題量 → 正確率 → 平均速度。'
               : tab === 'math'
@@ -914,7 +930,7 @@
         '<div>' +
           '<p class="eyebrow">公用排名</p>' +
           '<h1 class="page-title">綜合排名</h1>' +
-          '<p class="page-sub">工具內先各自排名，綜合榜直接累加絕對積分。識字樂、文法花園、英文拆拆拆、成語天地、句子重組、數學計算與常識問答的原始排行榜都保留在工具裡。</p>' +
+          '<p class="page-sub">工具內先各自排名，綜合榜直接累加絕對積分。識字樂、文法花園、英文拆拆拆、成語天地、句子重組、數學計算、常識問答與古詩詞的原始排行榜都保留在工具裡。</p>' +
         '</div>' +
         '<div class="page-actions"><button class="btn btn-ghost" type="button" data-reload>' + icon('refresh', 16) + '更新數據</button></div>' +
       '</header>' +

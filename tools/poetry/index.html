@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#f6f1e6">
+<link rel="icon" href="data:,">
+<title>古詩詞 · Poetry Garden</title>
+<link rel="stylesheet" href="style.css?v=20261118-1">
+</head>
+<body>
+<div class="app" id="app">
+  <header class="topbar">
+    <a class="brand" href="/" target="_top" title="返回學習平台">
+      <span class="brand-mark">詩</span>
+      <span class="brand-text">
+        <strong>古詩詞</strong>
+        <em>Poetry Garden</em>
+      </span>
+    </a>
+    <div class="top-actions">
+      <span class="user-chip" id="user-chip" hidden></span>
+      <a class="top-link" href="/" target="_top">學習平台</a>
+    </div>
+  </header>
+
+  <main class="main">
+    <section class="locked" id="locked" hidden>
+      <div class="locked-card">
+        <span class="locked-mark">詩</span>
+        <h1>請先登入學習平台</h1>
+        <p>古詩詞與識字樂共用同一份帳戶、進度和排名。請先回到學習平台登入，再回來讀詩。</p>
+        <a class="btn btn-primary" href="/" target="_top">前往學習平台</a>
+      </div>
+    </section>
+
+    <section class="view" id="child-view" hidden>
+      <section id="hall-view">
+        <header class="hero">
+          <div class="hero-copy">
+            <p class="eyebrow">Poetry Garden · 古詩詞</p>
+            <h1><span id="hello-name">你好</span>，今天讀一首詩。</h1>
+            <p class="hero-sub">從聽讀、懂意，到排句、補字、背誦和默寫。一首詩不用一次記住，每天走一小步，詩句就會慢慢留在心裏。</p>
+            <div class="hero-stats" id="hero-stats"></div>
+          </div>
+          <aside class="today-card" id="today-card" aria-live="polite"></aside>
+        </header>
+
+        <section class="review-section" id="review-section" hidden>
+          <div class="section-head compact">
+            <div>
+              <h2>該複習了</h2>
+              <p>學過的詩，隔一天再背一次，會記得更牢。</p>
+            </div>
+          </div>
+          <div class="review-list" id="review-list"></div>
+        </section>
+
+        <div class="section-head">
+          <div>
+            <h2>詩園</h2>
+            <p id="poem-count-text">十六首小詩，按心情和季節慢慢讀。</p>
+          </div>
+          <div class="theme-filter" id="theme-filter" role="group" aria-label="按主題篩選"></div>
+        </div>
+        <div class="poem-grid" id="poem-grid"></div>
+        <div class="hall-foot">
+          <p>讀詩不是比賽。每天一首，把喜歡的句子讀出聲，就已經很好。</p>
+        </div>
+      </section>
+
+      <section id="learn-view" hidden>
+        <div class="learn-top">
+          <button type="button" class="text-btn" id="learn-back">← 返回詩園</button>
+          <div class="learn-title-wrap">
+            <h1 id="learn-title">靜夜思</h1>
+            <p id="learn-author">唐 · 李白</p>
+          </div>
+          <div class="learn-tools">
+            <button type="button" class="chip-btn" id="lang-toggle">普通話</button>
+            <button type="button" class="chip-btn" id="pinyin-toggle">拼音</button>
+            <button type="button" class="chip-btn" id="translation-toggle">今譯</button>
+          </div>
+        </div>
+
+        <div class="learn-progress">
+          <div class="progress-ring" id="learn-progress-ring"><span>0</span><small>/ 6</small></div>
+          <div class="progress-copy">
+            <strong id="learn-progress-title">開始今天的學習</strong>
+            <span id="learn-progress-text">先聽一遍，再一句一句讀。</span>
+          </div>
+          <div class="mastery-seal" id="mastery-seal" hidden>已掌握</div>
+        </div>
+
+        <div class="learn-layout">
+          <article class="poem-paper" id="poem-paper" aria-live="polite"></article>
+          <aside class="step-panel">
+            <nav class="step-nav" id="step-nav" aria-label="學習步驟"></nav>
+            <div class="step-body" id="step-body"></div>
+          </aside>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <div class="toast" id="toast" hidden></div>
+</div>
+<script src="app.js?v=20261118-1" defer></script>
+</body>
+</html>
