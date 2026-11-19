@@ -607,22 +607,78 @@ function createPoetryTool({ rootDir, toolDir, db, saveData: storeSave, auth }) {
         .filter(id => poemById.has(id));
       if (!poemIds.length) return { status: 400, body: { error: '請至少保留一首詩' } };
     }
+    let assignees = null;
+    if (body.userIds !== undefined || body.userId !== undefined) {
+      const rawTargets = body.userIds !== undefined ? body.userIds : body.userId;
+      if (Array.isArray(rawTargets) && !rawTargets.length) {
+        return { status: 400, body: { error: '請至少保留一位孩子' } };
+      }
+      assignees = resolveUserIds(db, rawTargets);
+      if (assignees.error) return { status: 400, body: { error: assignees.error } };
+      if (!assignees.userIds.length) return { status: 400, body: { error: '請至少保留一位孩子' } };
+    }
     const updatedAt = new Date().toISOString();
-    targets.forEach(item => {
-      item.task_name = name;
-      if (poemIds) item.poem_ids = poemIds;
-      if (body.pass_score !== undefined) item.pass_score = Math.max(60, Math.min(100, parseInt(body.pass_score, 10) || item.pass_score || MASTERY_LINE));
-      if (body.daily_goal !== undefined) item.daily_goal = Math.max(1, Math.min(10, parseInt(body.daily_goal, 10) || item.daily_goal || 2));
-      if (body.is_archived !== undefined) item.is_archived = !!body.is_archived;
-      item.updatedAt = updatedAt;
-    });
+    const nextPass = body.pass_score !== undefined
+      ? Math.max(60, Math.min(100, parseInt(body.pass_score, 10) || task.pass_score || MASTERY_LINE))
+      : Math.max(60, Math.min(100, Number(task.pass_score) || MASTERY_LINE));
+    const nextDaily = body.daily_goal !== undefined
+      ? Math.max(1, Math.min(10, parseInt(body.daily_goal, 10) || task.daily_goal || 2))
+      : Math.max(1, Math.min(10, Number(task.daily_goal) || 2));
+    const nextPoems = (poemIds || task.poem_ids || []).slice();
+    let updated;
+    if (assignees) {
+      const keep = new Set();
+      const existing = new Map(targets.map(item => [String(item.userId), item]));
+      updated = assignees.userIds.map(targetId => {
+        const key = String(targetId);
+        keep.add(key);
+        let item = existing.get(key);
+        if (!item) {
+          item = {
+            task_id: 'P_' + generateId(new Set(db.poetry.tasks.map(taskItem => String(taskItem.task_id)))),
+            groupId,
+            userId: targetId,
+            scope: assignees.all ? 'all' : 'selected',
+            createdBy: task.createdBy,
+            task_name: name,
+            poem_ids: nextPoems.slice(),
+            pass_score: nextPass,
+            daily_goal: nextDaily,
+            is_archived: false,
+            createdAt: updatedAt
+          };
+          db.poetry.tasks.push(item);
+        }
+        item.task_name = name;
+        item.poem_ids = nextPoems.slice();
+        item.pass_score = nextPass;
+        item.daily_goal = nextDaily;
+        item.scope = assignees.all ? 'all' : 'selected';
+        if (body.is_archived !== undefined) item.is_archived = !!body.is_archived;
+        item.updatedAt = updatedAt;
+        return item;
+      });
+      db.poetry.tasks = db.poetry.tasks.filter(item =>
+        String(taskGroupId(item)) !== groupId || keep.has(String(item.userId))
+      );
+    } else {
+      targets.forEach(item => {
+        item.task_name = name;
+        item.poem_ids = nextPoems.slice();
+        item.pass_score = nextPass;
+        item.daily_goal = nextDaily;
+        if (body.is_archived !== undefined) item.is_archived = !!body.is_archived;
+        item.updatedAt = updatedAt;
+      });
+      updated = targets;
+    }
     await saveData();
     return {
       status: 200,
       body: {
         groupId,
-        updated: targets.length,
-        tasks: targets.map(item => serializeTask(item, item.userId))
+        updated: updated.length,
+        tasks: updated.map(item => serializeTask(item, item.userId))
       }
     };
   }

@@ -106,7 +106,8 @@
     importText: '',
     importBusy: false,
     editingTask: null,
-    editPicked: []
+    editPicked: [],
+    editAssignees: []
   };
 
   let toastTimer = null;
@@ -381,6 +382,23 @@
       (items || '<span class="muted">還沒有其他用戶</span>');
   }
 
+  function editAssigneeHTML(group) {
+    const selected = new Set((state.editAssignees || []).map(String));
+    const items = state.adminStats.map(user =>
+      '<label class="assign-item"><input type="checkbox" data-edit-assignee="' + esc(user.userId) + '"' +
+        (selected.has(String(user.userId)) ? ' checked' : '') + '>' +
+        '<span>' + esc(user.nickname || user.username) + '</span>' +
+      '</label>'
+    ).join('');
+    return items || '<span class="muted">還沒有其他用戶</span>';
+  }
+
+  function updateEditAssigneeCount() {
+    const count = $$('[data-edit-assignee]:checked').length;
+    const label = $('#edit-assignee-count');
+    if (label) label.textContent = count;
+  }
+
   function poemPickerHTML() {
     return state.overview.poems.map(poem =>
       '<label class="picker-item' + (poem.mastered ? ' is-mastered' : '') + '">' +
@@ -399,7 +417,7 @@
       '</label>'
     ).join('');
     return '<section class="admin-card is-editing">' +
-      '<div class="admin-card-head"><div><h2>編輯任務</h2><p>' + esc(group.task_name) + ' · 修改名稱、每日目標、通關線或詩單。</p></div></div>' +
+      '<div class="admin-card-head"><div><h2>編輯任務</h2><p>' + esc(group.task_name) + ' · 修改名稱、指派孩子、每日目標、通關線或詩單。</p></div></div>' +
       '<form id="task-edit-form" data-group-id="' + esc(group.groupId) + '">' +
         '<label class="field"><span class="field-label">任務名稱</span><input class="input" name="task_name" maxlength="40" required value="' + esc(group.task_name) + '"></label>' +
         '<div class="field-row">' +
@@ -410,6 +428,8 @@
             [60, 70, 80, 90, 100].map(value => '<option value="' + value + '"' + (Number(group.pass_score || 80) === value ? ' selected' : '') + '>' + value + '%</option>').join('') +
           '</select></label>' +
         '</div>' +
+        '<div class="field"><div class="picker-head"><span class="field-label">指派給 <b id="edit-assignee-count">' + (state.editAssignees || []).length + '</b> 位</span><span class="picker-actions"><button type="button" class="text-btn" data-edit-assignee-all>全選</button><button type="button" class="text-btn" data-edit-assignee-none>清除</button></span></div>' +
+          '<div class="assign-list" id="edit-assign-list">' + editAssigneeHTML(group) + '</div></div>' +
         '<div class="field"><div class="picker-head"><span class="field-label">詩單 <b id="edit-pick-count">' + picked.size + '</b> 首</span><span class="picker-actions"><button type="button" class="text-btn" data-edit-pick-all>全選</button><button type="button" class="text-btn" data-edit-pick-none>清除</button></span></div>' +
           '<div class="poem-picker">' + picker + '</div></div>' +
         '<div class="form-actions"><button type="submit" class="btn btn-primary">保存修改</button><button type="button" class="btn btn-ghost" data-cancel-task-edit>取消</button></div>' +
@@ -1143,12 +1163,17 @@
     const groupId = form.getAttribute('data-group-id');
     const name = String(form.querySelector('[name="task_name"]').value || '').trim();
     const poemIds = $$('[data-edit-pick]:checked', form).map(input => input.getAttribute('data-edit-pick'));
+    const assignees = $$('[data-edit-assignee]:checked', form).map(input => input.getAttribute('data-edit-assignee'));
     if (!name) {
       toast('請填任務名稱');
       return;
     }
     if (!poemIds.length) {
       toast('請至少保留一首詩');
+      return;
+    }
+    if (!assignees.length) {
+      toast('請至少保留一位孩子');
       return;
     }
     const button = form.querySelector('button[type="submit"]');
@@ -1160,11 +1185,13 @@
           task_name: name,
           poem_ids: poemIds,
           daily_goal: form.querySelector('[name="daily_goal"]').value,
-          pass_score: form.querySelector('[name="pass_score"]').value
+          pass_score: form.querySelector('[name="pass_score"]').value,
+          userIds: assignees
         })
       });
       state.editingTask = null;
       state.editPicked = [];
+      state.editAssignees = [];
       await loadAdminData();
       renderParent();
       toast('任務已更新');
@@ -1262,6 +1289,7 @@
       if (group) {
         state.editingTask = group;
         state.editPicked = (group.poem_ids || []).slice();
+        state.editAssignees = (group.users || []).map(user => String(user.userId));
         renderParentTasks();
         const editor = $('#task-edit-form');
         if (editor) editor.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1271,6 +1299,7 @@
     if (target.closest('[data-cancel-task-edit]')) {
       state.editingTask = null;
       state.editPicked = [];
+      state.editAssignees = [];
       renderParentTasks();
       return;
     }
@@ -1284,6 +1313,18 @@
       $$('[data-edit-pick]').forEach(input => { input.checked = false; });
       state.editPicked = [];
       updateEditPickCount();
+      return;
+    }
+    if (target.closest('[data-edit-assignee-all]')) {
+      $$('[data-edit-assignee]').forEach(input => { input.checked = true; });
+      state.editAssignees = $$('[data-edit-assignee]').map(input => input.getAttribute('data-edit-assignee'));
+      updateEditAssigneeCount();
+      return;
+    }
+    if (target.closest('[data-edit-assignee-none]')) {
+      $$('[data-edit-assignee]').forEach(input => { input.checked = false; });
+      state.editAssignees = [];
+      updateEditAssigneeCount();
       return;
     }
     const deleteTask = target.closest('[data-delete-task]');
@@ -1509,6 +1550,12 @@
     if (editPick) {
       state.editPicked = $$('[data-edit-pick]:checked').map(input => input.getAttribute('data-edit-pick'));
       updateEditPickCount();
+      return;
+    }
+    const editAssignee = event.target.closest('[data-edit-assignee]');
+    if (editAssignee) {
+      state.editAssignees = $$('[data-edit-assignee]:checked').map(input => input.getAttribute('data-edit-assignee'));
+      updateEditAssigneeCount();
       return;
     }
     const all = event.target.closest('[data-assignee="all"]');
