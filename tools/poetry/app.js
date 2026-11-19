@@ -46,6 +46,8 @@
     parentTasks: $('#parent-tasks'),
     parentStats: $('#parent-stats'),
     parentPoems: $('#parent-poems'),
+    errorSection: $('#error-section'),
+    errorReviewList: $('#error-review-list'),
     reviewSection: $('#review-section'),
     reviewList: $('#review-list'),
     poemCountText: $('#poem-count-text'),
@@ -90,6 +92,8 @@
     reciteMode: 'first',
     dictationDraft: [],
     dictationResult: null,
+    errorDrill: null,
+    errorDrillResult: null,
     dictationStart: 0,
     voiceWarned: false,
     isAdmin: false,
@@ -100,7 +104,9 @@
     adminLoading: false,
     importPreview: null,
     importText: '',
-    importBusy: false
+    importBusy: false,
+    editingTask: null,
+    editPicked: []
   };
 
   let toastTimer = null;
@@ -222,6 +228,15 @@
     const tasks = state.overview.tasks || [];
     els.taskSection.hidden = tasks.length === 0;
     els.taskList.innerHTML = tasks.map(taskCardHTML).join('');
+
+    const errorReview = state.overview.errorReview || [];
+    els.errorSection.hidden = errorReview.length === 0;
+    els.errorReviewList.innerHTML = errorReview.map(item =>
+      '<button type="button" class="review-item is-error" data-error-review="' + esc(item.poemId) + '">' +
+        '<span><strong>' + esc(item.title) + '</strong><span>易錯字：' + esc(item.errors.join('、')) + '</span></span>' +
+        '<i>回練</i>' +
+      '</button>'
+    ).join('');
 
     const review = state.overview.review || [];
     els.reviewSection.hidden = review.length === 0;
@@ -375,6 +390,33 @@
     ).join('');
   }
 
+  function taskEditHTML(group) {
+    const picked = new Set((state.editPicked || []).map(String));
+    const picker = state.overview.poems.map(poem =>
+      '<label class="picker-item' + (poem.mastered ? ' is-mastered' : '') + '">' +
+        '<input type="checkbox" data-edit-pick="' + esc(poem.id) + '"' + (picked.has(String(poem.id)) ? ' checked' : '') + '>' +
+        '<span><strong>' + esc(poem.title) + '</strong><small>' + esc(poem.dynasty) + ' · ' + esc(poem.author) + ' · ' + esc(poem.theme) + '</small></span>' +
+      '</label>'
+    ).join('');
+    return '<section class="admin-card is-editing">' +
+      '<div class="admin-card-head"><div><h2>編輯任務</h2><p>' + esc(group.task_name) + ' · 修改名稱、每日目標、通關線或詩單。</p></div></div>' +
+      '<form id="task-edit-form" data-group-id="' + esc(group.groupId) + '">' +
+        '<label class="field"><span class="field-label">任務名稱</span><input class="input" name="task_name" maxlength="40" required value="' + esc(group.task_name) + '"></label>' +
+        '<div class="field-row">' +
+          '<label class="field"><span class="field-label">每日目標</span><select class="input" name="daily_goal">' +
+            [1, 2, 3, 5].map(value => '<option value="' + value + '"' + (Number(group.daily_goal || 2) === value ? ' selected' : '') + '>' + value + ' 首</option>').join('') +
+          '</select></label>' +
+          '<label class="field"><span class="field-label">默寫通關線</span><select class="input" name="pass_score">' +
+            [60, 70, 80, 90, 100].map(value => '<option value="' + value + '"' + (Number(group.pass_score || 80) === value ? ' selected' : '') + '>' + value + '%</option>').join('') +
+          '</select></label>' +
+        '</div>' +
+        '<div class="field"><div class="picker-head"><span class="field-label">詩單 <b id="edit-pick-count">' + picked.size + '</b> 首</span><span class="picker-actions"><button type="button" class="text-btn" data-edit-pick-all>全選</button><button type="button" class="text-btn" data-edit-pick-none>清除</button></span></div>' +
+          '<div class="poem-picker">' + picker + '</div></div>' +
+        '<div class="form-actions"><button type="submit" class="btn btn-primary">保存修改</button><button type="button" class="btn btn-ghost" data-cancel-task-edit>取消</button></div>' +
+      '</form>' +
+    '</section>';
+  }
+
   function adminTaskHTML(group) {
     const poemNames = (group.poem_ids || []).map(id => {
       const poem = state.overview.poems.find(item => item.id === id);
@@ -390,7 +432,7 @@
     return '<article class="admin-task">' +
       '<div class="admin-task-head"><div><h3>' + esc(group.task_name) + '</h3>' +
         '<p>' + Number(group.poem_ids ? group.poem_ids.length : 0) + ' 首詩 · 每日 ' + Number(group.daily_goal || 2) + ' 首 · 通關 ' + Number(group.pass_score || 80) + '% · ' + Number(group.total || 0) + ' 位孩子 · ' + esc(String(group.createdAt || '').slice(0, 10)) + '</p></div>' +
-        '<button type="button" class="btn btn-ghost btn-small" data-delete-task="' + esc(group.groupId) + '">刪除</button></div>' +
+        '<div class="admin-task-actions"><button type="button" class="btn btn-ghost btn-small" data-edit-task="' + esc(group.groupId) + '">編輯</button><button type="button" class="btn btn-ghost btn-small" data-delete-task="' + esc(group.groupId) + '">刪除</button></div></div>' +
       '<div class="admin-task-poems">' + poemNames.slice(0, 5).map(title => '<span>' + esc(title) + '</span>').join('') + (poemNames.length > 5 ? '<span>+' + (poemNames.length - 5) + '</span>' : '') + '</div>' +
       '<div class="admin-task-users">' + users + '</div>' +
     '</article>';
@@ -418,8 +460,8 @@
     const list = state.adminTasks.length
       ? state.adminTasks.map(adminTaskHTML).join('')
       : '<div class="empty-state"><h3>還沒有古詩任務</h3><p>建立第一個任務，孩子下次打開詩園就會看到。</p></div>';
-    els.parentTasks.innerHTML = form +
-      '<section class="admin-card"><div class="admin-card-head"><div><h2>現有任務</h2><p>任務完成後會保留記錄，可以隨時刪除。</p></div></div>' +
+    els.parentTasks.innerHTML = (state.editingTask ? taskEditHTML(state.editingTask) : form) +
+      '<section class="admin-card"><div class="admin-card-head"><div><h2>現有任務</h2><p>任務完成後會保留記錄，可以隨時編輯或刪除。</p></div></div>' +
       '<div class="admin-task-list">' + list + '</div></section>';
     updatePickCount();
   }
@@ -526,6 +568,33 @@
     if (label) label.textContent = String(count);
   }
 
+  function updateEditPickCount() {
+    const count = $$('[data-edit-pick]:checked').length;
+    const label = $('#edit-pick-count');
+    if (label) label.textContent = String(count);
+  }
+
+  async function openErrorReview(poemId) {
+    const item = (state.overview.errorReview || []).find(entry => String(entry.poemId) === String(poemId));
+    if (!item) return;
+    await openPoem(item.poemId, 'dictation');
+    if (!state.poem) return;
+    const lines = item.lines.map(line => {
+      const blanks = new Set(line.blanks || []);
+      return {
+        lineIndex: line.lineIndex,
+        cells: Array.from(line.text).map((char, charIndex) => ({
+          expected: char,
+          given: blanks.has(charIndex) ? '' : char,
+          ok: !blanks.has(charIndex)
+        }))
+      };
+    });
+    state.errorDrill = { lines, answers: {}, poemId: item.poemId, title: item.title };
+    state.errorDrillResult = null;
+    renderStepBody();
+  }
+
   async function openPoem(id, wantedStep) {
     if (state.busy) return;
     state.busy = true;
@@ -538,6 +607,8 @@
       state.orderResult = null;
       state.fillResult = null;
       state.dictationResult = null;
+      state.errorDrill = null;
+      state.errorDrillResult = null;
       els.hallView.hidden = true;
       els.learnView.hidden = false;
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -551,6 +622,8 @@
 
   function setStep(step) {
     state.step = step;
+    state.errorDrill = null;
+    state.errorDrillResult = null;
     if (step === 'order') {
       state.orderResult = null;
       state.orderPicked = [];
@@ -789,6 +862,7 @@
 
   function renderDictationStep() {
     const poem = state.poem;
+    if (state.errorDrill) return renderErrorDrill();
     if (state.dictationResult) {
       const result = state.dictationResult;
       const pass = result.passed;
@@ -811,6 +885,9 @@
             : '<p class="step-hint result-pass">這次沒有錯字，很好。</p>') +
         '</div>' +
         '<div class="step-actions">' +
+          (result.lines.some(line => line.cells.some(cell => !cell.ok && cell.expected))
+            ? '<button type="button" class="btn btn-soft" data-action="error-drill">只練錯字</button>'
+            : '') +
           '<button type="button" class="btn btn-primary" data-action="dictation-again">再默一次</button>' +
           '<button type="button" class="btn btn-ghost" data-paper-toggle="1">對照原文</button>' +
           '<button type="button" class="btn btn-ghost" data-action="back-hall">返回詩園</button>' +
@@ -830,6 +907,93 @@
         '<button type="button" class="btn btn-ghost" data-action="toggle-blind">' + (state.blind ? '偷看原文' : '收起原文') + '</button>' +
       '</div>' +
       '<p class="step-hint">默寫只計算中文字，標點和空格不影響成績。通關線是 80%。</p>';
+  }
+
+  function startErrorDrill() {
+    if (!state.dictationResult) return;
+    const lines = state.dictationResult.lines
+      .map((line, lineIndex) => ({ ...line, lineIndex }))
+      .filter(line => line.cells.some(cell => !cell.ok && cell.expected));
+    if (!lines.length) {
+      toast('這次沒有錯字');
+      return;
+    }
+    state.errorDrill = { lines, answers: {}, poemId: state.poem.id, title: state.poem.title };
+    state.errorDrillResult = null;
+    renderStepBody();
+    const panel = $('.error-drill');
+    if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  function renderErrorDrill() {
+    const drill = state.errorDrill;
+    const result = state.errorDrillResult;
+    const html = '<p class="step-kicker">錯字回練 · RETRY</p>' +
+      '<h2 class="step-title">把錯字放回句子</h2>' +
+      '<p class="step-desc">只練剛才寫錯的字。看着前後的詩句，把缺的字補回去。</p>' +
+      '<div class="error-drill">' + drill.lines.map(line => {
+        const cells = line.cells.map((cell, cellIndex) => {
+          if (cell.ok || !cell.expected) return '<span class="error-char">' + esc(cell.expected || '') + '</span>';
+          const key = line.lineIndex + ':' + cellIndex;
+          const status = result && result.keys ? result.keys[key] : '';
+          return '<input type="text" maxlength="1" autocomplete="off" inputmode="text" data-error-key="' + key + '" class="error-input' +
+            (status === false ? ' is-bad' : status === true ? ' is-good' : '') + '" value="' + esc(drill.answers[key] || '') + '" aria-label="第 ' + (line.lineIndex + 1) + ' 句錯字">';
+        }).join('');
+        return '<div class="error-line"><span class="error-line-no">' + (line.lineIndex + 1) + '</span><div class="error-cells">' + cells + '</div></div>';
+      }).join('') + '</div>' +
+      '<div class="step-actions">' +
+        '<button type="button" class="btn btn-primary" data-action="error-check">檢查錯字</button>' +
+        '<button type="button" class="btn btn-ghost" data-action="error-again">重新默寫</button>' +
+        '<button type="button" class="btn btn-ghost" data-action="back-hall">返回詩園</button>' +
+      '</div>' +
+      (result
+        ? '<p class="step-hint ' + (result.wrong === 0 ? 'result-pass' : 'result-fail') + '">' + (result.wrong === 0 ? '錯字都補對了，再默一次會更穩。' : '還有 ' + result.wrong + ' 個字不對，紅色的格子再想想。') + '</p>'
+        : '');
+    return html;
+  }
+
+  async function clearReviewedErrors() {
+    if (!state.errorDrill || !state.errorDrill.poemId) return;
+    const chars = new Set();
+    state.errorDrill.lines.forEach(line => {
+      line.cells.forEach(cell => {
+        if (!cell.ok && cell.expected) chars.add(cell.expected);
+      });
+    });
+    if (!chars.size) return;
+    try {
+      await request('/api/poetry/errors/clear', {
+        method: 'POST',
+        body: JSON.stringify({ poemId: state.errorDrill.poemId, chars: Array.from(chars) })
+      });
+      await loadOverview();
+    } catch (error) {
+      // Keep the local drill usable even if the cleanup call fails.
+    }
+  }
+
+  function checkErrorDrill() {
+    if (!state.errorDrill) return;
+    const inputs = $$('[data-error-key]', els.stepBody);
+    let wrong = 0;
+    const keys = {};
+    inputs.forEach(input => {
+      const key = input.getAttribute('data-error-key');
+      const [lineIndex, cellIndex] = key.split(':').map(Number);
+      const line = state.errorDrill.lines.find(item => Number(item.lineIndex) === lineIndex);
+      const expected = line && line.cells[cellIndex] ? line.cells[cellIndex].expected : '';
+      const value = String(input.value || '').trim();
+      state.errorDrill.answers[key] = value;
+      const ok = value === expected;
+      keys[key] = ok;
+      if (!ok) wrong += 1;
+    });
+    state.errorDrillResult = { wrong, keys };
+    renderStepBody();
+    if (wrong === 0) {
+      toast('錯字回練完成');
+      clearReviewedErrors();
+    }
   }
 
   async function markStep(step) {
@@ -975,6 +1139,42 @@
     }
   }
 
+  async function updatePoemTask(form) {
+    const groupId = form.getAttribute('data-group-id');
+    const name = String(form.querySelector('[name="task_name"]').value || '').trim();
+    const poemIds = $$('[data-edit-pick]:checked', form).map(input => input.getAttribute('data-edit-pick'));
+    if (!name) {
+      toast('請填任務名稱');
+      return;
+    }
+    if (!poemIds.length) {
+      toast('請至少保留一首詩');
+      return;
+    }
+    const button = form.querySelector('button[type="submit"]');
+    if (button) { button.disabled = true; button.textContent = '保存中…'; }
+    try {
+      await request('/api/poetry/tasks/' + encodeURIComponent(groupId), {
+        method: 'PUT',
+        body: JSON.stringify({
+          task_name: name,
+          poem_ids: poemIds,
+          daily_goal: form.querySelector('[name="daily_goal"]').value,
+          pass_score: form.querySelector('[name="pass_score"]').value
+        })
+      });
+      state.editingTask = null;
+      state.editPicked = [];
+      await loadAdminData();
+      renderParent();
+      toast('任務已更新');
+    } catch (error) {
+      toast(error.message || '更新失敗');
+    } finally {
+      if (button) { button.disabled = false; button.textContent = '保存修改'; }
+    }
+  }
+
   async function deletePoemTask(groupId) {
     if (!window.confirm('刪除這個任務？孩子已學的詩和進度會保留。')) return;
     try {
@@ -1056,6 +1256,36 @@
       updatePickCount();
       return;
     }
+    const editTask = target.closest('[data-edit-task]');
+    if (editTask) {
+      const group = state.adminTasks.find(item => String(item.groupId) === String(editTask.getAttribute('data-edit-task')));
+      if (group) {
+        state.editingTask = group;
+        state.editPicked = (group.poem_ids || []).slice();
+        renderParentTasks();
+        const editor = $('#task-edit-form');
+        if (editor) editor.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+      return;
+    }
+    if (target.closest('[data-cancel-task-edit]')) {
+      state.editingTask = null;
+      state.editPicked = [];
+      renderParentTasks();
+      return;
+    }
+    if (target.closest('[data-edit-pick-all]')) {
+      $$('[data-edit-pick]').forEach(input => { input.checked = true; });
+      state.editPicked = $$('[data-edit-pick]').map(input => input.getAttribute('data-edit-pick'));
+      updateEditPickCount();
+      return;
+    }
+    if (target.closest('[data-edit-pick-none]')) {
+      $$('[data-edit-pick]').forEach(input => { input.checked = false; });
+      state.editPicked = [];
+      updateEditPickCount();
+      return;
+    }
     const deleteTask = target.closest('[data-delete-task]');
     if (deleteTask) {
       deletePoemTask(deleteTask.getAttribute('data-delete-task'));
@@ -1083,6 +1313,11 @@
     const open = target.closest('[data-open]');
     if (open) {
       openPoem(open.getAttribute('data-open'));
+      return;
+    }
+    const errorReview = target.closest('[data-error-review]');
+    if (errorReview) {
+      openErrorReview(errorReview.getAttribute('data-error-review'));
       return;
     }
     const review = target.closest('[data-review]');
@@ -1232,6 +1467,18 @@
       submitDictation();
       return;
     }
+    if (target.closest('[data-action="error-drill"]')) {
+      startErrorDrill();
+      return;
+    }
+    if (target.closest('[data-action="error-check"]')) {
+      checkErrorDrill();
+      return;
+    }
+    if (target.closest('[data-action="error-again"]')) {
+      setStep('dictation');
+      return;
+    }
     if (target.closest('[data-action="dictation-again"]')) {
       setStep('dictation');
       return;
@@ -1239,16 +1486,29 @@
   }
 
   function onDocumentSubmit(event) {
-    const form = event.target.closest('#poem-task-form');
-    if (!form) return;
-    event.preventDefault();
-    createPoemTask(form);
+    const createForm = event.target.closest('#poem-task-form');
+    if (createForm) {
+      event.preventDefault();
+      createPoemTask(createForm);
+      return;
+    }
+    const editForm = event.target.closest('#task-edit-form');
+    if (editForm) {
+      event.preventDefault();
+      updatePoemTask(editForm);
+    }
   }
 
   function onDocumentChange(event) {
     const pick = event.target.closest('[data-pick-poem]');
     if (pick) {
       updatePickCount();
+      return;
+    }
+    const editPick = event.target.closest('[data-edit-pick]');
+    if (editPick) {
+      state.editPicked = $$('[data-edit-pick]:checked').map(input => input.getAttribute('data-edit-pick'));
+      updateEditPickCount();
       return;
     }
     const all = event.target.closest('[data-assignee="all"]');
@@ -1297,6 +1557,11 @@
     const dictation = event.target.closest('[data-dictation]');
     if (dictation) {
       state.dictationDraft[Number(dictation.getAttribute('data-dictation'))] = dictation.value;
+      return;
+    }
+    const errorInput = event.target.closest('[data-error-key]');
+    if (errorInput && state.errorDrill) {
+      state.errorDrill.answers[errorInput.getAttribute('data-error-key')] = errorInput.value;
     }
   }
 

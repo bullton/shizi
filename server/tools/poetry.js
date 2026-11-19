@@ -185,6 +185,37 @@ function createPoetryTool({ rootDir, toolDir, db, saveData: storeSave, auth }) {
     return poems[hash % poems.length].id;
   }
 
+  function errorReview(userId) {
+    const items = [];
+    db.poetry.progress.forEach(record => {
+      if (String(record.userId) !== String(userId)) return;
+      const poem = poemById.get(String(record.poemId));
+      if (!poem || !Array.isArray(record.errors) || !record.errors.length) return;
+      const errorSet = new Set(record.errors);
+      const lines = poem.lines.map((line, lineIndex) => {
+        const chars = Array.from(line.text);
+        const blanks = [];
+        chars.forEach((char, charIndex) => {
+          if (errorSet.has(char)) blanks.push(charIndex);
+        });
+        return blanks.length ? { lineIndex, text: line.text, blanks } : null;
+      }).filter(Boolean);
+      if (!lines.length) return;
+      items.push({
+        poemId: poem.id,
+        title: poem.title,
+        author: poem.author,
+        dynasty: poem.dynasty,
+        errors: record.errors.slice(0, 12),
+        lines,
+        lastPracticedAt: record.lastPracticedAt || null
+      });
+    });
+    return items
+      .sort((a, b) => String(b.lastPracticedAt || '').localeCompare(String(a.lastPracticedAt || '')))
+      .slice(0, 6);
+  }
+
   function userAttempts(userId) {
     return db.poetry.attempts.filter(attempt => String(attempt.userId) === String(userId));
   }
@@ -228,6 +259,7 @@ function createPoetryTool({ rootDir, toolDir, db, saveData: storeSave, auth }) {
       },
       dailyId: dailyPoemId(),
       review,
+      errorReview: errorReview(userId),
       themes: themes.map(theme => ({
         ...theme,
         count: theme.id === 'all' ? poems.length : poems.filter(poem => poem.themeId === theme.id).length
@@ -335,6 +367,16 @@ function createPoetryTool({ rootDir, toolDir, db, saveData: storeSave, auth }) {
         mastered: !!record.masteredAt
       }
     };
+  }
+
+  async function clearErrors(user, body) {
+    const poem = poemById.get(String(body.poemId || ''));
+    if (!poem) return { status: 404, body: { error: '找不到這首詩' } };
+    const chars = new Set((Array.isArray(body.chars) ? body.chars : []).map(String));
+    const record = findProgress(user.id, poem.id);
+    if (record && chars.size) record.errors = record.errors.filter(char => !chars.has(char));
+    await saveData();
+    return { status: 200, body: { errors: record ? record.errors : [] } };
   }
 
   function stats() {
@@ -885,6 +927,18 @@ function createPoetryTool({ rootDir, toolDir, db, saveData: storeSave, auth }) {
       try {
         const body = await parseBody(req);
         const result = await importPoems(body.text || '');
+        jsonResponse(res, result.status, result.body);
+      } catch (error) {
+        jsonResponse(res, 400, { error: '無效的請求' });
+      }
+      return;
+    }
+
+    if (pathname === '/api/errors/clear' && method === 'POST') {
+      const user = requireAuth(req, res);
+      if (!user) return;
+      try {
+        const result = await clearErrors(user, await parseBody(req));
         jsonResponse(res, result.status, result.body);
       } catch (error) {
         jsonResponse(res, 400, { error: '無效的請求' });

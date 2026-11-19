@@ -1010,6 +1010,8 @@ button { color: inherit; }
 .admin-task-list { display: grid; gap: 12px; }
 .admin-task { padding: 16px 18px; border: 1px solid var(--indigo-line); border-radius: 14px; background: #fffdf8; }
 .admin-task-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.admin-task-actions { display: flex; flex-shrink: 0; gap: 6px; }
+.admin-card.is-editing { border-color: var(--indigo); box-shadow: 0 0 0 3px rgba(51, 70, 111, 0.06), var(--shadow-soft); }
 .admin-task-head h3 { margin: 0 0 4px; font-family: var(--serif); font-size: 18px; }
 .admin-task-head p { margin: 0; color: var(--ink-faint); font-size: 11px; }
 .admin-task-poems { display: flex; flex-wrap: wrap; gap: 6px; margin: 11px 0 12px; }
@@ -1051,6 +1053,41 @@ button { color: inherit; }
 .import-warnings { margin-top: 10px; color: var(--gold); font-size: 11px; }
 .import-warnings summary { cursor: pointer; }
 .import-warnings p { margin: 4px 0 0; }
+
+
+.review-item.is-error i { color: var(--seal); }
+.review-item.is-error strong::before { content: "!"; display: inline-grid; place-items: center; width: 15px; height: 15px; margin-right: 5px; border-radius: 50%; background: var(--seal-soft); color: var(--seal); font-family: var(--sans); font-size: 9px; }
+
+.error-drill {
+  display: grid;
+  gap: 10px;
+  margin: 4px 0 16px;
+  padding: 16px;
+  border: 1px solid var(--indigo-line);
+  border-radius: 14px;
+  background: linear-gradient(145deg, #fbf7ed, #fffdf8);
+}
+.error-line { display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 8px; align-items: center; }
+.error-line-no { color: var(--ink-faint); font-size: 11px; text-align: right; }
+.error-cells { display: flex; flex-wrap: wrap; gap: 2px; align-items: center; font-family: var(--serif); font-size: 23px; line-height: 1.5; }
+.error-char { display: inline-grid; place-items: center; min-width: 1em; }
+.error-input {
+  width: 1.42em;
+  height: 1.55em;
+  padding: 0;
+  border: 0;
+  border-bottom: 2px solid var(--indigo);
+  border-radius: 3px;
+  background: #fffdf8;
+  color: var(--ink);
+  font-family: var(--serif);
+  font-size: 22px;
+  text-align: center;
+  outline: none;
+}
+.error-input:focus { background: var(--indigo-soft); }
+.error-input.is-good { border-color: var(--good); color: var(--good); background: #eef6f0; }
+.error-input.is-bad { border-color: var(--bad); color: var(--bad); background: #fbf0ed; }
 
 .toast {
   position: fixed;
@@ -1136,6 +1173,8 @@ button { color: inherit; }
   .admin-card { padding: 16px; border-radius: 16px; }
   .preview-row { flex-direction: column; gap: 3px; }
   .task-card { padding: 16px; }
+  .error-cells { font-size: 21px; }
+  .error-input { font-size: 20px; }
   .field-row { grid-template-columns: 1fr; gap: 0; }
 }
 
