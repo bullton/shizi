@@ -33,12 +33,19 @@
   const els = {
     locked: $('#locked'),
     childView: $('#child-view'),
+    parentView: $('#parent-view'),
     hallView: $('#hall-view'),
     learnView: $('#learn-view'),
     userChip: $('#user-chip'),
+    modeSwitch: $('#mode-switch'),
     helloName: $('#hello-name'),
     heroStats: $('#hero-stats'),
     todayCard: $('#today-card'),
+    taskSection: $('#task-section'),
+    taskList: $('#task-list'),
+    parentTasks: $('#parent-tasks'),
+    parentStats: $('#parent-stats'),
+    parentPoems: $('#parent-poems'),
     reviewSection: $('#review-section'),
     reviewList: $('#review-list'),
     poemCountText: $('#poem-count-text'),
@@ -84,7 +91,16 @@
     dictationDraft: [],
     dictationResult: null,
     dictationStart: 0,
-    voiceWarned: false
+    voiceWarned: false,
+    isAdmin: false,
+    mode: 'child',
+    parentTab: 'tasks',
+    adminTasks: [],
+    adminStats: [],
+    adminLoading: false,
+    importPreview: null,
+    importText: '',
+    importBusy: false
   };
 
   let toastTimer = null;
@@ -159,9 +175,11 @@
       const me = await request('/api/me');
       state.user = me;
       state.preferredVoice = me.voiceZh || '';
+      state.isAdmin = me.role === 'admin';
       els.userChip.hidden = false;
       els.userChip.textContent = me.nickname || me.username;
       els.helloName.textContent = me.nickname || me.username;
+      els.modeSwitch.hidden = !state.isAdmin;
       await loadOverview();
       els.childView.hidden = false;
       renderHall();
@@ -201,6 +219,10 @@
     const daily = state.poems.find(poem => poem.id === state.overview.dailyId) || state.poems[0];
     els.todayCard.innerHTML = daily ? dailyCardHTML(daily) : '<div class="empty-state">詩園裏還沒有詩。</div>';
 
+    const tasks = state.overview.tasks || [];
+    els.taskSection.hidden = tasks.length === 0;
+    els.taskList.innerHTML = tasks.map(taskCardHTML).join('');
+
     const review = state.overview.review || [];
     els.reviewSection.hidden = review.length === 0;
     els.reviewList.innerHTML = review.map(poem =>
@@ -236,6 +258,23 @@
       '</div>';
   }
 
+  function taskCardHTML(task) {
+    const poems = task.poems || [];
+    const next = poems.find(poem => poem.id === task.nextPoemId) || poems[0];
+    const done = Number(task.total) > 0 && Number(task.mastered) >= Number(task.total);
+    const nextId = next ? next.id : '';
+    return '<button type="button" class="task-card' + (done ? ' is-done' : '') + '" data-open="' + esc(nextId) + '"' + (nextId ? '' : ' disabled') + '>' +
+      '<div class="task-card-head"><span class="task-kicker">家長任務</span><span class="task-state">' + (done ? '已完成' : '進行中') + '</span></div>' +
+      '<h3>' + esc(task.task_name) + '</h3>' +
+      '<p class="task-card-line">' + (done
+        ? '這份任務的詩都掌握了。'
+        : next ? '下一首：' + esc(next.title) + ' · ' + esc(next.dynasty) + ' · ' + esc(next.author) : '準備開始。') + '</p>' +
+      '<div class="task-bar"><span style="width:' + Math.max(0, Math.min(100, Number(task.progress) || 0)) + '%"></span></div>' +
+      '<div class="task-card-foot"><span>已通關 ' + Number(task.mastered || 0) + ' / ' + Number(task.total || 0) + ' 首 · 今日 ' + Number(task.todayPracticed || 0) + ' / ' + Number(task.dailyGoal || 2) + ' 首</span><strong>' + (done ? '再讀一次' : '繼續') + '</strong></div>' +
+      '<small class="task-card-note">默寫通關線 ' + Number(task.passScore || 80) + '%</small>' +
+    '</button>';
+  }
+
   function poemCardHTML(poem) {
     const done = stepsDone(poem);
     const classNames = ['poem-card'];
@@ -254,6 +293,237 @@
         '<span class="poem-tag">' + esc(poem.theme) + ' · ' + esc(poem.level) + '</span>' +
       '</div>' +
     '</button>';
+  }
+
+  function setMode(mode) {
+    if (mode === 'parent' && !state.isAdmin) return;
+    state.mode = mode;
+    const parent = mode === 'parent';
+    els.childView.hidden = parent;
+    els.parentView.hidden = !parent;
+    $$('[data-mode]').forEach(button => {
+      const active = button.getAttribute('data-mode') === mode;
+      button.classList.toggle('is-active', active);
+      button.setAttribute('aria-selected', String(active));
+    });
+    if (parent) {
+      if (state.adminTasks.length || state.adminStats.length) renderParent();
+      loadAdminData();
+    } else {
+      renderHall();
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  async function loadAdminData() {
+    if (state.adminLoading) return;
+    state.adminLoading = true;
+    try {
+      const [tasks, stats] = await Promise.all([
+        request('/api/poetry/admin/tasks'),
+        request('/api/poetry/admin/stats')
+      ]);
+      state.adminTasks = tasks || [];
+      state.adminStats = stats || [];
+      state.adminLoading = false;
+      if (state.mode === 'parent') renderParent();
+    } catch (error) {
+      toast(error.message || '載入管理資料失敗');
+    } finally {
+      state.adminLoading = false;
+    }
+  }
+
+  function renderParent() {
+    const tabs = {
+      tasks: els.parentTasks,
+      stats: els.parentStats,
+      poems: els.parentPoems
+    };
+    Object.keys(tabs).forEach(key => {
+      const active = state.parentTab === key;
+      tabs[key].hidden = !active;
+      const button = $('[data-parent-tab="' + key + '"]');
+      if (button) {
+        button.classList.toggle('is-active', active);
+        button.setAttribute('aria-selected', String(active));
+      }
+    });
+    if (state.parentTab === 'tasks') renderParentTasks();
+    else if (state.parentTab === 'stats') renderParentStats();
+    else renderParentPoems();
+  }
+
+  function assigneeHTML() {
+    const users = state.adminStats.slice();
+    const items = users.map(user =>
+      '<label class="assign-item"><input type="checkbox" data-assignee="' + esc(user.userId) + '">' +
+        '<span>' + esc(user.nickname || user.username) + '</span>' +
+        (user.role === 'admin' ? '<small>家長</small>' : '') +
+      '</label>'
+    ).join('');
+    return '<label class="assign-item is-all"><input type="checkbox" data-assignee="all" checked><span>全部孩子</span></label>' +
+      (items || '<span class="muted">還沒有其他用戶</span>');
+  }
+
+  function poemPickerHTML() {
+    return state.overview.poems.map(poem =>
+      '<label class="picker-item' + (poem.mastered ? ' is-mastered' : '') + '">' +
+        '<input type="checkbox" data-pick-poem="' + esc(poem.id) + '">' +
+        '<span><strong>' + esc(poem.title) + '</strong><small>' + esc(poem.dynasty) + ' · ' + esc(poem.author) + ' · ' + esc(poem.theme) + '</small></span>' +
+      '</label>'
+    ).join('');
+  }
+
+  function adminTaskHTML(group) {
+    const poemNames = (group.poem_ids || []).map(id => {
+      const poem = state.overview.poems.find(item => item.id === id);
+      return poem ? poem.title : id;
+    });
+    const users = (group.users || []).map(user =>
+      '<div class="admin-task-user">' +
+        '<div class="admin-user-line"><strong>' + esc(user.nickname) + '</strong><span>通關 ' + Number(user.mastered || 0) + ' / ' + Number(user.total || 0) + ' 首 · 今日 ' + Number(user.todayPracticed || 0) + ' / ' + Number(group.daily_goal || 2) + ' 首</span></div>' +
+        '<div class="task-bar"><span style="width:' + Math.max(0, Math.min(100, Number(user.progress) || 0)) + '%"></span></div>' +
+        '<small>默寫平均 ' + Number(user.accuracy || 0) + '%' + (user.lastPracticedAt ? ' · 最近 ' + esc(String(user.lastPracticedAt).slice(0, 10)) : ' · 尚未開始') + '</small>' +
+      '</div>'
+    ).join('');
+    return '<article class="admin-task">' +
+      '<div class="admin-task-head"><div><h3>' + esc(group.task_name) + '</h3>' +
+        '<p>' + Number(group.poem_ids ? group.poem_ids.length : 0) + ' 首詩 · 每日 ' + Number(group.daily_goal || 2) + ' 首 · 通關 ' + Number(group.pass_score || 80) + '% · ' + Number(group.total || 0) + ' 位孩子 · ' + esc(String(group.createdAt || '').slice(0, 10)) + '</p></div>' +
+        '<button type="button" class="btn btn-ghost btn-small" data-delete-task="' + esc(group.groupId) + '">刪除</button></div>' +
+      '<div class="admin-task-poems">' + poemNames.slice(0, 5).map(title => '<span>' + esc(title) + '</span>').join('') + (poemNames.length > 5 ? '<span>+' + (poemNames.length - 5) + '</span>' : '') + '</div>' +
+      '<div class="admin-task-users">' + users + '</div>' +
+    '</article>';
+  }
+
+  function renderParentTasks() {
+    if (state.adminLoading && !state.adminTasks.length) {
+      els.parentTasks.innerHTML = '<div class="admin-card"><p class="muted">正在載入任務…</p></div>';
+      return;
+    }
+    const form = '<section class="admin-card">' +
+      '<div class="admin-card-head"><div><h2>建立古詩任務</h2><p>選詩、選孩子，建立後孩子會在詩園看到任務。</p></div></div>' +
+      '<form id="poem-task-form">' +
+        '<label class="field"><span class="field-label">任務名稱</span><input class="input" name="task_name" maxlength="40" required placeholder="例如：本週讀三首唐詩"></label>' +
+        '<div class="field-row">' +
+          '<label class="field"><span class="field-label">每日目標</span><select class="input" name="daily_goal"><option value="1">1 首</option><option value="2" selected>2 首</option><option value="3">3 首</option><option value="5">5 首</option></select></label>' +
+          '<label class="field"><span class="field-label">默寫通關線</span><select class="input" name="pass_score"><option value="60">60%</option><option value="70">70%</option><option value="80" selected>80%</option><option value="90">90%</option><option value="100">100%</option></select></label>' +
+        '</div>' +
+        '<div class="field"><span class="field-label">指派給</span><div class="assign-list" id="assign-list">' + assigneeHTML() + '</div></div>' +
+        '<div class="field"><div class="picker-head"><span class="field-label">選詩 <b id="pick-count">0</b> 首</span><span class="picker-actions"><button type="button" class="text-btn" data-pick-all>全選</button><button type="button" class="text-btn" data-pick-none>清除</button></span></div>' +
+          '<div class="poem-picker" id="poem-picker">' + poemPickerHTML() + '</div></div>' +
+        '<div class="form-actions"><button type="submit" class="btn btn-primary">建立任務</button></div>' +
+      '</form>' +
+    '</section>';
+    const list = state.adminTasks.length
+      ? state.adminTasks.map(adminTaskHTML).join('')
+      : '<div class="empty-state"><h3>還沒有古詩任務</h3><p>建立第一個任務，孩子下次打開詩園就會看到。</p></div>';
+    els.parentTasks.innerHTML = form +
+      '<section class="admin-card"><div class="admin-card-head"><div><h2>現有任務</h2><p>任務完成後會保留記錄，可以隨時刪除。</p></div></div>' +
+      '<div class="admin-task-list">' + list + '</div></section>';
+    updatePickCount();
+  }
+
+  function renderParentStats() {
+    if (state.adminLoading && !state.adminStats.length) {
+      els.parentStats.innerHTML = '<div class="admin-card"><p class="muted">正在載入學習統計…</p></div>';
+      return;
+    }
+    if (!state.adminStats.length) {
+      els.parentStats.innerHTML = '<div class="empty-state"><h3>還沒有學習記錄</h3><p>孩子開始讀詩後，這裡會顯示進度和默寫正確率。</p></div>';
+      return;
+    }
+    const totalMastered = state.adminStats.reduce((sum, row) => sum + Number(row.mastered || 0), 0);
+    const totalAttempts = state.adminStats.reduce((sum, row) => sum + Number(row.attempts || 0), 0);
+    const rows = state.adminStats.map(row =>
+      '<div class="stat-row">' +
+        '<div class="stat-name"><strong>' + esc(row.nickname || row.username) + '</strong><small>' + (row.lastPracticedAt ? '最近 ' + esc(String(row.lastPracticedAt).slice(0, 10)) : '尚未開始') + '</small></div>' +
+        '<div class="stat-cell"><strong>' + Number(row.mastered || 0) + ' / ' + Number(row.totalQuestions || 0) + '</strong><span>已掌握</span></div>' +
+        '<div class="stat-cell"><strong>' + Number(row.stepsDone || 0) + '</strong><span>完成步驟</span></div>' +
+        '<div class="stat-cell"><strong>' + Number(row.attempts || 0) + '</strong><span>默寫次數</span></div>' +
+        '<div class="stat-cell"><strong>' + Number(row.accuracy || 0) + '%</strong><span>默寫平均</span></div>' +
+        '<div class="stat-cell"><strong>' + Number(row.recent7 || 0) + '</strong><span>近七日</span></div>' +
+      '</div>'
+    ).join('');
+    els.parentStats.innerHTML = '<section class="admin-card">' +
+      '<div class="admin-card-head"><div><h2>學習統計</h2><p>所有孩子的古詩進度。</p></div></div>' +
+      '<div class="stat-summary"><div><strong>' + totalMastered + '</strong><span>累計掌握詩</span></div><div><strong>' + totalAttempts + '</strong><span>累計默寫</span></div><div><strong>' + state.adminStats.length + '</strong><span>帳戶</span></div></div>' +
+      '<div class="stat-table">' + rows + '</div>' +
+    '</section>';
+  }
+
+  function customPoems() {
+    return state.overview.poems.filter(poem => poem.custom);
+  }
+
+  function renderImportResult() {
+    const box = $('#poem-import-result');
+    if (!box) return;
+    const preview = state.importPreview;
+    if (!preview) {
+      box.innerHTML = '';
+      const importBtn = $('[data-poem-import]');
+      if (importBtn) importBtn.disabled = true;
+      return;
+    }
+    const errors = preview.errors || [];
+    const warnings = preview.warnings || [];
+    const items = preview.items || [];
+    box.innerHTML =
+      (errors.length ? '<div class="import-errors"><strong>需要修正</strong>' + errors.map(error => '<p>' + esc(error) + '</p>').join('') + '</div>' : '') +
+      (items.length ? '<div class="import-preview"><strong>可匯入 ' + items.length + ' 首</strong>' +
+        items.map(item => '<div class="preview-row"><span><b>' + esc(item.title) + '</b> · ' + esc(item.author) + ' · ' + esc(item.theme) + '</span><small>' + item.lineCount + ' 句' + (item.incomplete ? ' · ' + item.incomplete + ' 句缺拼音或今譯' : '') + '</small></div>').join('') +
+      '</div>' : '') +
+      (warnings.length ? '<details class="import-warnings"><summary>提示 ' + warnings.length + ' 條</summary>' + warnings.map(warning => '<p>' + esc(warning) + '</p>').join('') + '</details>' : '');
+    const importBtn = $('[data-poem-import]');
+    if (importBtn) importBtn.disabled = !items.length || errors.length > 0 || state.importBusy;
+  }
+
+  function renderParentPoems() {
+    const custom = customPoems();
+    const sample = JSON.stringify({
+      poems: [{
+        id: 'my-poem',
+        title: '我的小詩',
+        author: '無名',
+        dynasty: '今',
+        themeId: 'family',
+        theme: '親情',
+        level: '小學',
+        tags: ['自訂'],
+        lines: [
+          { text: '第一句詩', pinyin: 'dì yī jù shī', translation: '第一句的意思' },
+          { text: '第二句詩', pinyin: 'dì èr jù shī', translation: '第二句的意思' }
+        ],
+        background: '這首詩的背景。',
+        appreciation: '這首詩的妙處。',
+        keyLine: 0,
+        keyLineNote: '詩眼說明。'
+      }]
+    }, null, 2);
+    els.parentPoems.innerHTML = '<section class="admin-card">' +
+      '<div class="admin-card-head"><div><h2>詩庫</h2><p>目前共有 ' + state.overview.stats.totalPoems + ' 首詩，其中 ' + custom.length + ' 首是自訂或匯入的。</p></div></div>' +
+      (custom.length ? '<div class="custom-poems">' + custom.map(poem => '<span class="custom-poem">' + esc(poem.title) + '<small>' + esc(poem.theme) + '</small></span>').join('') + '</div>' : '<p class="muted">還沒有自訂詩。可以在下面貼上 JSON 或 CSV 匯入。</p>') +
+    '</section>' +
+    '<section class="admin-card">' +
+      '<div class="admin-card-head"><div><h2>匯入詩單</h2><p>支援 JSON 或 CSV。匯入前會先預覽，不會直接改動現有詩。</p></div></div>' +
+      '<div class="import-tools"><input type="file" id="poem-import-file" accept=".json,.csv,application/json,text/csv"><button type="button" class="btn btn-ghost btn-small" id="poem-sample-btn">填入範例</button></div>' +
+      '<textarea id="poem-import-text" class="import-text" rows="10" placeholder="貼上 JSON 或 CSV…"></textarea>' +
+      '<details class="import-help"><summary>格式說明</summary><p>JSON：<code>{"poems":[{ "id":"...", "title":"...", "author":"...", "dynasty":"...", "themeId":"home", "lines":[{ "text":"...", "pinyin":"...", "translation":"..." }] }]}</code></p><p>CSV 欄位：<code>id,title,author,dynasty,themeId,theme,level,tags,lines,pinyin,translation,background,appreciation,keyLine,keyLineNote</code>；多句用 <code>|</code> 分隔。</p></details>' +
+      '<div class="form-actions"><button type="button" class="btn btn-soft" data-poem-preview>預覽</button><button type="button" class="btn btn-primary" data-poem-import disabled>匯入</button></div>' +
+      '<div id="poem-import-result"></div>' +
+    '</section>';
+    const textarea = $('#poem-import-text');
+    if (textarea && state.importText) textarea.value = state.importText;
+    const sampleBtn = $('#poem-sample-btn');
+    if (sampleBtn) sampleBtn.dataset.sample = sample;
+    renderImportResult();
+  }
+
+  function updatePickCount() {
+    const count = $$('[data-pick-poem]:checked').length;
+    const label = $('#pick-count');
+    if (label) label.textContent = String(count);
   }
 
   async function openPoem(id, wantedStep) {
@@ -654,8 +924,162 @@
     renderStepBody();
   }
 
+  async function previewPoems() {
+    const textarea = $('#poem-import-text');
+    const text = textarea ? textarea.value : '';
+    if (!text.trim()) {
+      toast('請先貼上或上傳詩單');
+      return;
+    }
+    state.importText = text;
+    state.importPreview = null;
+    try {
+      const preview = await request('/api/poetry/admin/poems/preview', {
+        method: 'POST',
+        body: JSON.stringify({ text })
+      });
+      state.importPreview = preview;
+      renderImportResult();
+    } catch (error) {
+      toast(error.message || '預覽失敗');
+    }
+  }
+
+  async function importPoemText() {
+    const textarea = $('#poem-import-text');
+    const text = textarea ? textarea.value : state.importText;
+    if (!text.trim()) {
+      toast('請先貼上或上傳詩單');
+      return;
+    }
+    if (state.importBusy) return;
+    state.importBusy = true;
+    renderImportResult();
+    try {
+      const result = await request('/api/poetry/admin/poems/import', {
+        method: 'POST',
+        body: JSON.stringify({ text })
+      });
+      state.importBusy = false;
+      state.importPreview = null;
+      state.importText = '';
+      await loadOverview();
+      await loadAdminData();
+      renderHall();
+      renderParent();
+      toast('已匯入 ' + result.total + ' 首詩（新增 ' + result.added + '、更新 ' + result.updated + '）');
+    } catch (error) {
+      state.importBusy = false;
+      toast(error.message || '匯入失敗');
+      renderImportResult();
+    }
+  }
+
+  async function deletePoemTask(groupId) {
+    if (!window.confirm('刪除這個任務？孩子已學的詩和進度會保留。')) return;
+    try {
+      await request('/api/poetry/tasks/' + encodeURIComponent(groupId), { method: 'DELETE' });
+      await loadOverview();
+      await loadAdminData();
+      renderHall();
+      renderParentTasks();
+      toast('任務已刪除');
+    } catch (error) {
+      toast(error.message || '刪除失敗');
+    }
+  }
+
+  async function createPoemTask(form) {
+    const name = String(form.querySelector('[name="task_name"]').value || '').trim();
+    const poemIds = $$('[data-pick-poem]:checked', form).map(input => input.getAttribute('data-pick-poem'));
+    const assignees = $$('[data-assignee]:checked', form).map(input => input.getAttribute('data-assignee'));
+    if (!name) {
+      toast('請填任務名稱');
+      return;
+    }
+    if (!poemIds.length) {
+      toast('請至少選一首詩');
+      return;
+    }
+    if (!assignees.length) {
+      toast('請選擇指派對象');
+      return;
+    }
+    const payload = {
+      task_name: name,
+      poem_ids: poemIds,
+      daily_goal: form.querySelector('[name="daily_goal"]').value,
+      pass_score: form.querySelector('[name="pass_score"]').value,
+      userIds: assignees.includes('all') ? [] : assignees
+    };
+    const button = form.querySelector('button[type="submit"]');
+    if (button) { button.disabled = true; button.textContent = '建立中…'; }
+    try {
+      await request('/api/poetry/tasks', { method: 'POST', body: JSON.stringify(payload) });
+      form.reset();
+      await loadOverview();
+      await loadAdminData();
+      renderHall();
+      renderParent();
+      toast('任務已建立');
+    } catch (error) {
+      toast(error.message || '建立失敗');
+    } finally {
+      if (button) { button.disabled = false; button.textContent = '建立任務'; }
+    }
+  }
+
   function onDocumentClick(event) {
     const target = event.target;
+    const mode = target.closest('[data-mode]');
+    if (mode) {
+      setMode(mode.getAttribute('data-mode'));
+      return;
+    }
+    if (target.closest('#parent-child-btn')) {
+      setMode('child');
+      return;
+    }
+    const parentTab = target.closest('[data-parent-tab]');
+    if (parentTab) {
+      state.parentTab = parentTab.getAttribute('data-parent-tab');
+      renderParent();
+      return;
+    }
+    if (target.closest('[data-pick-all]')) {
+      $$('[data-pick-poem]').forEach(input => { input.checked = true; });
+      updatePickCount();
+      return;
+    }
+    if (target.closest('[data-pick-none]')) {
+      $$('[data-pick-poem]').forEach(input => { input.checked = false; });
+      updatePickCount();
+      return;
+    }
+    const deleteTask = target.closest('[data-delete-task]');
+    if (deleteTask) {
+      deletePoemTask(deleteTask.getAttribute('data-delete-task'));
+      return;
+    }
+    if (target.closest('[data-poem-preview]')) {
+      previewPoems();
+      return;
+    }
+    if (target.closest('[data-poem-import]')) {
+      importPoemText();
+      return;
+    }
+    if (target.closest('#poem-sample-btn')) {
+      const button = target.closest('#poem-sample-btn');
+      const textarea = $('#poem-import-text');
+      if (textarea) {
+        textarea.value = button.dataset.sample || '';
+        state.importText = textarea.value;
+        state.importPreview = null;
+        renderImportResult();
+      }
+      return;
+    }
     const open = target.closest('[data-open]');
     if (open) {
       openPoem(open.getAttribute('data-open'));
@@ -814,7 +1238,57 @@
     }
   }
 
+  function onDocumentSubmit(event) {
+    const form = event.target.closest('#poem-task-form');
+    if (!form) return;
+    event.preventDefault();
+    createPoemTask(form);
+  }
+
+  function onDocumentChange(event) {
+    const pick = event.target.closest('[data-pick-poem]');
+    if (pick) {
+      updatePickCount();
+      return;
+    }
+    const all = event.target.closest('[data-assignee="all"]');
+    if (all) {
+      $$('[data-assignee]:not([data-assignee="all"])').forEach(input => {
+        input.checked = false;
+        input.disabled = all.checked;
+      });
+      return;
+    }
+    const assignee = event.target.closest('[data-assignee]');
+    if (assignee) {
+      const allBox = $('[data-assignee="all"]');
+      if (allBox && allBox.checked) allBox.checked = false;
+      $$('[data-assignee]:not([data-assignee="all"])').forEach(input => { input.disabled = false; });
+      return;
+    }
+    const file = event.target.closest('#poem-import-file');
+    if (file && file.files && file.files[0]) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const textarea = $('#poem-import-text');
+        if (textarea) textarea.value = String(reader.result || '');
+        state.importText = String(reader.result || '');
+        state.importPreview = null;
+        renderImportResult();
+      };
+      reader.readAsText(file.files[0]);
+    }
+  }
+
   function onDocumentInput(event) {
+    if (event.target.id === 'poem-import-text') {
+      state.importText = event.target.value;
+      if (state.importPreview) {
+        state.importPreview = null;
+        renderImportResult();
+      }
+      return;
+    }
     const fill = event.target.closest('[data-fill-key]');
     if (fill) {
       state.fillAnswers[fill.getAttribute('data-fill-key')] = fill.value;
@@ -827,6 +1301,8 @@
   }
 
   document.addEventListener('click', onDocumentClick);
+  document.addEventListener('submit', onDocumentSubmit);
+  document.addEventListener('change', onDocumentChange);
   document.addEventListener('input', onDocumentInput);
   if ('speechSynthesis' in window) {
     window.speechSynthesis.addEventListener('voiceschanged', () => window.speechSynthesis.getVoices());

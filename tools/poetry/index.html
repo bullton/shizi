@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#f6f1e6">
 <link rel="icon" href="data:,">
 <title>古詩詞 · Poetry Garden</title>
-<link rel="stylesheet" href="style.css?v=20261118-1">
+<link rel="stylesheet" href="style.css?v=20261119-1">
 </head>
 <body>
 <div class="app" id="app">
@@ -20,6 +20,10 @@
     </a>
     <div class="top-actions">
       <span class="user-chip" id="user-chip" hidden></span>
+      <div class="mode-switch" id="mode-switch" role="tablist" aria-label="切換模式" hidden>
+        <button type="button" data-mode="child" class="is-active" role="tab" aria-selected="true">孩子</button>
+        <button type="button" data-mode="parent" role="tab" aria-selected="false">家長</button>
+      </div>
       <a class="top-link" href="/" target="_top">學習平台</a>
     </div>
   </header>
@@ -45,6 +49,16 @@
           </div>
           <aside class="today-card" id="today-card" aria-live="polite"></aside>
         </header>
+
+        <section class="task-section" id="task-section" hidden>
+          <div class="section-head compact">
+            <div>
+              <h2>家長任務</h2>
+              <p>完成的詩會自動計入任務進度。</p>
+            </div>
+          </div>
+          <div class="task-list" id="task-list"></div>
+        </section>
 
         <section class="review-section" id="review-section" hidden>
           <div class="section-head compact">
@@ -101,10 +115,31 @@
         </div>
       </section>
     </section>
+
+    <section class="view" id="parent-view" hidden>
+      <header class="parent-head">
+        <div>
+          <p class="eyebrow">家長 / 老師 · PARENT</p>
+          <h1>古詩詞管理</h1>
+          <p>建立古詩任務、指派孩子、查看學習情況，或把新的詩匯入詩園。</p>
+        </div>
+        <button type="button" class="btn btn-ghost" id="parent-child-btn">回到孩子端</button>
+      </header>
+
+      <div class="parent-tabs" role="tablist" aria-label="管理分頁">
+        <button type="button" class="is-active" data-parent-tab="tasks" role="tab" aria-selected="true">任務</button>
+        <button type="button" data-parent-tab="stats" role="tab" aria-selected="false">學習統計</button>
+        <button type="button" data-parent-tab="poems" role="tab" aria-selected="false">詩庫與導入</button>
+      </div>
+
+      <div class="parent-panel" id="parent-tasks"></div>
+      <div class="parent-panel" id="parent-stats" hidden></div>
+      <div class="parent-panel" id="parent-poems" hidden></div>
+    </section>
   </main>
 
   <div class="toast" id="toast" hidden></div>
 </div>
-<script src="app.js?v=20261118-1" defer></script>
+<script src="app.js?v=20261119-1" defer></script>
 </body>
 </html>

@@ -134,7 +134,7 @@ http://localhost:3000/
 │   ├── poetry/
 │   │   ├── tool.json         # 古詩詞登記資料
 │   │   ├── poems.json        # 16 首古詩、拼音、今譯、注釋與背景
-│   │   ├── index.html        # 詩園大廳 + 六步學習器
+│   │   ├── index.html        # 詩園大廳 + 六步學習器 + 家長管理
 │   │   ├── style.css
 │   │   └── app.js
 ├── scripts/dict/             # 字典維護工具
@@ -320,13 +320,14 @@ node scripts/dict/dict-atomic.js --check  # 檢查有冇過時
 
 ### 古詩詞
 
-- 獨立工具 `server/tools/poetry.js` + `tools/poetry/`，詩歌資料在 `tools/poetry/poems.json`，進度寫入 `data/shizi.json` 的 `poetry.progress` 與 `poetry.attempts`
+- 獨立工具 `server/tools/poetry.js` + `tools/poetry/`，詩歌資料在 `tools/poetry/poems.json`，進度、任務與匯入詩寫入 `data/shizi.json` 的 `poetry.progress`、`poetry.attempts`、`poetry.tasks` 與 `poetry.customPoems`
 - 內置 16 首小學常讀古詩，每首包含作者、朝代、主題、標籤、逐句拼音、今譯、字詞注釋、背景與詩眼
 - 六步學習：聽讀（瀏覽器語音，可切普通話／粵語）→ 懂意（詩意、詩眼、寫作妙處）→ 排句（點擊詩句排回原序）→ 補字（每句最後兩字挖空）→ 背誦（看首字／全隱藏／顯示原文）→ 默寫（逐句輸入，字級比對）
 - 默寫只比較中文字，標點與空格不計分；80% 為通關線，錯字自動記入該詩的易錯字
 - 一首詩六步全部完成且默寫達 80% 即「已掌握」；首頁按掌握狀態顯示詩印與六點進度，學過一天的詩會出現在「該複習了」
 - 綜合積分：每完成 1 個學習步驟 = 1 分，掌握整首詩再加 10 分；工具榜按已掌握詩數 → 做題量 → 默寫正確率 → 平均速度排序
-- 管理員可透過 `/api/poetry/admin/stats` 查看各用戶的古詩詞進度；目前詩歌內容以檔案維護，暫未開放前台批量匯入
+- 家長管理（管理員）：建立古詩任務、選詩與指派孩子、設定每日目標與默寫通關線、查看任務進度與學習統計；任務完成度按「已通關詩數」計算
+- 詩單匯入：支援 JSON／CSV，預覽校驗後寫入 `poetry.customPoems`，可覆蓋同 id 的內置詩；自訂詩會即時出現在詩園、任務選詩與排名
 
 ## 結構判斷：Unicode IDS（主要）＋ 偏旁表（回退）
 

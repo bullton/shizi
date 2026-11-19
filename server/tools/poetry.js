@@ -2,6 +2,8 @@ const fs = require('fs');
 const path = require('path');
 const { jsonResponse, parseBody } = require('../core/http');
 const { generateId } = require('../core/ids');
+const { listUsers, resolveUserIds } = require('../core/delegation');
+const { parseCsv } = require('../core/csv');
 
 const STEPS = ['read', 'understand', 'order', 'fill', 'recite', 'dictation'];
 const STEP_LABELS = {
@@ -32,17 +34,54 @@ function round1(value) {
   return Math.round(Number(value || 0) * 10) / 10;
 }
 
+function percent(part, total) {
+  return total ? Math.round((Number(part || 0) / total) * 1000) / 10 : 0;
+}
+
 function createPoetryTool({ rootDir, toolDir, db, saveData: storeSave, auth }) {
   const saveData = () => storeSave();
   const bank = JSON.parse(fs.readFileSync(path.join(toolDir, 'poems.json'), 'utf8'));
-  const poems = Array.isArray(bank.poems) ? bank.poems : [];
-  const themes = Array.isArray(bank.themes) ? bank.themes : [];
-  const poemById = new Map(poems.map(poem => [String(poem.id), poem]));
-  const themeById = new Map(themes.map(theme => [String(theme.id), theme]));
+  const seedPoems = Array.isArray(bank.poems) ? bank.poems : [];
+  const seedThemes = Array.isArray(bank.themes) ? bank.themes : [];
+  let poems = [];
+  let themes = [];
+  let poemById = new Map();
+  let themeById = new Map();
+  let customIds = new Set();
 
   if (!db.poetry || typeof db.poetry !== 'object') db.poetry = {};
   if (!Array.isArray(db.poetry.progress)) db.poetry.progress = [];
   if (!Array.isArray(db.poetry.attempts)) db.poetry.attempts = [];
+  if (!Array.isArray(db.poetry.customPoems)) db.poetry.customPoems = [];
+  if (!Array.isArray(db.poetry.tasks)) db.poetry.tasks = [];
+
+  function rebuildCatalog() {
+    const list = seedPoems.map(poem => ({ ...poem }));
+    const positions = new Map(list.map((poem, index) => [String(poem.id), index]));
+    db.poetry.customPoems.forEach(poem => {
+      const key = String(poem.id);
+      if (positions.has(key)) list[positions.get(key)] = poem;
+      else {
+        positions.set(key, list.length);
+        list.push(poem);
+      }
+    });
+    poems = list;
+    poemById = new Map(poems.map(poem => [String(poem.id), poem]));
+    customIds = new Set(db.poetry.customPoems.map(poem => String(poem.id)));
+    const themeList = seedThemes.map(theme => ({ ...theme }));
+    const seen = new Set(themeList.map(theme => String(theme.id)));
+    poems.forEach(poem => {
+      const themeId = String(poem.themeId || 'other');
+      if (seen.has(themeId)) return;
+      seen.add(themeId);
+      themeList.push({ id: themeId, title: poem.theme || '其他', desc: '' });
+    });
+    themes = themeList;
+    themeById = new Map(themes.map(theme => [String(theme.id), theme]));
+  }
+
+  rebuildCatalog();
 
   function requireAuth(req, res) {
     const user = auth.requireAuth(req);
@@ -110,7 +149,8 @@ function createPoetryTool({ rootDir, toolDir, db, saveData: storeSave, auth }) {
       title: poem.title,
       author: poem.author,
       dynasty: poem.dynasty,
-      theme: poem.theme || (themeById.get(poem.themeId) || {}).title || '',
+      theme: poem.theme || (themeById.get(String(poem.themeId || '')) || {}).title || '',
+      custom: customIds.has(String(poem.id)),
       themeId: poem.themeId || 'all',
       level: poem.level || '',
       tags: Array.isArray(poem.tags) ? poem.tags.slice() : [],
@@ -193,6 +233,7 @@ function createPoetryTool({ rootDir, toolDir, db, saveData: storeSave, auth }) {
         count: theme.id === 'all' ? poems.length : poems.filter(poem => poem.themeId === theme.id).length
       })),
       poems: summaries,
+      tasks: taskForUser(userId),
       stepLabels: STEP_LABELS
     };
   }
@@ -316,12 +357,413 @@ function createPoetryTool({ rootDir, toolDir, db, saveData: storeSave, auth }) {
           ? round1((data.stats.mastered / data.stats.totalPoems) * 100)
           : 0,
         attempted: data.stats.attempted,
+        learning: data.stats.learning,
+        stepsDone: data.stats.stepsDone,
         attempts: attempts.length,
         accuracy: data.stats.accuracy,
         avgTime,
-        recent7: data.stats.recent7
+        recent7: data.stats.recent7,
+        lastPracticedAt: data.stats.lastPracticedAt
       };
     });
+  }
+
+
+  function taskGroupId(task) {
+    return task.groupId || task.task_id;
+  }
+
+  function findTask(taskId) {
+    const key = String(taskId || '');
+    return db.poetry.tasks.find(task => String(task.task_id) === key) ||
+      db.poetry.tasks.find(task => String(taskGroupId(task)) === key) ||
+      null;
+  }
+
+  function taskPoemList(task) {
+    return (task.poem_ids || []).map(id => poemById.get(String(id))).filter(Boolean);
+  }
+
+  function taskProgress(task, userId) {
+    const list = taskPoemList(task);
+    let mastered = 0;
+    let attempted = 0;
+    let steps = 0;
+    let dictationSum = 0;
+    let lastPracticedAt = null;
+    let todayPracticed = 0;
+    const passScore = Math.max(60, Math.min(100, Number(task.pass_score) || MASTERY_LINE));
+    const today = hkDate();
+    list.forEach(poem => {
+      const record = findProgress(userId, poem.id);
+      if (!record) return;
+      const done = stepsDone(record);
+      steps += done;
+      dictationSum += Number(record.bestDictation) || 0;
+      if (done > 0 || Number(record.dictationAttempts) > 0) attempted += 1;
+      if (done === STEPS.length && Number(record.bestDictation) >= passScore) mastered += 1;
+      if (record.lastPracticedAt && hkDate(record.lastPracticedAt) === today) todayPracticed += 1;
+      if (record.lastPracticedAt && (!lastPracticedAt || String(record.lastPracticedAt) > String(lastPracticedAt))) {
+        lastPracticedAt = record.lastPracticedAt;
+      }
+    });
+    const total = list.length;
+    return {
+      total,
+      attempted,
+      mastered,
+      stepsDone: steps,
+      progress: percent(mastered, total),
+      accuracy: attempted ? round1(dictationSum / attempted) : 0,
+      todayPracticed,
+      lastPracticedAt
+    };
+  }
+
+  function serializeTask(task, userId) {
+    const progress = taskProgress(task, userId);
+    const list = taskPoemList(task);
+    const passScore = Math.max(60, Math.min(100, Number(task.pass_score) || MASTERY_LINE));
+    const next = list.find(poem => {
+      const record = findProgress(userId, poem.id);
+      return !record || stepsDone(record) < STEPS.length || Number(record.bestDictation) < passScore;
+    });
+    return {
+      task_id: task.task_id,
+      groupId: taskGroupId(task),
+      task_name: task.task_name,
+      poem_ids: (task.poem_ids || []).slice(),
+      poems: list.map(poem => ({ id: poem.id, title: poem.title, author: poem.author, dynasty: poem.dynasty })),
+      scope: task.scope || 'selected',
+      userId: task.userId,
+      is_archived: !!task.is_archived,
+      createdAt: task.createdAt,
+      updatedAt: task.updatedAt || task.createdAt,
+      nextPoemId: next ? next.id : (list[0] ? list[0].id : null),
+      passScore,
+      dailyGoal: Math.max(1, Math.min(10, Number(task.daily_goal) || 2)),
+      ...progress
+    };
+  }
+
+  function taskForUser(userId) {
+    return db.poetry.tasks
+      .filter(task => String(task.userId) === String(userId) && !task.is_archived)
+      .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
+      .map(task => serializeTask(task, userId));
+  }
+
+  function adminTaskGroups() {
+    const users = new Map(listUsers(db).map(user => [String(user.id), user]));
+    const groups = new Map();
+    db.poetry.tasks
+      .slice()
+      .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
+      .forEach(task => {
+        const key = String(taskGroupId(task));
+        let group = groups.get(key);
+        if (!group) {
+          group = {
+            groupId: key,
+            task_name: task.task_name,
+            poem_ids: (task.poem_ids || []).slice(),
+            pass_score: Math.max(60, Math.min(100, Number(task.pass_score) || MASTERY_LINE)),
+            daily_goal: Math.max(1, Math.min(10, Number(task.daily_goal) || 2)),
+            scope: task.scope || 'selected',
+            is_archived: !!task.is_archived,
+            createdAt: task.createdAt,
+            updatedAt: task.updatedAt || task.createdAt,
+            users: []
+          };
+          groups.set(key, group);
+        }
+        const user = users.get(String(task.userId)) || { nickname: '（未知用戶）', username: '' };
+        const progress = taskProgress(task, task.userId);
+        group.users.push({
+          task_id: task.task_id,
+          userId: task.userId,
+          username: user.username,
+          nickname: user.nickname || user.username || '（未知用戶）',
+          ...progress
+        });
+      });
+    return Array.from(groups.values()).map(group => {
+      const total = group.users.length;
+      const mastered = group.users.reduce((sum, user) => sum + user.mastered, 0);
+      return {
+        ...group,
+        total,
+        mastered,
+        progress: total
+          ? round1(group.users.reduce((sum, user) => sum + Number(user.progress || 0), 0) / total)
+          : 0
+      };
+    });
+  }
+
+  async function createTasks(user, body) {
+    if (user.role !== 'admin') return { status: 403, body: { error: '只有管理員可以建立任務' } };
+    const name = String(body.task_name || '').trim();
+    if (!name || name.length > 40) return { status: 400, body: { error: '任務名稱需為 1-40 字' } };
+    const poemIds = Array.from(new Set((Array.isArray(body.poem_ids) ? body.poem_ids : []).map(String)))
+      .filter(id => poemById.has(id));
+    if (!poemIds.length) return { status: 400, body: { error: '請至少選擇一首詩' } };
+    const rawTargets = body.userIds !== undefined ? body.userIds : body.userId;
+    const hasTargets = Array.isArray(rawTargets)
+      ? rawTargets.length > 0
+      : rawTargets !== undefined && rawTargets !== null && rawTargets !== '';
+    let resolved = resolveUserIds(db, hasTargets ? rawTargets : []);
+    if (!hasTargets && !resolved.error) {
+      const children = listUsers(db).filter(item => item.role !== 'admin');
+      if (children.length) resolved = { userIds: children.map(item => item.id), all: true };
+    }
+    if (resolved.error) return { status: 400, body: { error: resolved.error } };
+    const passScore = Math.max(60, Math.min(100, parseInt(body.pass_score, 10) || MASTERY_LINE));
+    const dailyGoal = Math.max(1, Math.min(10, parseInt(body.daily_goal, 10) || 2));
+    const groupId = 'PT_' + generateId(new Set(db.poetry.tasks.map(task => String(taskGroupId(task)))));
+    const created = [];
+    const now = new Date().toISOString();
+    resolved.userIds.forEach(targetId => {
+      const task = {
+        task_id: 'P_' + generateId(new Set(db.poetry.tasks.map(item => String(item.task_id)))),
+        groupId,
+        userId: targetId,
+        scope: resolved.all ? 'all' : 'selected',
+        createdBy: user.id,
+        task_name: name,
+        poem_ids: poemIds,
+        pass_score: passScore,
+        daily_goal: dailyGoal,
+        is_archived: false,
+        createdAt: now
+      };
+      db.poetry.tasks.push(task);
+      created.push(task);
+    });
+    await saveData();
+    return {
+      status: 201,
+      body: {
+        groupId,
+        created: created.length,
+        tasks: created.map(task => serializeTask(task, task.userId))
+      }
+    };
+  }
+
+  async function updateTasks(user, taskId, body) {
+    if (user.role !== 'admin') return { status: 403, body: { error: '只有管理員可以修改任務' } };
+    const task = findTask(taskId);
+    if (!task) return { status: 404, body: { error: '任務不存在' } };
+    const groupId = String(taskGroupId(task));
+    const targets = db.poetry.tasks.filter(item => String(taskGroupId(item)) === groupId);
+    const name = body.task_name !== undefined ? String(body.task_name).trim() : task.task_name;
+    if (!name || name.length > 40) return { status: 400, body: { error: '任務名稱需為 1-40 字' } };
+    let poemIds = null;
+    if (body.poem_ids !== undefined) {
+      poemIds = Array.from(new Set((Array.isArray(body.poem_ids) ? body.poem_ids : []).map(String)))
+        .filter(id => poemById.has(id));
+      if (!poemIds.length) return { status: 400, body: { error: '請至少保留一首詩' } };
+    }
+    const updatedAt = new Date().toISOString();
+    targets.forEach(item => {
+      item.task_name = name;
+      if (poemIds) item.poem_ids = poemIds;
+      if (body.pass_score !== undefined) item.pass_score = Math.max(60, Math.min(100, parseInt(body.pass_score, 10) || item.pass_score || MASTERY_LINE));
+      if (body.daily_goal !== undefined) item.daily_goal = Math.max(1, Math.min(10, parseInt(body.daily_goal, 10) || item.daily_goal || 2));
+      if (body.is_archived !== undefined) item.is_archived = !!body.is_archived;
+      item.updatedAt = updatedAt;
+    });
+    await saveData();
+    return {
+      status: 200,
+      body: {
+        groupId,
+        updated: targets.length,
+        tasks: targets.map(item => serializeTask(item, item.userId))
+      }
+    };
+  }
+
+  async function deleteTasks(user, taskId) {
+    if (user.role !== 'admin') return { status: 403, body: { error: '只有管理員可以刪除任務' } };
+    const task = findTask(taskId);
+    if (!task) return { status: 404, body: { error: '任務不存在' } };
+    const groupId = String(taskGroupId(task));
+    const before = db.poetry.tasks.length;
+    db.poetry.tasks = db.poetry.tasks.filter(item => String(taskGroupId(item)) !== groupId);
+    await saveData();
+    return { status: 200, body: { ok: true, removedTasks: before - db.poetry.tasks.length } };
+  }
+
+  function textValue(value) {
+    return String(value == null ? '' : value).trim();
+  }
+
+  function splitList(value) {
+    if (Array.isArray(value)) return value.map(textValue).filter(Boolean);
+    return textValue(value).split(/[|｜,，\n]/).map(textValue).filter(Boolean);
+  }
+
+  function splitLines(value) {
+    if (Array.isArray(value)) return value.map(textValue).filter(Boolean);
+    return textValue(value).split(/[|｜\n]/).map(textValue).filter(Boolean);
+  }
+
+  function normalizePoem(raw, rowNumber) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+      return { errors: ['第 ' + rowNumber + ' 首：格式不正確'] };
+    }
+    const warnings = [];
+    const title = textValue(raw.title);
+    if (!title) return { errors: ['第 ' + rowNumber + ' 首：缺少 title（詩題）'] };
+    const author = textValue(raw.author);
+    if (!author) return { errors: ['第 ' + rowNumber + ' 首：缺少 author（作者）'] };
+    let lines = [];
+    if (Array.isArray(raw.lines)) {
+      lines = raw.lines.map(entry => {
+        if (typeof entry === 'string') return { text: textValue(entry), pinyin: '', translation: '', note: '' };
+        return {
+          text: textValue(entry && (entry.text || entry.line)),
+          pinyin: textValue(entry && entry.pinyin),
+          translation: textValue(entry && entry.translation),
+          note: textValue(entry && entry.note)
+        };
+      }).filter(line => line.text);
+    } else if (raw.lines !== undefined) {
+      const texts = splitLines(raw.lines);
+      const pinyins = splitLines(raw.pinyin);
+      const translations = splitLines(raw.translation || raw.translations);
+      const notes = splitLines(raw.note || raw.notes);
+      lines = texts.map((text, index) => ({
+        text,
+        pinyin: pinyins[index] || '',
+        translation: translations[index] || '',
+        note: notes[index] || ''
+      }));
+    }
+    if (!lines.length) return { errors: ['第 ' + rowNumber + ' 首：缺少 lines（詩句）'] };
+    lines.forEach((line, index) => {
+      if (!line.pinyin) warnings.push('第 ' + rowNumber + ' 首第 ' + (index + 1) + ' 句沒有拼音');
+      if (!line.translation) warnings.push('第 ' + rowNumber + ' 首第 ' + (index + 1) + ' 句沒有今譯');
+    });
+    let themeId = textValue(raw.themeId || raw.theme_id);
+    const themeTitle = textValue(raw.theme);
+    if (!themeId || !themeById.has(themeId)) {
+      const matched = themes.find(theme => theme.title === themeTitle);
+      themeId = matched ? matched.id : 'other';
+    }
+    if (themeId === 'other') warnings.push('第 ' + rowNumber + ' 首：主題未對應現有分類，已歸入「其他」');
+    let id = textValue(raw.id || raw.poem_id || raw.poemId);
+    if (!id) {
+      id = 'p' + generateId(new Set(poems.map(poem => String(poem.id))));
+      warnings.push('第 ' + rowNumber + ' 首：沒有 id，已自動生成 ' + id);
+    } else if (!/^[A-Za-z0-9_-]+$/.test(id)) {
+      id = id.replace(/[^A-Za-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '') || ('p' + generateId(new Set(poems.map(poem => String(poem.id)))));
+      warnings.push('第 ' + rowNumber + ' 首：id 只保留英數、底線和連字號');
+    }
+    const keyLine = Math.max(0, Math.min(lines.length - 1, parseInt(raw.keyLine, 10) || 0));
+    const level = textValue(raw.level) || '小學';
+    return {
+      value: {
+        id,
+        title,
+        author,
+        dynasty: textValue(raw.dynasty) || '未知',
+        themeId,
+        theme: themeId === 'other' ? (themeTitle || '其他') : ((themeById.get(themeId) || {}).title || themeTitle || '其他'),
+        level,
+        tags: splitList(raw.tags),
+        lines,
+        background: textValue(raw.background),
+        appreciation: textValue(raw.appreciation),
+        keyLine,
+        keyLineNote: textValue(raw.keyLineNote || raw.key_line_note)
+      },
+      warnings
+    };
+  }
+
+  function parsePoemImport(text) {
+    const source = String(text || '').trim();
+    if (!source) return { items: [], errors: ['請先貼上或上傳詩單內容'], warnings: [] };
+    let rows = null;
+    try {
+      const parsed = JSON.parse(source);
+      rows = Array.isArray(parsed) ? parsed : parsed && Array.isArray(parsed.poems) ? parsed.poems : null;
+      if (!rows) return { items: [], errors: ['JSON 需為詩歌陣列，或包含 poems 陣列'], warnings: [] };
+    } catch (error) {
+      rows = parseCsv(source);
+    }
+    if (!Array.isArray(rows) || !rows.length) return { items: [], errors: ['找不到可匯入的詩歌'], warnings: [] };
+    const items = [];
+    const errors = [];
+    const warnings = [];
+    const seen = new Set();
+    rows.forEach((raw, index) => {
+      const result = normalizePoem(raw, index + 1);
+      if (result.errors) {
+        errors.push(...result.errors);
+        return;
+      }
+      if (seen.has(String(result.value.id))) {
+        errors.push('第 ' + (index + 1) + ' 首：id「' + result.value.id + '」重複');
+        return;
+      }
+      seen.add(String(result.value.id));
+      items.push(result.value);
+      warnings.push(...result.warnings);
+    });
+    return { items, errors, warnings };
+  }
+
+  function importPreview(text) {
+    const result = parsePoemImport(text);
+    return {
+      items: result.items.map(poem => ({
+        id: poem.id,
+        title: poem.title,
+        author: poem.author,
+        dynasty: poem.dynasty,
+        theme: poem.theme,
+        lineCount: poem.lines.length,
+        incomplete: poem.lines.filter(line => !line.pinyin || !line.translation).length
+      })),
+      errors: result.errors,
+      warnings: result.warnings
+    };
+  }
+
+  async function importPoems(text) {
+    const result = parsePoemImport(text);
+    if (result.errors.length) return { status: 400, body: { error: '詩單有錯誤，請先修正', errors: result.errors } };
+    if (!result.items.length) return { status: 400, body: { error: '沒有可匯入的詩歌' } };
+    const index = new Map(db.poetry.customPoems.map((poem, position) => [String(poem.id), position]));
+    let added = 0;
+    let updated = 0;
+    result.items.forEach(poem => {
+      const key = String(poem.id);
+      if (index.has(key)) {
+        db.poetry.customPoems[index.get(key)] = poem;
+        updated += 1;
+      } else {
+        index.set(key, db.poetry.customPoems.length);
+        db.poetry.customPoems.push(poem);
+        added += 1;
+      }
+    });
+    rebuildCatalog();
+    await saveData();
+    return {
+      status: 200,
+      body: {
+        added,
+        updated,
+        total: result.items.length,
+        warnings: result.warnings,
+        poems: result.items.map(poem => ({ id: poem.id, title: poem.title, author: poem.author, theme: poem.theme }))
+      }
+    };
   }
 
   async function handleAPI(req, res, parsedUrl) {
@@ -365,6 +807,84 @@ function createPoetryTool({ rootDir, toolDir, db, saveData: storeSave, auth }) {
       if (!user) return;
       try {
         const result = await submitDictation(user, await parseBody(req));
+        jsonResponse(res, result.status, result.body);
+      } catch (error) {
+        jsonResponse(res, 400, { error: '無效的請求' });
+      }
+      return;
+    }
+
+    if (pathname === '/api/tasks' && method === 'GET') {
+      const user = requireAuth(req, res);
+      if (!user) return;
+      jsonResponse(res, 200, taskForUser(user.id));
+      return;
+    }
+
+    if (pathname === '/api/tasks' && method === 'POST') {
+      const user = requireAuth(req, res);
+      if (!user) return;
+      try {
+        const result = await createTasks(user, await parseBody(req));
+        jsonResponse(res, result.status, result.body);
+      } catch (error) {
+        jsonResponse(res, 400, { error: '無效的請求' });
+      }
+      return;
+    }
+
+    const taskMatch = pathname.match(/^\/api\/tasks\/([^/]+)$/);
+    if (taskMatch && (method === 'PUT' || method === 'DELETE')) {
+      const user = requireAuth(req, res);
+      if (!user) return;
+      try {
+        const result = method === 'PUT'
+          ? await updateTasks(user, taskMatch[1], await parseBody(req))
+          : await deleteTasks(user, taskMatch[1]);
+        jsonResponse(res, result.status, result.body);
+      } catch (error) {
+        jsonResponse(res, 400, { error: '無效的請求' });
+      }
+      return;
+    }
+
+    if (pathname === '/api/admin/tasks' && method === 'GET') {
+      const user = requireAuth(req, res);
+      if (!user) return;
+      if (user.role !== 'admin') {
+        jsonResponse(res, 403, { error: '需要管理員權限' });
+        return;
+      }
+      jsonResponse(res, 200, adminTaskGroups());
+      return;
+    }
+
+    if (pathname === '/api/admin/poems/preview' && method === 'POST') {
+      const user = requireAuth(req, res);
+      if (!user) return;
+      if (user.role !== 'admin') {
+        jsonResponse(res, 403, { error: '需要管理員權限' });
+        return;
+      }
+      try {
+        const body = await parseBody(req);
+        jsonResponse(res, 200, importPreview(body.text || ''));
+      } catch (error) {
+        jsonResponse(res, 400, { error: '無效的請求' });
+      }
+      return;
+    }
+
+    if (pathname === '/api/admin/poems/import' && method === 'POST') {
+      const user = requireAuth(req, res);
+      if (!user) return;
+      if (user.role !== 'admin') {
+        jsonResponse(res, 403, { error: '需要管理員權限' });
+        return;
+      }
+      try {
+        const body = await parseBody(req);
+        const result = await importPoems(body.text || '');
         jsonResponse(res, result.status, result.body);
       } catch (error) {
         jsonResponse(res, 400, { error: '無效的請求' });
