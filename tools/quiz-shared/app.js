@@ -376,11 +376,12 @@
       const titles = (task.target_nodes || []).map(nodeTitle).slice(0, 3);
       const extra = (task.target_nodes || []).length - titles.length;
       const progress = Math.max(0, Math.min(100, Number(task.progress) || 0));
-      const done = task.todayDone || progress >= 100;
-      return '<article class="task-card' + (done ? ' is-done' : '') + '">' +
+      const masteredAll = progress >= 100;
+      const done = !!task.todayDone;
+      return '<article class="task-card' + ((done || masteredAll) ? ' is-done' : '') + '">' +
         '<div class="task-head">' +
           '<h3 class="task-name">' + esc(task.task_name) + '</h3>' +
-          '<span class="task-state' + (done ? ' done' : '') + '">' + (done ? '今日完成' : '進行中') + '</span>' +
+          '<span class="task-state' + (done ? ' done' : '') + '">' + (done ? '今日完成' : (masteredAll ? '已掌握' : '進行中')) + '</span>' +
         '</div>' +
         '<div class="task-meta">' +
           titles.map(title => '<span>' + esc(title) + '</span>').join('') +
@@ -390,7 +391,7 @@
           '<div class="task-progress-bar"><span style="width:' + progress + '%"></span></div>' +
           '<div class="task-progress-row"><span>已掌握 ' + fmtInt(task.mastered) + ' / ' + fmtInt(task.total) + '</span><span>' + fmtPct(progress) + '%</span></div>' +
         '</div>' +
-        '<button type="button" class="btn ' + (done ? 'btn-ghost' : 'btn-primary') + '" data-start-task="' + esc(task.task_id) + '">' + (task.todayDone ? '再練一次' : '開始任務') + '</button>' +
+        '<button type="button" class="btn ' + ((done || masteredAll) ? 'btn-ghost' : 'btn-primary') + '" data-start-task="' + esc(task.task_id) + '">' + (done ? '再練一次' : (masteredAll ? '複習任務' : '開始任務')) + '</button>' +
       '</article>';
     }).join('');
   }
@@ -660,7 +661,7 @@
     if (!summary) return;
     els.summaryTitle.textContent = summary.accuracy >= 80 ? '這一輪很穩' : '這一輪完成了';
     els.summarySub.textContent = summary.task
-      ? '任務「' + summary.task.task_name + '」的進度已更新。'
+      ? (summary.freePractice ? '任務「' + summary.task.task_name + '」本輪為自由練習，不計入掌握。' : '任務「' + summary.task.task_name + '」的進度已更新。')
       : '錯題已記錄，下次練習會優先回來。';
     els.summaryStats.innerHTML = [
       ['答對', summary.correct + ' / ' + summary.answered],

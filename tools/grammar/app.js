@@ -332,6 +332,7 @@
     const mastered = Number(task.mastered || 0);
     const unmastered = Math.max(0, total - mastered);
     const todayAttempted = Number(task.todayAttempted || 0);
+    const todayGoal = Math.max(1, Math.min(total || 1, Number(task.todayGoal || task.batch_size) || total || 1));
     const todayDone = !!task.todayDone;
     const todayStatus = todayDone ? '今天已練過' : (todayAttempted > 0 ? '今天沒練完' : '今天未練');
     const todayClass = todayDone ? 'is-done' : (todayAttempted > 0 ? 'is-partial' : 'is-empty');
@@ -350,7 +351,7 @@
       '<div class="task-mastery-bar" aria-hidden="true"><span style="width:' + masteryPercent + '%"></span></div>' +
       '<div class="task-today">' +
         '<span class="task-today-label">今天進度</span>' +
-        '<strong>' + todayAttempted + ' / ' + total + ' 題</strong>' +
+        '<strong>' + todayAttempted + ' / ' + todayGoal + ' 題</strong>' +
         '<span class="task-today-status ' + todayClass + '">' + todayStatus + '</span>' +
         '<span class="task-unmastered' + (unmastered ? '' : ' is-clear') + '">未掌握 ' + unmastered + ' 題</span>' +
       '</div>' +
@@ -358,7 +359,7 @@
         '<span class="task-meta">已練 ' + Number(task.attempted || 0) + ' / ' + total + ' 題 · ' +
           (Number(task.batch_size || 0) < total ? '每輪 ' + task.batch_size + ' 題 · ' : '') +
           '跨天連對 ' + Number(task.pass_streak || 3) + ' 次算掌握</span>' +
-        '<button type="button" class="btn btn-primary btn-sm" data-start-task="' + esc(task.task_id) + '">開始</button>' +
+        '<button type="button" class="btn btn-primary btn-sm" data-start-task="' + esc(task.task_id) + '">' + (todayDone ? '再練一次' : '開始') + '</button>' +
       '</div>' +
       '</article>';
   }
@@ -525,7 +526,7 @@
       els.summaryProgress.innerHTML = '<p><span>本輪完成</span><span>' + Number(summary.total || 0) + ' / ' + Number(summary.total || 0) + ' 題</span></p>' +
         '<p><span>任務掌握</span><span>' + summary.task.mastered + ' / ' + summary.task.total + ' 題</span></p>' +
         '<span class="progress-track"><span style="width:' + Number(summary.task.progress || 0) + '%"></span></span>' +
-        '<p class="summary-note">掌握需跨天連續答對 ' + Number(summary.task.pass_streak || 3) + ' 次；今天先練熟，下次再答對會繼續累積。</p>';
+        '<p class="summary-note">' + (summary.freePractice ? '本輪為自由練習，不計入掌握；明天再練才會繼續累積。' : '掌握需跨天連續答對 ' + Number(summary.task.pass_streak || 3) + ' 次；今天先練熟，下次再答對會繼續累積。') + '</p>';
     } else {
       els.summaryProgress.innerHTML = '';
     }

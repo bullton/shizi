@@ -705,7 +705,8 @@ function createDrill({
         todayQuestionIds.forEach(questionId => {
           if (taskQuestionIds.has(questionId)) todayAttempted += 1;
         });
-        const todayDone = serialized.total > 0 && todayAttempted >= serialized.total;
+        const todayGoal = Math.max(1, Math.min(serialized.total, Number(serialized.batch_size) || serialized.total));
+        const todayDone = serialized.total > 0 && todayAttempted >= todayGoal;
         return {
           ...serialized,
           answerCount: stats.answerCount,
@@ -715,6 +716,7 @@ function createDrill({
           avgTime: stats.timedCount ? stats.timeSum / stats.timedCount : 0,
           lastPracticed: stats.lastPracticed,
           todayAttempted,
+          todayGoal,
           todayDone,
           todayPartial: todayAttempted > 0 && !todayDone
         };
@@ -894,6 +896,7 @@ function createDrill({
       initialTotal: round.initialTotal,
       combo: round.combo,
       retry: !!round.current.item.retry,
+      freePractice: !!round.freePractice,
       question: {
         id: round.current.question.question_id,
         ...questionPayload(round.current.question, node, round),
@@ -912,7 +915,7 @@ function createDrill({
     return advanceRecord(record, correct, passStreak, practicedAt || new Date().toISOString());
   }
 
-  function startRound(userId, task, selected) {
+  function startRound(userId, task, selected, options = {}) {
     if (!selected.length) {
       return { status: 400, body: { error: '這個任務暫時沒有可練習的題目' } };
     }
@@ -922,6 +925,7 @@ function createDrill({
       userId,
       taskId: task.task_id,
       taskName: task.task_name,
+      freePractice: !!options.freePractice,
       passStreak: task.pass_streak || 3,
       queue: selected.map(question => ({ question_id: question.question_id, retry: false })),
       index: 0,
@@ -954,9 +958,15 @@ function createDrill({
     const task = findTask(round.taskId);
     const passStreak = task ? (task.pass_streak || 3) : (round.passStreak || 3);
     const practicedAt = new Date().toISOString();
-    updateMastery(userId, question, correct, passStreak, practicedAt);
-    const taskMastery = updateTaskMastery(userId, round.taskId, question, correct, passStreak, practicedAt);
-    if (taskMastery.becameMastered) round.mastered.add(question.question_id);
+    let taskMastery;
+    if (round.freePractice) {
+      const record = findTaskMastery(userId, round.taskId, question.question_id);
+      taskMastery = { box_level: record ? record.box_level || 0 : 0, becameMastered: false };
+    } else {
+      updateMastery(userId, question, correct, passStreak, practicedAt);
+      taskMastery = updateTaskMastery(userId, round.taskId, question, correct, passStreak, practicedAt);
+      if (taskMastery.becameMastered) round.mastered.add(question.question_id);
+    }
 
     round.answeredCount += 1;
     if (correct) {
@@ -1040,6 +1050,7 @@ function createDrill({
       correct: round.correctCount,
       accuracy: answered ? Math.round((round.correctCount / answered) * 1000) / 10 : 0,
       retries: round.retries,
+      freePractice: !!round.freePractice,
       newlyMastered: round.mastered.size,
       wrongQuestions
     };
@@ -1313,12 +1324,12 @@ function createDrill({
     const pool = taskQuestions(task);
     if (!pool.length) return { status: 400, body: { error: '這個任務還沒有題目' } };
     const eligible = eligibleTaskQuestions(pool, user.id, task.task_id);
-    if (!eligible.length) {
-      return { status: 400, body: { error: '這個任務的題目已全部掌握，一週後再回來複習' } };
-    }
+    const card = taskForUser(user.id).find(item => String(item.task_id) === String(task.task_id));
+    const freePractice = !!(card && card.todayDone) || !eligible.length;
+    const practicePool = freePractice ? pool : eligible;
     pruneRounds();
-    const selected = pickQuestions(eligible, user.id, task.batch_size || 10, task.task_id);
-    return startRound(user.id, task, selected);
+    const selected = pickQuestions(practicePool, user.id, task.batch_size || 10, task.task_id);
+    return startRound(user.id, task, selected, { freePractice });
   }
 
   function stats() {

@@ -366,11 +366,12 @@ function createDomainQuizTool({ rootDir, toolDir, db, saveData: storeSave, auth 
       initialTotal: round.initialTotal,
       combo: round.combo,
       retry: !!round.current.item.retry,
+      freePractice: !!round.freePractice,
       question: questionPayload(round.current.question)
     };
   }
 
-  function createRound({ user, task, selected }) {
+  function createRound({ user, task, selected, freePractice = false }) {
     if (!selected.length) {
       return { status: 400, body: { error: '暫時沒有可練習的題目' } };
     }
@@ -381,6 +382,7 @@ function createDomainQuizTool({ rootDir, toolDir, db, saveData: storeSave, auth 
       userId: user.id,
       taskId: task ? task.task_id : null,
       taskName: task ? task.task_name : '自由練習',
+      freePractice: !!freePractice,
       passStreak: task ? clamp(parseInt(task.pass_streak, 10) || 3, 2, 6) : 3,
       queue: selected.map(question => ({ question_id: question.question_id, retry: false })),
       index: 0,
@@ -465,15 +467,15 @@ function createDomainQuizTool({ rootDir, toolDir, db, saveData: storeSave, auth 
     const pool = drill.taskQuestions(task);
     if (!pool.length) return { status: 400, body: { error: '這個任務還沒有題目' } };
     const eligible = drill.eligibleTaskQuestions(pool, user.id, task.task_id);
-    if (!eligible.length) {
-      return { status: 400, body: { error: '這個任務的題目已全部掌握，一週後再回來複習' } };
-    }
+    const card = drill.taskForUser(user.id).find(item => String(item.task_id) === String(task.task_id));
+    const freePractice = !!(card && card.todayDone) || !eligible.length;
+    const practicePool = freePractice ? pool : eligible;
     const count = clamp(parseInt(task.batch_size, 10) || 10, 1, 30);
-    const selected = drill.pickQuestions(eligible, user.id, count, task.task_id);
+    const selected = drill.pickQuestions(practicePool, user.id, count, task.task_id);
     if (!selected.length) {
       return { status: 400, body: { error: '這個任務暫時沒有可練習的題目' } };
     }
-    return createRound({ user, task, selected });
+    return createRound({ user, task, selected, freePractice });
   }
 
   async function submitAnswer({ user, roundId, body }) {
@@ -489,14 +491,17 @@ function createDomainQuizTool({ rootDir, toolDir, db, saveData: storeSave, auth 
     const passStreak = task ? clamp(parseInt(task.pass_streak, 10) || 3, 2, 6) : round.passStreak;
     const practicedAt = new Date().toISOString();
 
-    const globalRecord = drill.ensureMastery(user.id, question.question_id);
-    const globalResult = drill.advanceRecord(globalRecord, correct, passStreak, practicedAt);
+    let globalResult = null;
     let taskResult = null;
-    if (task && !task.is_archived) {
-      const taskRecord = drill.ensureTaskMastery(user.id, task.task_id, question.question_id);
-      taskResult = drill.advanceRecord(taskRecord, correct, passStreak, practicedAt);
-      if (taskResult.box_level === 3 && taskResult.becameMastered) {
-        round.mastered.add(question.question_id);
+    if (!round.freePractice) {
+      const globalRecord = drill.ensureMastery(user.id, question.question_id);
+      globalResult = drill.advanceRecord(globalRecord, correct, passStreak, practicedAt);
+      if (task && !task.is_archived) {
+        const taskRecord = drill.ensureTaskMastery(user.id, task.task_id, question.question_id);
+        taskResult = drill.advanceRecord(taskRecord, correct, passStreak, practicedAt);
+        if (taskResult.box_level === 3 && taskResult.becameMastered) {
+          round.mastered.add(question.question_id);
+        }
       }
     }
 
@@ -541,8 +546,8 @@ function createDomainQuizTool({ rootDir, toolDir, db, saveData: storeSave, auth 
         position: round.index + 1,
         total: round.queue.length,
         retryAdded,
-        becameMastered: taskResult ? taskResult.becameMastered : globalResult.becameMastered,
-        boxLevel: taskResult ? taskResult.box_level : globalResult.box_level,
+        becameMastered: taskResult ? taskResult.becameMastered : (globalResult ? globalResult.becameMastered : false),
+        boxLevel: taskResult ? taskResult.box_level : (globalResult ? globalResult.box_level : 0),
         taskProgress: task ? drill.taskProgress(task, user.id) : null
       }
     };
@@ -573,6 +578,7 @@ function createDomainQuizTool({ rootDir, toolDir, db, saveData: storeSave, auth 
       correct: round.correctCount,
       accuracy: answered ? Math.round((round.correctCount / answered) * 1000) / 10 : 0,
       retries: round.retries,
+      freePractice: !!round.freePractice,
       newlyMastered: round.mastered.size,
       wrongQuestions
     };
